@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppState, JournalEntry, PlanId, Screen, TodayStyle } from './types';
 import { CHAPTER_DEFS, DAY_NO, HOURS, INITIAL_ENTRIES, INITIAL_INTENTS, INITIAL_NOTICES, NOTICE_DEFS, PRACTICE_LINES, PRICES } from './data';
+import { clear, load, save } from './persistence';
 
 const CURRENCY_SYMBOL = '$';
 
 function initialState(): AppState {
+  const stored = load();
+  if (stored) {
+    // A returning member opens on Today. Sending them back through the
+    // welcome screen every launch would read as the app having forgotten them.
+    return { ...baseState(), ...stored, screen: 'home' };
+  }
+  return baseState();
+}
+
+function baseState(): AppState {
   return {
     screen: 'welcome',
     entryId: null,
@@ -43,6 +54,10 @@ export function useAppState() {
     }
   };
   useEffect(() => clearTimer, []);
+
+  // Write through on every settled change. The payload is small enough that
+  // debouncing would add a window in which a background/kill loses an edit.
+  useEffect(() => { save(s); }, [s]);
 
   const go = (screen: Screen) => patch({ screen });
 
@@ -194,6 +209,11 @@ export function useAppState() {
       patch({ member: true, screen: 'done', payError: false });
     },
     setTodayStyle: (style: TodayStyle) => patch({ todayStyle: style }),
+    signOut: () => {
+      clearTimer();
+      clear();
+      setState(baseState());
+    },
   };
 
   return { s, derived, actions };

@@ -73,7 +73,7 @@ export function Settings({ s, derived, actions }: ScreenProps) {
         <button className="pci-row"><span>Export journal</span><span style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>PDF</span></button>
       </div>
 
-      <button className="btn btn-ghost" onClick={actions.toWelcome} style={{ marginTop: 24, minHeight: 44, color: 'var(--color-neutral-700)' }}>Sign out</button>
+      <button className="btn btn-ghost" onClick={actions.signOut} style={{ marginTop: 24, minHeight: 44, color: 'var(--color-neutral-700)' }}>Sign out</button>
     </div>
   );
 }

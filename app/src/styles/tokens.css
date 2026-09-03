@@ -1,6 +1,9 @@
 /* Design tokens — ported from the Classical design system export
    (project/_ds/classical-.../styles.css). Source of truth for look & feel. */
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Lora:wght@400;600&display=swap');
+
+/* Typefaces are self-hosted, not pulled from the Google CDN: the packaged iOS
+   app must render its own typography offline and on first launch. */
+@import './fonts.css';
 
 :root {
   --color-bg: #f3f2f2;
