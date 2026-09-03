@@ -11,7 +11,7 @@ export function Profile({ derived, actions }: ScreenProps) {
           </div>
           <div>
             <h2 style={{ margin: 0, fontWeight: 400, fontSize: 32, lineHeight: 1.05 }}>{derived.name}</h2>
-            <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginTop: 2 }}>Since August 2026 · {derived.planLabel}</div>
+            <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginTop: 2 }}>Since August 2026</div>
           </div>
         </div>
         <button className="btn btn-ghost" onClick={actions.toSettings} style={{ minHeight: 44, minWidth: 44, padding: 8, color: 'var(--color-neutral-700)' }}>
@@ -56,14 +56,6 @@ export function Profile({ derived, actions }: ScreenProps) {
         ))}
       </div>
 
-      <div style={{ marginTop: 24, border: '1px solid var(--color-accent)', borderRadius: 'var(--radius-md)', padding: 18 }}>
-        <div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--color-accent)' }}>Membership</div>
-        <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 22, margin: '6px 0 4px' }}>{derived.memberHeadline}</div>
-        <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--color-neutral-700)' }}>{derived.memberBody}</p>
-        {derived.notMember && (
-          <button className="btn btn-primary" onClick={actions.toCheckout} style={{ minHeight: 44, width: '100%' }}>Continue the programme</button>
-        )}
-      </div>
     </div>
   );
 }

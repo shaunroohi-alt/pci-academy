@@ -68,7 +68,6 @@ export function Settings({ s, derived, actions }: ScreenProps) {
 
       <div style={{ marginTop: 26 }}>
         <h6 style={{ margin: 0, color: 'var(--color-accent)' }}>Account</h6>
-        <button className="pci-row" onClick={actions.toCheckout}><span>Membership</span><span style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>{derived.planLabel}</span></button>
         <button className="pci-row"><span>Name</span><span style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>{derived.name}</span></button>
         <button className="pci-row"><span>Export journal</span><span style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>PDF</span></button>
       </div>

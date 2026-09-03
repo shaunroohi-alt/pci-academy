@@ -6,22 +6,18 @@ const VERSION = 1;
 /**
  * The slice of state that outlives a launch.
  *
- * Deliberately excluded:
- *  - card fields, which are payment details and must never be written to disk;
- *  - the practice timer, which should always start fresh at sixty seconds;
- *  - payError and entryId, which are momentary UI state.
+ * Deliberately excluded: the practice timer, which should always start fresh
+ * at sixty seconds, and entryId, which is momentary UI state.
  */
 type Persisted = Pick<
   AppState,
   | 'intents' | 'name' | 'hour' | 'practiceDone' | 'doneAt'
-  | 'reflection' | 'saved' | 'notices' | 'plan' | 'member'
-  | 'entries' | 'todayStyle'
+  | 'reflection' | 'saved' | 'notices' | 'entries' | 'todayStyle'
 >;
 
 const FIELDS: (keyof Persisted)[] = [
   'intents', 'name', 'hour', 'practiceDone', 'doneAt',
-  'reflection', 'saved', 'notices', 'plan', 'member',
-  'entries', 'todayStyle',
+  'reflection', 'saved', 'notices', 'entries', 'todayStyle',
 ];
 
 /** Storage throws rather than no-ops in some WKWebView and private-mode cases. */

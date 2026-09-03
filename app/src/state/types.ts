@@ -1,13 +1,11 @@
 export type Screen =
   | 'welcome' | 'intent' | 'name'
   | 'home' | 'practice' | 'path' | 'journal' | 'entry' | 'note'
-  | 'profile' | 'settings' | 'checkout' | 'done';
+  | 'profile' | 'settings';
 
 export type TimerState = 'idle' | 'running' | 'paused' | 'ended';
 
 export type TodayStyle = 'classic' | 'ledger' | 'colophon';
-
-export type PlanId = 'monthly' | 'annual';
 
 export interface JournalEntry {
   id: number;
@@ -38,13 +36,6 @@ export interface AppState {
   timer: number;
   timerState: TimerState;
   notices: Notices;
-  plan: PlanId;
-  member: boolean;
-  cardName: string;
-  cardNo: string;
-  expiry: string;
-  cvc: string;
-  payError: boolean;
   entries: JournalEntry[];
   todayStyle: TodayStyle;
 }

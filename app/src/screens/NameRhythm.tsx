@@ -33,7 +33,7 @@ export function NameRhythm({ s, derived, actions }: ScreenProps) {
       </div>
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 16 }}>
         <button className="btn btn-primary" onClick={actions.toHome} style={{ minHeight: 48, fontSize: 16 }}>Open today's practice</button>
-        <p style={{ margin: 0, fontSize: 11, color: 'var(--color-neutral-600)', textAlign: 'center' }}>Seven days free, then membership. Cancel at any time.</p>
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--color-neutral-600)', textAlign: 'center' }}>You can change the hour at any time in Settings.</p>
       </div>
     </div>
   );

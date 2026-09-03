@@ -4,8 +4,14 @@ The web app is wrapped in a native iOS shell with Capacitor. The Xcode project
 lives at `app/ios/App/App.xcodeproj` and is committed, so it can be opened and
 archived directly.
 
-Read the **Blockers** section before you submit. Two items there will fail
+Read the **Blockers** section before you submit. One item there still fails
 review as the app currently stands.
+
+**v1 ships with no paywall.** The Checkout and Confirmation screens, the
+membership card on Profile and the membership row in Settings are gone, along
+with all payment state. Nothing in the app takes money, which puts Guideline
+3.1.1 out of scope entirely. See *Restoring the paywall* at the foot of this
+file for the 1.1 path.
 
 ---
 
@@ -53,29 +59,7 @@ under the same version, or App Store Connect rejects the binary.
 
 ## Blockers
 
-### 1. The card form will be rejected — Guideline 3.1.1
-
-The Checkout screen takes a card number directly to unlock a membership. Apple
-requires digital content and subscriptions consumed inside the app to go
-through In-App Purchase. A card form for this is a straightforward rejection,
-and it is the single most likely reason a first submission comes back.
-
-There is a narrow carve-out (3.1.3, person-to-person experiences) for services
-delivered live and one-to-one. A 98-day programme with a weekly written note
-almost certainly does not qualify, and Apple makes that call, not you.
-
-Three ways forward:
-
-- **Ship v1 with no paywall.** Fastest route to approval. Remove the Checkout
-  and membership screens, add them back once IAP is in place.
-- **Implement StoreKit.** Configure an auto-renewable subscription in App
-  Store Connect and drive it from a purchase plugin. Apple takes 15–30%.
-- **Submit as-is** and expect a rejection with the guideline cited.
-
-I would ship v1 without the paywall. It gets you a live app and a real review
-history, and the subscription can land in 1.1.
-
-### 2. The app opens with someone else's data — Guideline 2.1
+### 1. The app opens with someone else's data — Guideline 2.1
 
 A brand-new install currently shows Day 38 of the programme, a journal holding
 six entries written by "Eleanor", and a weekly note from a coach. Dates are
@@ -93,7 +77,7 @@ Needs, before submitting:
 - An empty journal for a new user, with a first-run empty state.
 - Chapter progress starting at zero.
 
-### 3. Required App Store Connect metadata
+### 2. Required App Store Connect metadata
 
 None of this is in the repo; it is entered on the web.
 
@@ -104,6 +88,8 @@ None of this is in the repo; it is entered on the web.
 - **Age rating** questionnaire.
 - **Privacy nutrition labels.** The app collects nothing and sends nothing,
   so this is *Data Not Collected* — which is a genuinely nice position to be in.
+- **Pricing** is Free. With no purchase of any kind in the binary, you do not
+  need paid-app agreements or banking details in place to submit.
 - **Export compliance** is already answered in `Info.plist`
   (`ITSAppUsesNonExemptEncryption` = false), so it will not prompt each upload.
 
@@ -136,3 +122,30 @@ State lives in `localStorage`, which iOS may evict under storage pressure. For
 journal entries someone has kept for months that is a real risk. The durable
 fix is `@capacitor/preferences` (native `UserDefaults`) or a backend with
 accounts, which is also what you need for the coach to actually read entries.
+
+---
+
+## Restoring the paywall in 1.1
+
+The paywall was deleted rather than hidden behind a flag, deliberately:
+shipping disabled purchase code invites Guideline 2.3.1, and git history is a
+better record than dead code.
+
+To bring it back, recover the deleted files and their wiring:
+
+```bash
+git log --oneline --diff-filter=D -- app/src/screens/Checkout.tsx
+git show <sha>^:app/src/screens/Checkout.tsx > app/src/screens/Checkout.tsx
+git show <sha>^:app/src/screens/Confirmation.tsx > app/src/screens/Confirmation.tsx
+```
+
+The same commit's diff shows every other edit to reverse: the `checkout` and
+`done` entries in the `Screen` union, the payment fields on `AppState`, the
+`plans` and `planLabel` derived values, the card actions on the state hook,
+`PRICES` in `data.ts`, the membership card on Profile, and the membership row
+in Settings.
+
+Do not restore the card form itself. Replace it with StoreKit through a
+purchase plugin, driven by an auto-renewable subscription configured in App
+Store Connect. The recovered screens are useful as layout, not as a payment
+path.

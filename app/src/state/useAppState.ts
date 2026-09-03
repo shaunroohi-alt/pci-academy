@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AppState, JournalEntry, PlanId, Screen, TodayStyle } from './types';
-import { CHAPTER_DEFS, DAY_NO, HOURS, INITIAL_ENTRIES, INITIAL_INTENTS, INITIAL_NOTICES, NOTICE_DEFS, PRACTICE_LINES, PRICES } from './data';
+import type { AppState, JournalEntry, Screen, TodayStyle } from './types';
+import { CHAPTER_DEFS, DAY_NO, HOURS, INITIAL_ENTRIES, INITIAL_INTENTS, INITIAL_NOTICES, NOTICE_DEFS, PRACTICE_LINES } from './data';
 import { clear, load, save } from './persistence';
-
-const CURRENCY_SYMBOL = '$';
 
 function initialState(): AppState {
   const stored = load();
   if (stored) {
-    // A returning member opens on Today. Sending them back through the
+    // A returning user opens on Today. Sending them back through the
     // welcome screen every launch would read as the app having forgotten them.
     return { ...baseState(), ...stored, screen: 'home' };
   }
@@ -29,13 +27,6 @@ function baseState(): AppState {
     timer: 60,
     timerState: 'idle',
     notices: { ...INITIAL_NOTICES },
-    plan: 'annual',
-    member: false,
-    cardName: '',
-    cardNo: '',
-    expiry: '',
-    cvc: '',
-    payError: false,
     entries: INITIAL_ENTRIES,
     todayStyle: 'classic',
   };
@@ -106,20 +97,6 @@ export function useAppState() {
   const chapterDone = 8 + (s.practiceDone ? 1 : 0);
   const chapterDays = Array.from({ length: 14 }, (_, i) => ({ color: i < chapterDone ? acc : 'var(--color-neutral-300)' }));
 
-  const plans = ([
-    { id: 'monthly' as PlanId, name: 'Monthly', note: 'Billed each month', price: `${CURRENCY_SYMBOL}${PRICES.monthly}` },
-    { id: 'annual' as PlanId, name: 'Annual', note: `Two months free · ${CURRENCY_SYMBOL}${(PRICES.annual / 12).toFixed(2)} a month`, price: `${CURRENCY_SYMBOL}${PRICES.annual}` },
-  ]).map((p) => {
-    const on = s.plan === p.id;
-    return {
-      ...p, border: on ? acc : div, fill: on ? acc : 'transparent',
-      dot: on ? 'inset 0 0 0 3px var(--color-bg)' : 'none',
-      shadow: on ? `inset 0 0 0 1px ${acc}` : 'none',
-      pick: () => patch({ plan: p.id }),
-    };
-  });
-  const planLabel = s.member ? (s.plan === 'annual' ? 'Annual member' : 'Monthly member') : 'Trial · 5 days left';
-
   const base: JournalEntry[] = s.saved && s.reflection.trim()
     ? [{ id: DAY_NO, date: '2 Sept', day: DAY_NO, practice: 'The unhurried minute', chapter: 'Chapter II · Attention', text: s.reflection.trim() }, ...s.entries]
     : s.entries;
@@ -168,19 +145,11 @@ export function useAppState() {
     chapterDone, chapterDays,
     streakLine: s.practiceDone ? 'Practised 12 days without a gap. Chapter III opens after day 43.' : 'Practised 11 days without a gap. Today keeps the thread.',
     entries, recentEntries: entries.slice(0, 3), entryCount: entries.length, journalGroups: groups, entry, chapters,
-    plans, dueToday: `${CURRENCY_SYMBOL}${PRICES[s.plan]}`,
-    planLabel, planLabelLower: s.plan, notMember: !s.member,
-    memberHeadline: s.member ? 'Full programme' : 'Your trial ends Sunday',
-    memberBody: s.member
-      ? 'All seven chapters, weekly coach notes and your complete journal.'
-      : 'Keep the practice going: all seven chapters and weekly notes from your coach.',
     notices,
     timerText: `${mm}:${ss}`, timerColor: ts === 'ended' ? acc : 'var(--color-text)', practiceLine,
     timerIdle: ts === 'idle', timerRunning: ts === 'running', timerPaused: ts === 'paused', timerEnded: ts === 'ended', timerNotEnded: ts !== 'ended',
     tabHomeColor: tab(s.screen === 'home'), tabPathColor: tab(s.screen === 'path'), tabJournalColor: tab(s.screen === 'journal'), tabProfileColor: tab(s.screen === 'profile'),
     showTabs: (['home', 'path', 'journal', 'profile'] as Screen[]).includes(s.screen),
-    cardBorder: s.payError ? 'var(--color-accent-700)' : div,
-    cardNameValue: s.cardName || name,
   };
 
   const actions = {
@@ -188,7 +157,6 @@ export function useAppState() {
     toWelcome: () => go('welcome'), toIntent: () => go('intent'), toName: () => go('name'),
     toHome: () => go('home'), toPath: () => go('path'), toJournal: () => go('journal'),
     toNote: () => go('note'), toProfile: () => go('profile'), toSettings: () => go('settings'),
-    toCheckout: () => patch({ screen: 'checkout', payError: false }),
     toPractice: () => patch({ screen: 'practice', timer: 60, timerState: 'idle' }),
     leavePractice: () => { clearTimer(); patch({ screen: 'home', timerState: 'idle', timer: 60 }); },
     startTimer, pauseTimer, finishPractice,
@@ -196,18 +164,6 @@ export function useAppState() {
     setName: (v: string) => patch({ name: v }),
     setReflection: (v: string) => patch({ reflection: v, saved: false }),
     saveReflection: () => patch({ saved: true }),
-    setCardName: (v: string) => patch({ cardName: v }),
-    setCardNo: (v: string) => patch({
-      cardNo: v.replace(/[^\d]/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 '),
-      payError: false,
-    }),
-    setExpiry: (v: string) => patch({ expiry: v }),
-    setCvc: (v: string) => patch({ cvc: v }),
-    confirmPay: () => {
-      const ok = s.cardNo.replace(/\s/g, '').length === 16 && s.expiry.trim() && s.cvc.trim().length >= 3;
-      if (!ok) { patch({ payError: true }); return; }
-      patch({ member: true, screen: 'done', payError: false });
-    },
     setTodayStyle: (style: TodayStyle) => patch({ todayStyle: style }),
     signOut: () => {
       clearTimer();

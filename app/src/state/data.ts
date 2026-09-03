@@ -13,8 +13,6 @@ export const HOURS = ['06:30', '07:00', '08:30'];
 
 export const INITIAL_NOTICES: Notices = { practice: true, coach: true, evening: false };
 
-export const PRICES = { monthly: 24, annual: 190 };
-
 export const INITIAL_ENTRIES: JournalEntry[] = [
   { id: 37, date: '1 Sept', day: 37, practice: 'Three breaths before speech', chapter: 'Chapter II · Attention', text: 'I interrupted less; the pause felt longer to me than to anyone else.', coach: 'That gap is where the other person finally arrives. Keep it.' },
   { id: 36, date: '31 Aug', day: 36, practice: 'The list of small debts', chapter: 'Chapter II · Attention', text: 'Three unanswered letters. I wrote one.' },

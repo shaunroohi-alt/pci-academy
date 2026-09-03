@@ -1,8 +1,6 @@
 import { TabBar } from './components/TabBar';
 import { useAppState } from './state/useAppState';
 import { CoachNote } from './screens/CoachNote';
-import { Checkout } from './screens/Checkout';
-import { Confirmation } from './screens/Confirmation';
 import { Intentions } from './screens/Intentions';
 import { Journal } from './screens/Journal';
 import { JournalEntryPage } from './screens/JournalEntryPage';
@@ -31,8 +29,6 @@ function App() {
       {s.screen === 'note' && <CoachNote {...ctx} />}
       {s.screen === 'profile' && <Profile {...ctx} />}
       {s.screen === 'settings' && <Settings {...ctx} />}
-      {s.screen === 'checkout' && <Checkout {...ctx} />}
-      {s.screen === 'done' && <Confirmation {...ctx} />}
 
       {derived.showTabs && (
         <TabBar
