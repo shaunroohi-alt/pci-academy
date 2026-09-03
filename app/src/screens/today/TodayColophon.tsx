@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { TODAY_PRACTICE } from '../../state/data';
 import type { ScreenProps } from '../types';
 
-export function TodayColophon({ s, derived, actions }: ScreenProps) {
+export function TodayColophon({ derived, actions }: ScreenProps) {
   const [showReflection, setShowReflection] = useState(false);
 
   return (
@@ -23,27 +22,27 @@ export function TodayColophon({ s, derived, actions }: ScreenProps) {
       >{derived.dayNo}</div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--color-accent-400)', fontFeatureSettings: "'tnum'", position: 'relative' }}>
-        <span>Chapter II</span><span>Day {derived.dayNo} · Tuesday</span>
+        <span>Chapter {derived.chapterNum}</span><span>Day {derived.dayNo} · {derived.weekdayLabel}</span>
       </div>
 
       <div style={{ marginTop: 'auto', position: 'relative' }}>
         <div style={{ fontSize: 12, color: 'var(--color-neutral-400)', marginBottom: 14 }}>Good morning, {derived.name}.</div>
         <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 400, fontSize: 'clamp(38px, 12vw, 56px)', lineHeight: .98, letterSpacing: '-.015em', color: '#f3f2f2' }}>
-          {TODAY_PRACTICE.title}
+          {derived.practiceTitle}
         </div>
         <div style={{ height: 1, background: 'color-mix(in srgb, var(--color-accent) 50%, transparent)', margin: '24px 0 18px' }} />
-        <p style={{ margin: 0, fontSize: 15, color: 'var(--color-neutral-400)', textAlign: 'justify', hyphens: 'auto' }}>{TODAY_PRACTICE.blurb}</p>
+        <p style={{ margin: 0, fontSize: 15, color: 'var(--color-neutral-400)', textAlign: 'justify', hyphens: 'auto' }}>{derived.practiceInstruction}</p>
         <div style={{ display: 'flex', gap: 18, marginTop: 18, fontSize: 12, color: 'var(--color-neutral-500)', fontFeatureSettings: "'tnum'" }}>
-          <span>{TODAY_PRACTICE.minutes} minutes</span><span>·</span><span>{derived.chapterDone} of 14 in this chapter</span>
+          <span>{derived.practiceMinutes} minutes</span><span>·</span><span>{derived.chapterDone} of 14 in this chapter</span>
         </div>
 
         {showReflection && (
           <div style={{ marginTop: 20 }}>
             <textarea
               className="pci"
-              value={s.reflection}
-              onChange={(e) => actions.setReflection(e.target.value)}
-              placeholder="What did the object turn out to be?"
+              value={derived.draft}
+              onChange={(e) => actions.setDraft(e.target.value)}
+              placeholder="What did today's practice turn out to be about?"
               style={{
                 width: '100%', minHeight: 64, background: 'transparent', color: '#f3f2f2',
                 border: '1px solid color-mix(in srgb, #f3f2f2 20%, transparent)', borderRadius: 'var(--radius-md)',
@@ -54,17 +53,17 @@ export function TodayColophon({ s, derived, actions }: ScreenProps) {
               <button
                 className="btn btn-ghost"
                 onClick={actions.saveReflection}
-                disabled={!s.reflection.trim()}
+                disabled={derived.draftEmpty || derived.isSaved}
                 style={{ minHeight: 36, color: 'var(--color-accent-400)' }}
-              >{s.saved ? 'Kept in your journal' : 'Keep'}</button>
+              >{derived.saveLabel}</button>
             </div>
           </div>
         )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 34, position: 'relative' }}>
-        {s.practiceDone ? (
-          <div style={{ fontSize: 13, color: 'var(--color-accent-400)', textAlign: 'center' }}>Completed at {s.doneAt} — well done.</div>
+        {derived.practiceDone ? (
+          <div style={{ fontSize: 13, color: 'var(--color-accent-400)', textAlign: 'center' }}>Completed at {derived.doneAt} — well done.</div>
         ) : (
           <button
             className="btn btn-primary"
@@ -73,7 +72,7 @@ export function TodayColophon({ s, derived, actions }: ScreenProps) {
           >Begin</button>
         )}
         <button className="btn btn-ghost" onClick={() => setShowReflection((v) => !v)} style={{ minHeight: 44, color: 'var(--color-neutral-400)' }}>
-          {showReflection ? 'Hide reflection' : "Write this morning's reflection"}
+          {showReflection ? 'Hide reflection' : "Write today's reflection"}
         </button>
       </div>
     </div>

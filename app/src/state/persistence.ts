@@ -7,17 +7,17 @@ const VERSION = 1;
  * The slice of state that outlives a launch.
  *
  * Deliberately excluded: the practice timer, which should always start fresh
- * at sixty seconds, and entryId, which is momentary UI state.
+ * at sixty seconds, and entryDay, which is momentary UI state.
  */
 type Persisted = Pick<
   AppState,
-  | 'intents' | 'name' | 'hour' | 'practiceDone' | 'doneAt'
-  | 'reflection' | 'saved' | 'notices' | 'entries' | 'todayStyle'
+  | 'intents' | 'name' | 'hour' | 'enrolledAt' | 'completions'
+  | 'drafts' | 'notices' | 'entries' | 'todayStyle'
 >;
 
 const FIELDS: (keyof Persisted)[] = [
-  'intents', 'name', 'hour', 'practiceDone', 'doneAt',
-  'reflection', 'saved', 'notices', 'entries', 'todayStyle',
+  'intents', 'name', 'hour', 'enrolledAt', 'completions',
+  'drafts', 'notices', 'entries', 'todayStyle',
 ];
 
 /** Storage throws rather than no-ops in some WKWebView and private-mode cases. */

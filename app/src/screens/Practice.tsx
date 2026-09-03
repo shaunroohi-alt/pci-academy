@@ -10,7 +10,7 @@ export function Practice({ derived, actions }: ScreenProps) {
           {derived.timerText}
         </div>
         <div style={{ height: 1, background: 'var(--color-divider)', margin: '28px 0 20px' }} />
-        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 26, lineHeight: 1.15 }}>The unhurried minute</div>
+        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 26, lineHeight: 1.15 }}>{derived.practiceTitle}</div>
         <p style={{ margin: '10px 0 0', fontSize: 14, color: 'var(--color-neutral-700)', textAlign: 'justify', hyphens: 'auto' }}>{derived.practiceLine}</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 38 }}>

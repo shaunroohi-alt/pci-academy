@@ -18,9 +18,10 @@ export function Welcome({ actions }: ScreenProps) {
           One exercise, one reflection, one honest sentence about your day. The Academy's programme, carried in your pocket and read at your own pace.
         </p>
       </div>
+      {/* No sign-in affordance: the programme lives on this device and there
+          are no accounts to have. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 34 }}>
         <button className="btn btn-primary" onClick={actions.toIntent} style={{ minHeight: 48, fontSize: 16 }}>Begin</button>
-        <button className="btn btn-ghost" onClick={actions.toHome} style={{ minHeight: 44, color: 'var(--color-neutral-700)' }}>I already have an account</button>
       </div>
     </div>
   );

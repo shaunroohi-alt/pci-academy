@@ -11,7 +11,7 @@ export function Profile({ derived, actions }: ScreenProps) {
           </div>
           <div>
             <h2 style={{ margin: 0, fontWeight: 400, fontSize: 32, lineHeight: 1.05 }}>{derived.name}</h2>
-            <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginTop: 2 }}>Since August 2026</div>
+            <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginTop: 2 }}>{derived.joinedLabel}</div>
           </div>
         </div>
         <button className="btn btn-ghost" onClick={actions.toSettings} style={{ minHeight: 44, minWidth: 44, padding: 8, color: 'var(--color-neutral-700)' }}>
@@ -21,7 +21,7 @@ export function Profile({ derived, actions }: ScreenProps) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', marginTop: 26, borderTop: '1px solid var(--color-divider)', borderBottom: '1px solid var(--color-divider)' }}>
         <div style={{ padding: '14px 0' }}>
-          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 30, lineHeight: 1, fontFeatureSettings: "'tnum'" }}>{derived.dayNo}</div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 30, lineHeight: 1, fontFeatureSettings: "'tnum'" }}>{derived.daysPractised}</div>
           <div style={{ fontSize: 11, color: 'var(--color-neutral-600)', marginTop: 4 }}>days practised</div>
         </div>
         <div style={{ padding: '14px 0 14px 16px', borderLeft: '1px solid var(--color-divider)' }}>
@@ -29,7 +29,7 @@ export function Profile({ derived, actions }: ScreenProps) {
           <div style={{ fontSize: 11, color: 'var(--color-neutral-600)', marginTop: 4 }}>reflections</div>
         </div>
         <div style={{ padding: '14px 0 14px 16px', borderLeft: '1px solid var(--color-divider)' }}>
-          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 30, lineHeight: 1, fontFeatureSettings: "'tnum'" }}>II</div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 30, lineHeight: 1, fontFeatureSettings: "'tnum'" }}>{derived.chapterNum}</div>
           <div style={{ fontSize: 11, color: 'var(--color-neutral-600)', marginTop: 4 }}>chapter</div>
         </div>
       </div>
@@ -44,16 +44,22 @@ export function Profile({ derived, actions }: ScreenProps) {
       <div style={{ marginTop: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <h6 style={{ margin: 0, color: 'var(--color-accent)' }}>Recent reflections</h6>
-          <button className="btn btn-ghost" onClick={actions.toJournal} style={{ minHeight: 32, fontSize: 13 }}>All entries</button>
+          {derived.hasEntries && (
+            <button className="btn btn-ghost" onClick={actions.toJournal} style={{ minHeight: 32, fontSize: 13 }}>All entries</button>
+          )}
         </div>
-        {derived.recentEntries.map((e) => (
-          <button key={e.id} className="pci-row" onClick={e.open} style={{ minHeight: 0, padding: '14px 2px', alignItems: 'flex-start', flexDirection: 'column', gap: 4 }}>
+        {derived.hasEntries ? derived.recentEntries.map((e) => (
+          <button key={e.day} className="pci-row" onClick={e.open} style={{ minHeight: 0, padding: '14px 2px', alignItems: 'flex-start', flexDirection: 'column', gap: 4 }}>
             <span style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: 11, color: 'var(--color-neutral-600)', fontFeatureSettings: "'tnum'" }}>
-              <span>{e.date}</span><span>Day {e.day}</span>
+              <span>{e.dateLabel}</span><span>Day {e.day}</span>
             </span>
             <span style={{ fontFamily: 'var(--font-heading)', fontSize: 18, lineHeight: 1.3 }}>{e.text}</span>
           </button>
-        ))}
+        )) : (
+          <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--color-neutral-600)' }}>
+            Your first sentence will appear here once you have written it.
+          </p>
+        )}
       </div>
 
     </div>

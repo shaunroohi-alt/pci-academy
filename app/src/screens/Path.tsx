@@ -3,12 +3,12 @@ import type { ScreenProps } from './types';
 export function Path({ derived }: ScreenProps) {
   return (
     <div className="pci-screen pci-topbar scrolls" style={{ padding: '0 24px 24px' }}>
-      <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--color-accent)', fontFeatureSettings: "'tnum'" }}>
-        The programme · 98 days
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--color-accent)', fontFeatureSettings: "'tnum'" }}>
+        <span>The programme · 98 days</span><span>Day {derived.dayNo}</span>
       </div>
       <h1 style={{ margin: '14px 0 6px', fontWeight: 400, fontSize: 40, lineHeight: 1.02 }}>Your path</h1>
       <p style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--color-neutral-700)', textAlign: 'justify' }}>
-        Seven chapters of fourteen days. Each opens only when the one before is complete — the order is the method.
+        Seven chapters of fourteen days. Each opens in its turn, and the order is the method.
       </p>
       {derived.chapters.map((ch) => (
         <div key={ch.num} style={{ display: 'grid', gridTemplateColumns: '44px 1fr', gap: 12, padding: '16px 0', borderBottom: '1px solid var(--color-divider)', opacity: ch.opacity }}>

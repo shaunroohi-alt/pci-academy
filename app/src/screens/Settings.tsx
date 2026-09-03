@@ -67,9 +67,18 @@ export function Settings({ s, derived, actions }: ScreenProps) {
       </div>
 
       <div style={{ marginTop: 26 }}>
-        <h6 style={{ margin: 0, color: 'var(--color-accent)' }}>Account</h6>
-        <button className="pci-row"><span>Name</span><span style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>{derived.name}</span></button>
-        <button className="pci-row"><span>Export journal</span><span style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>PDF</span></button>
+        <h6 style={{ margin: 0, color: 'var(--color-accent)' }}>You</h6>
+        {/* Static rows, not buttons: nothing here is tappable, and a control
+            that looks interactive but does nothing is worse than none. */}
+        <div className="pci-row" style={{ cursor: 'default' }}>
+          <span>Name</span><span style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>{derived.name}</span>
+        </div>
+        <div className="pci-row" style={{ cursor: 'default' }}>
+          <span>Began</span><span style={{ fontSize: 13, color: 'var(--color-neutral-600)' }}>{derived.joinedLabel.replace('Since ', '')}</span>
+        </div>
+        <div className="pci-row" style={{ cursor: 'default' }}>
+          <span>Day</span><span style={{ fontSize: 13, color: 'var(--color-neutral-600)', fontFeatureSettings: "'tnum'" }}>{derived.dayNo} of 98</span>
+        </div>
       </div>
 
       <button className="btn btn-ghost" onClick={actions.signOut} style={{ marginTop: 24, minHeight: 44, color: 'var(--color-neutral-700)' }}>Sign out</button>

@@ -1,6 +1,6 @@
 import { TabBar } from './components/TabBar';
 import { useAppState } from './state/useAppState';
-import { CoachNote } from './screens/CoachNote';
+import { ChapterLetter } from './screens/ChapterLetter';
 import { Intentions } from './screens/Intentions';
 import { Journal } from './screens/Journal';
 import { JournalEntryPage } from './screens/JournalEntryPage';
@@ -26,7 +26,7 @@ function App() {
       {s.screen === 'path' && <Path {...ctx} />}
       {s.screen === 'journal' && <Journal {...ctx} />}
       {s.screen === 'entry' && <JournalEntryPage {...ctx} />}
-      {s.screen === 'note' && <CoachNote {...ctx} />}
+      {s.screen === 'note' && <ChapterLetter {...ctx} />}
       {s.screen === 'profile' && <Profile {...ctx} />}
       {s.screen === 'settings' && <Settings {...ctx} />}
 

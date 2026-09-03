@@ -4,8 +4,8 @@ The web app is wrapped in a native iOS shell with Capacitor. The Xcode project
 lives at `app/ios/App/App.xcodeproj` and is committed, so it can be opened and
 archived directly.
 
-Read the **Blockers** section before you submit. One item there still fails
-review as the app currently stands.
+Read the **Before you submit** section. Nothing there fails review outright
+any more, but two items need your decision first.
 
 **v1 ships with no paywall.** The Checkout and Confirmation screens, the
 membership card on Profile and the membership row in Settings are gone, along
@@ -57,27 +57,34 @@ under the same version, or App Store Connect rejects the binary.
 
 ---
 
-## Blockers
+## Before you submit
 
-### 1. The app opens with someone else's data — Guideline 2.1
+### 1. The programme copy is mine, not the Academy's
 
-A brand-new install currently shows Day 38 of the programme, a journal holding
-six entries written by "Eleanor", and a weekly note from a coach. Dates are
-hardcoded to "Tuesday · 2 Sept".
+`app/src/state/programme.ts` holds ninety-eight practices and seven chapter
+letters. I wrote them so the app has a complete, coherent programme to run on
+rather than stopping partway through chapter one.
 
-That is correct behaviour for the design prototype it came from, and wrong for
-a shipping app. A reviewer opening it fresh sees content the user did not
-write, which reads as demo scaffolding, and a genuine first user gets an
-incoherent experience.
+They are placeholder. This is the Academy's actual course material and their
+intellectual property, and the app is only as good as what is in that file.
+Replace the copy before launch. The shapes the app depends on are the
+`Practice` and `Letter` types; the words are yours to change freely.
 
-Needs, before submitting:
+### 2. The reminder toggles do not yet send anything
 
-- Day count derived from the install or enrolment date, not fixed at 38.
-- Real dates from the device clock.
-- An empty journal for a new user, with a first-run empty state.
-- Chapter progress starting at zero.
+Settings offers a daily practice reminder, a chapter-letter notice and an
+evening nudge. They persist a preference and nothing more, because no
+notifications are scheduled anywhere in the app.
 
-### 2. Required App Store Connect metadata
+That makes them controls that appear to do something and do not, which is
+worth fixing before launch and is arguably a completeness problem under
+Guideline 2.1. Wiring it needs `@capacitor/local-notifications`: request
+permission after onboarding, then schedule a repeating daily notification at
+the chosen hour. I did not add it here because it cannot be tested without a
+device, and shipping untested native code is worse than a known gap. Either
+wire and test it on a device, or remove the Notices section for v1.
+
+### 3. Required App Store Connect metadata
 
 None of this is in the repo; it is entered on the web.
 
@@ -113,8 +120,17 @@ None of this is in the repo; it is entered on the web.
 - **Light appearance pinned.** The palette is a single committed light theme;
   without pinning, iOS in dark mode draws the status bar white on cream.
 - **State persists** across launches in `localStorage`, and a returning user
-  opens on Today. Card details are deliberately never written to disk.
+  opens on Today.
 - **Sign out** clears stored state.
+- **No prototype data.** The programme runs off the enrolment date recorded
+  when onboarding completes. The day number, the date line, chapter progress
+  and the streak are all derived from that and the device clock. A fresh
+  install opens on day one of chapter one with an empty journal and zeroed
+  statistics, so a reviewer sees a real first run.
+- **No false claims.** Nothing leaves the device, so the app no longer says a
+  coach reads your entries; the weekly note is now a letter that opens with
+  each chapter, and the sign-in affordance is gone because there are no
+  accounts.
 
 ### Worth knowing
 
