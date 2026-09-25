@@ -1,0 +1,23 @@
+services:
+  switchboard:
+    build: .
+    image: switchboard:latest
+    container_name: switchboard
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      WORKSPACE_DIR: /workspace
+    ports:
+      # Bound to localhost only. To expose it on your network, change this to
+      # "3000:3000" AND set APP_PASSWORD in .env.
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - switchboard-data:/data
+      - ./workspace:/workspace
+    extra_hosts:
+      # Lets ASTRA_BASE_URL=http://host.docker.internal:11434/v1 reach Ollama etc. on Linux too.
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  switchboard-data:
