@@ -1,0 +1,19 @@
+{
+  "_pci": {
+    "label": "Pipeline smoke test (no models)",
+    "description": "Renders a plain amber clip with core nodes only. Proves API -> ComfyUI -> mp4 -> output folder works before you download any model.",
+    "status": "ready",
+    "fps": 24,
+    "frame_multiple": 8,
+    "dim_multiple": 32,
+    "max_duration": 10,
+    "steps": 1,
+    "cfg": 1.0
+  },
+  "prompt": {"class_type": "PrimitiveString", "inputs": {"value": "{{PROMPT}}"}},
+  "frames": {"class_type": "EmptyImage",
+             "inputs": {"width": "{{WIDTH}}", "height": "{{HEIGHT}}", "batch_size": "{{FRAMES}}", "color": 11960885}},
+  "video": {"class_type": "CreateVideo", "inputs": {"images": ["frames", 0], "fps": "{{FPS}}"}},
+  "save": {"class_type": "SaveVideo",
+           "inputs": {"video": ["video", 0], "filename_prefix": "{{FILENAME_PREFIX}}", "format": "mp4", "codec": "h264"}}
+}
