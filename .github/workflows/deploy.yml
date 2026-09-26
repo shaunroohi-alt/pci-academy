@@ -1,5 +1,9 @@
 name: Deploy to GitHub Pages
 
+# Deploys the PCI Web App (web/) as a static site. Production deployment
+# happens only after the canonical, functional, epistemic and security gates
+# pass (§10.6). Public Supabase settings, if any, come from repository
+# variables; secrets never enter the static build.
 on:
   push:
     branches: [main]
@@ -14,29 +18,41 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+
 jobs:
   build:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: app
+        working-directory: web
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-      - run: npm ci
-      - run: npm run build
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Release gate
+        run: pnpm lint && pnpm typecheck && pnpm test && pnpm edge:check
+      - name: Build
+        run: pnpm build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       - uses: actions/configure-pages@v5
         with:
           enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: app/dist
+          path: web/out
 
   deploy:
     needs: build
