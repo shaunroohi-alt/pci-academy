@@ -93,6 +93,9 @@ function EditorForm({ current, message, setMessage }: { current: ContentItem; me
   const [canon, setCanon] = React.useState<CanonStatus>(current.canon_status)
   const [note, setNote] = React.useState('')
   const [view, setView] = React.useState<'write' | 'preview' | 'history'>('write')
+  // A save or transition remounts this form with the new version, so the
+  // fields are locked while one is in flight: nothing typed can be lost.
+  const [busy, setBusy] = React.useState(false)
 
   const draftItem: ContentItem = { ...current, title, body, canon_status: canon }
   const check = validateForPublication(draftItem)
@@ -100,29 +103,35 @@ function EditorForm({ current, message, setMessage }: { current: ContentItem; me
 
   const save = async () => {
     if (!cms) return
+    setBusy(true)
     try {
       const next = await cms.saveDraft(current, { title, body, canon_status: canon, change_note: note || 'Edited' })
       await refreshContent()
       setMessage({ tone: 'accent', text: `Saved as ${LIFECYCLE_LABELS[next.status].toLowerCase()} (version ${next.content_version}).` })
     } catch (e) {
       setMessage({ tone: 'danger', text: e instanceof Error ? e.message : 'Save failed.' })
+    } finally {
+      setBusy(false)
     }
   }
 
   const move = async (to: Lifecycle) => {
     if (!cms) return
+    if (dirty) return setMessage({ tone: 'danger', text: 'Save your changes before changing status.' })
+    setBusy(true)
     try {
-      if (dirty) return setMessage({ tone: 'danger', text: 'Save your changes before changing status.' })
       await cms.transition(current, to)
       await refreshContent()
       setMessage({ tone: 'accent', text: `Moved to ${LIFECYCLE_LABELS[to]}.` })
     } catch (e) {
       setMessage({ tone: 'danger', text: e instanceof Error ? e.message : 'Transition refused.' })
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
-    <div>
+    <fieldset disabled={busy} aria-busy={busy} className="m-0 min-w-0 border-0 p-0">
       <Link href="/admin/" className="text-[13px] text-accent">
         ← Content
       </Link>
@@ -231,6 +240,6 @@ function EditorForm({ current, message, setMessage }: { current: ContentItem; me
           </div>
         </aside>
       </div>
-    </div>
+    </fieldset>
   )
 }

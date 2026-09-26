@@ -15,6 +15,8 @@ test.describe('Library and reader (R2)', () => {
     await page.goto('library/what-pci-is/')
     await page.getByRole('button', { name: 'Psycho-Creative Intelligence' }).click()
     await expect(page.getByRole('tooltip')).toContainText('observational intelligence environment')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('tooltip')).toHaveCount(0)
     const block = page.locator('#b-1')
     await block.hover()
     await block.getByRole('button', { name: 'Bookmark this passage' }).click()

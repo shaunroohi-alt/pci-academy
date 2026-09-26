@@ -18,10 +18,28 @@ import { cn, formatDate } from '@/lib/utils'
 
 function Term({ inline }: { inline: Extract<Inline, { kind: 'term' }> }) {
   const [open, setOpen] = React.useState(false)
+  const root = React.useRef<HTMLSpanElement>(null)
+  // A definition must be dismissible without moving focus (WCAG 1.4.13):
+  // Escape or a press anywhere outside closes it.
+  React.useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    const onPointer = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('pointerdown', onPointer)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('pointerdown', onPointer)
+    }
+  }, [open])
   const term = TERM_BY_SLUG.get(inline.slug)
   if (!term) return <>{inline.text}</>
   return (
-    <span className="relative">
+    <span ref={root} className="relative">
       <button type="button" className="term-link cursor-help" aria-expanded={open} onClick={() => setOpen(!open)} onBlur={() => setTimeout(() => setOpen(false), 150)}>
         {inline.text}
       </button>
