@@ -1,0 +1,15 @@
+// Cloudflare Workers Builds deploys the PCI Web App (web/) as static assets.
+// The Worker name must match the Worker connected in the Cloudflare dashboard.
+// Served from the domain root, so BASE_PATH stays empty (Pages uses /pci-academy/).
+{
+  "name": "pci-academy",
+  "compatibility_date": "2025-09-01",
+  "build": {
+    "command": "cd web && corepack enable && pnpm install --frozen-lockfile && pnpm build"
+  },
+  "assets": {
+    "directory": "./web/out",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  }
+}
