@@ -1,0 +1,10 @@
+# Supabase project configuration for the PCI Web App.
+# Link with: supabase link --project-ref <ref>
+project_id = "pci-academy"
+
+[auth]
+site_url = "https://shaunroohi-alt.github.io/pci-academy/"
+additional_redirect_urls = ["https://shaunroohi-alt.github.io/pci-academy/account/", "http://localhost:3000/account/"]
+
+[functions.pci-analyze]
+verify_jwt = true
