@@ -308,7 +308,7 @@ export function Reader({ slug, collection }: { slug: string; collection: Content
 
       <header className="mx-auto mb-10 max-w-[680px]">
         <p className="eyebrow mb-3">
-          {collection === 'art-of-being' ? (item.type === 'chapter' ? `The Art of Being · Chapter ${item.order}` : 'The Art of Being') : 'PCI Framework'}
+          {collection === 'art-of-being' ? (item.type === 'chapter' ? `The Art of Being · Chapter ${item.order}` : 'The Art of Being') : collection === 'companion' ? 'PCI Companion Article' : collection === 'articles' ? 'Article' : 'PCI Framework'}
         </p>
         <h1 className="display text-[40px] sm:text-[52px]">{item.title}</h1>
         {item.summary ? <p className="mt-4 font-serif text-[19px] italic leading-relaxed text-ink-2">{item.summary}</p> : null}

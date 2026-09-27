@@ -45,6 +45,8 @@ jobs:
         run: pnpm test
       - name: Migrations apply and repeat cleanly
         run: pnpm db:migrate
+      - name: Manuscript seeds match content/manuscript
+        run: pnpm content:check
       - name: Seed is up to date
         run: pnpm db:seed && git diff --exit-code supabase/seed.sql
       - name: Edge Function shares the current engine

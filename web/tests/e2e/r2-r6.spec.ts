@@ -2,11 +2,19 @@ import { expect, test } from '@playwright/test'
 import { onboard } from './helpers'
 
 test.describe('Library and reader (R2)', () => {
-  test('shows only complete texts; Art of Being chapters are not listed by title alone', async ({ page }) => {
+  test('shows only complete texts: the book and companion articles are listed, unsupplied matter is not', async ({ page }) => {
     await page.goto('library/')
     await expect(page.getByRole('link', { name: /The Seven Principles \/ Operations/ })).toBeVisible()
-    await expect(page.getByText('No chapter has been published yet.')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Repetition Is Not Repetition' })).toBeVisible()
+    await expect(page.getByRole('link', { name: /The AAA Method/ })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Appendix' })).toHaveCount(0)
     await page.goto('library/art-of-being/chapter-03/')
+    await expect(page.getByRole('heading', { level: 1, name: 'You Were Finished at Birth' })).toBeVisible()
+    await expect(page.getByText('The Art of Being · Chapter 3')).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'The Economy of Insufficiency' })).toBeVisible()
+    await page.goto('library/the-aaa-method/')
+    await expect(page.getByText('PCI Companion Article', { exact: true })).toBeVisible()
+    await page.goto('library/art-of-being/appendix/')
     await expect(page.getByText(/This text is not published/)).toBeVisible()
   })
 
@@ -45,7 +53,7 @@ test.describe('Library and reader (R2)', () => {
 
   test('CMS: a chapter cannot publish without its full text, and can once complete', async ({ page }) => {
     await onboard(page)
-    await page.goto('admin/edit/?slug=chapter-03')
+    await page.goto('admin/edit/?slug=appendix')
     await expect(page.getByText(/title without a body cannot be published/)).toBeVisible()
     await page.getByRole('button', { name: 'Move to Review' }).click()
     await page.getByRole('button', { name: 'Move to Approved' }).click()
@@ -59,8 +67,8 @@ test.describe('Library and reader (R2)', () => {
     await page.getByRole('button', { name: 'Move to Approved' }).click()
     await page.getByRole('button', { name: 'Move to Published' }).click()
     await expect(page.getByText('Moved to Published.')).toBeVisible()
-    await page.goto('library/art-of-being/chapter-03/')
-    await expect(page.getByRole('heading', { level: 1, name: 'Being Is Becoming' })).toBeVisible()
+    await page.goto('library/art-of-being/appendix/')
+    await expect(page.getByRole('heading', { level: 1, name: 'Appendix' })).toBeVisible()
   })
 })
 

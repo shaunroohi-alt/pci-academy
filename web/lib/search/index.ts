@@ -27,7 +27,7 @@ export interface SearchHit extends SearchDoc {
 
 export function publicDocs(content: ContentItem[], glossary: GlossaryTerm[], courses: Course[]): SearchDoc[] {
   return [
-    ...content.map((c) => ({ id: `content:${c.slug}`, scope: 'public' as const, kind: c.collection === 'art-of-being' ? 'The Art of Being' : c.collection === 'pci-framework' ? 'PCI Framework' : 'Article', title: c.title, text: stripInline(`${c.summary}\n${c.body}`), href: c.collection === 'articles' ? `/library/view/?slug=${c.slug}` : hrefFor(c) })),
+    ...content.map((c) => ({ id: `content:${c.slug}`, scope: 'public' as const, kind: c.collection === 'art-of-being' ? 'The Art of Being' : c.collection === 'pci-framework' ? 'PCI Framework' : c.collection === 'companion' ? 'Companion Article' : 'Article', title: c.title, text: stripInline(`${c.summary}\n${c.body}`), href: c.collection === 'articles' ? `/library/view/?slug=${c.slug}` : hrefFor(c) })),
     ...glossary.map((g) => ({ id: `term:${g.slug}`, scope: 'public' as const, kind: 'Glossary', title: g.term, text: g.definition, href: `/library/glossary/#${g.slug}` })),
     ...courses.flatMap((c) => [
       { id: `course:${c.slug}`, scope: 'public' as const, kind: 'Course', title: c.title, text: c.summary, href: `/academy/${c.slug}/` },

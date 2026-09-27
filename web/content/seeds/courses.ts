@@ -6,8 +6,8 @@
 // "PCI Foundations" is DERIVED course material assembled for this build from
 // the canonical framework. Its short orientations and exercises need review
 // by the canon owner. No lesson has video yet, so no player is shown.
-// "The Art of Being — Foundations" depends on the unpublished manuscript and
-// stays in draft.
+// "The Art of Being — Foundations" stays in draft until its lessons and video
+// are designed; the chapters themselves are published in the Library.
 import type { Course } from '@/lib/content/types'
 
 export const COURSES: Course[] = [
@@ -134,7 +134,7 @@ export const COURSES: Course[] = [
   {
     slug: 'art-of-being-foundations',
     title: 'The Art of Being — Foundations',
-    summary: 'Module → Short Video → Reading → Observation → Journal → Optional PCI Analysis, built on The Art of Being. Awaiting the approved manuscript and video material.',
+    summary: 'Module → Short Video → Reading → Observation → Journal → Optional PCI Analysis, built on The Art of Being. The chapters are published in the Library; the course awaits its lesson design and video material.',
     canon_status: 'provisional',
     status: 'draft',
     modules: [],
