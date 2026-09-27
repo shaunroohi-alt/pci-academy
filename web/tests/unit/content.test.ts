@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { ART_OF_BEING } from '@/content/seeds/art-of-being'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { ART_OF_BEING, COMPANION } from '@/content/seeds/art-of-being'
 import { COURSES } from '@/content/seeds/courses'
 import { FRAMEWORK } from '@/content/seeds/framework'
 import { GLOSSARY } from '@/content/seeds/glossary'
@@ -20,8 +22,7 @@ describe('Publication validation (R0.4)', () => {
   })
 
   it('a title without a body fails', () => {
-    const ch = ART_OF_BEING.find((c) => c.slug === 'chapter-01')!
-    const r = validateForPublication(ch)
+    const r = validateForPublication(ART_OF_BEING.find((c) => c.slug === 'introduction')!)
     expect(r.ok).toBe(false)
     expect(r.errors.join(' ')).toMatch(/title without a body/)
   })
@@ -31,16 +32,40 @@ describe('Publication validation (R0.4)', () => {
     expect(r.ok).toBe(false)
   })
 
-  it('no Art of Being chapter is visible without its manuscript', () => {
-    expect(ART_OF_BEING).toHaveLength(20)
-    expect(ART_OF_BEING.filter((c) => c.type === 'chapter')).toHaveLength(16)
-    expect(published(SEED_CONTENT).some((c) => c.collection === 'art-of-being')).toBe(false)
+  it('publishes the twelve manuscript chapters and four companion articles, and nothing unsupplied', () => {
+    const live = published(SEED_CONTENT)
+    expect(live.filter((c) => c.collection === 'art-of-being').map((c) => c.slug)).toEqual(Array.from({ length: 12 }, (_, i) => `chapter-${String(i + 1).padStart(2, '0')}`))
+    expect(live.filter((c) => c.collection === 'companion')).toHaveLength(4)
+    // Front and back matter have no text yet, so they are not listed by title alone.
+    for (const slug of ['introduction', 'book-glossary', 'appendix', 'references']) expect(live.some((c) => c.slug === slug), slug).toBe(false)
   })
 
-  it('chapter order is correct', () => {
+  it('chapter order and titles follow the author’s manuscript', () => {
     const chapters = ART_OF_BEING.filter((c) => c.type === 'chapter')
-    expect(chapters.map((c) => c.order)).toEqual(Array.from({ length: 16 }, (_, i) => i + 1))
-    expect(chapters[2].title).toBe('Being Is Becoming')
+    expect(chapters.map((c) => c.order)).toEqual(Array.from({ length: 12 }, (_, i) => i + 1))
+    expect(chapters[1].title).toBe('Practice as a Mythology')
+    expect(chapters[2].title).toBe('You Were Finished at Birth')
+    expect(chapters[11].title).toBe('Repetition Is Not Repetition')
+    expect(COMPANION.map((c) => c.title)).toEqual(['The AAA Method — Adopt, Allow, Align', 'To Sing Is to Breathe; To Breathe Is to Be', 'Being Is Becoming', 'The Neutral Gateway / Neutrality and Subtlety — The Forgotten Power'])
+  })
+
+  it('manuscript texts are carried verbatim, minus the repeated title and subtitle', () => {
+    for (const item of [...ART_OF_BEING, ...COMPANION].filter((c) => c.body)) {
+      const file = item.source!.match(/\((content\/manuscript\/[^)]+)\)/)![1]
+      const src = readFileSync(join(__dirname, '..', '..', file), 'utf8')
+      expect(item.body.startsWith('# '), item.slug).toBe(false)
+      expect(src.includes(item.body), item.slug).toBe(true)
+      if (item.summary && !item.scope?.startsWith(item.summary)) expect(src).toContain(`*${item.summary}*`)
+    }
+  })
+
+  it('generated manuscript seeds match content/manuscript', async () => {
+    const { render } = await import('../../scripts/manuscript.mts')
+    expect(readFileSync(join(__dirname, '..', '..', 'content', 'seeds', 'manuscript.generated.ts'), 'utf8')).toBe(render())
+  })
+
+  it('slugs are unique across the corpus', () => {
+    expect(new Set(SEED_CONTENT.map((c) => c.slug)).size).toBe(SEED_CONTENT.length)
   })
 
   it('glossary links in framework texts resolve', () => {
@@ -62,7 +87,7 @@ describe('Publication validation (R0.4)', () => {
 
 describe('CMS lifecycle (§6.7)', () => {
   const at = '2026-10-01T00:00:00.000Z'
-  const chapter = { ...ART_OF_BEING.find((c) => c.slug === 'chapter-03')! }
+  const chapter = { ...ART_OF_BEING.find((c) => c.slug === 'appendix')! }
   const body = 'Being is Manifested; Becoming is Manufactured. '.repeat(12)
 
   it('enforces Draft → Review → Approved → Published', () => {
@@ -85,7 +110,7 @@ describe('CMS lifecycle (§6.7)', () => {
     expect(revised.history[0].body).toBe(body)
     // While the revision is in draft, readers still see the published text.
     expect(readable(revised)?.body).toBe(body)
-    expect(published(mergeContent(SEED_CONTENT, [revised])).find((c) => c.slug === 'chapter-03')?.content_version).toBe(1)
+    expect(published(mergeContent(SEED_CONTENT, [revised])).find((c) => c.slug === 'appendix')?.content_version).toBe(1)
   })
 })
 

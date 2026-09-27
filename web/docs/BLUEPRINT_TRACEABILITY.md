@@ -50,7 +50,7 @@ Every release in *PCI Web App — Consolidated Blueprint & Implementation Roadma
 | 90+ categorised prompts | `content/seeds/journal-prompts.ts` | content tests (count, validator) | Done — 89 are **provisional**, awaiting canon review |
 | Edit history, follow-ups, search, related entries | `app/journal` | repository, e2e | Done (related entries need longitudinal permission) |
 | Ledger: unrestricted entries, tags, archive, search, links | `app/ledger` | e2e | Done |
-| Complete approved *Art of Being* with navigation and versioning | Reader + registry | e2e (unpublished chapter hidden; published chapter renders) | **Content-blocked** — the manuscript is not in the repository |
+| Complete approved *Art of Being* with navigation and versioning | `content/manuscript/` → `pnpm content:sync` → reader | content tests (verbatim, order, drift), SQL seed test, e2e (chapters and companion articles render; unsupplied matter hidden) | Done for the 12 chapters and 4 companion articles; introduction, book glossary, appendix and references **content-blocked** |
 | Reader: bookmarks, highlights, notes, glossary links, fullscreen, dark mode, warm paper | `components/library/reader.tsx` | e2e | Done |
 | CMS workflow Draft → Review → Approved → Published → Revised → Superseded | `lib/content/lifecycle.ts`, `app/admin`, SQL triggers | content tests, SQL tests, e2e | Done |
 | Keyword search, public and private scopes | `lib/search`, `app/search` | relational tests, e2e | Done |

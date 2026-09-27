@@ -11,6 +11,7 @@ export function LibraryIndex() {
   const items = published(content)
   const framework = items.filter((i) => i.collection === 'pci-framework')
   const book = items.filter((i) => i.collection === 'art-of-being')
+  const companion = items.filter((i) => i.collection === 'companion')
   const articles = items.filter((i) => i.collection === 'articles')
   const { data: positions } = useData((r) => r.readingPositions(), [])
   const reading = positions?.[0]
@@ -60,7 +61,7 @@ export function LibraryIndex() {
           <h2 id="aob-h" className="display text-[32px]">
             The Art of Being
           </h2>
-          <p className="mt-2 text-[14px] text-ink-2">The PCI book. Chapters appear here as each complete, approved text is published.</p>
+          <p className="mt-2 text-[14px] text-ink-2">The PCI book: {book.filter((c) => c.type === 'chapter').length || 'no'} core chapters published.</p>
           <Link href="/library/art-of-being/" className="mt-3 inline-block text-[13px] font-medium text-accent">
             Open the book →
           </Link>
@@ -80,6 +81,25 @@ export function LibraryIndex() {
           <p className="self-center font-serif text-[16px] italic text-muted">No chapter has been published yet.</p>
         )}
       </section>
+
+      {companion.length ? (
+        <section className="mb-14 border-t border-ink pt-8" aria-labelledby="companion-h">
+          <h2 id="companion-h" className="display text-[32px]">
+            Companion Articles
+          </h2>
+          <p className="mb-5 mt-2 max-w-2xl text-[14px] text-ink-2">Operational PCI models that grew out of The Art of Being, published separately so the book can stay stable while these continue to be tested and revised.</p>
+          <ol className="grid gap-x-10 sm:grid-cols-2">
+            {companion.map((a) => (
+              <li key={a.slug} className="border-t border-line">
+                <Link href={hrefFor(a)} className="group block py-4">
+                  <span className="block font-serif text-[18px] group-hover:text-accent">{a.title}</span>
+                  {a.summary ? <span className="mt-1 block text-[13px] text-muted">{a.summary}</span> : null}
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       {articles.length ? (
         <section className="mb-14 border-t border-ink pt-8" aria-labelledby="articles-h">

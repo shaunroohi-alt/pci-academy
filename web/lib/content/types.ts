@@ -4,7 +4,7 @@ export const LIFECYCLE = ['draft', 'review', 'approved', 'published', 'revised',
 export type Lifecycle = (typeof LIFECYCLE)[number]
 
 export type ContentType = 'framework' | 'article' | 'chapter' | 'front_matter' | 'back_matter' | 'booklet' | 'research_note'
-export type Collection = 'pci-framework' | 'art-of-being' | 'articles'
+export type Collection = 'pci-framework' | 'art-of-being' | 'companion' | 'articles'
 
 export interface ContentVersionRecord {
   content_version: number

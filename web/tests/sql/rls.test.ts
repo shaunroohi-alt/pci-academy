@@ -207,10 +207,14 @@ describe('Seed (R0.4)', () => {
     const seed = readFileSync(join(__dirname, '..', '..', 'supabase', 'seed.sql'), 'utf8')
     await db.exec(seed)
     await db.exec(seed)
-    const pub = await asUser(db, null, () => db.query<{ collection: string; n: number }>(`select collection, count(*)::int as n from public.content_items where slug not in ('art-1') group by collection`))
-    expect(pub.rows).toEqual([{ collection: 'pci-framework', n: 15 }])
+    const pub = await asUser(db, null, () => db.query<{ collection: string; n: number }>(`select collection, count(*)::int as n from public.content_items where slug not in ('art-1') group by collection order by collection`))
+    expect(pub.rows).toEqual([
+      { collection: 'art-of-being', n: 12 },
+      { collection: 'companion', n: 4 },
+      { collection: 'pci-framework', n: 15 },
+    ])
     const drafts = await db.query<{ n: number }>(`select count(*)::int as n from public.content_items where collection = 'art-of-being' and status = 'draft'`)
-    expect(drafts.rows[0].n).toBe(20)
+    expect(drafts.rows[0].n).toBe(4)
     const prompts = await asUser(db, null, () => db.query<{ n: number }>(`select count(*)::int as n from public.journal_prompts`))
     expect(prompts.rows[0].n).toBeGreaterThanOrEqual(90)
   })

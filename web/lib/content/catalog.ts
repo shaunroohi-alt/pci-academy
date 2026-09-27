@@ -1,6 +1,6 @@
 // The corpus: seeded canonical content, overlaid by CMS revisions (local
 // workspace or Supabase). Readers see only published, complete items.
-import { ART_OF_BEING } from '@/content/seeds/art-of-being'
+import { ART_OF_BEING, COMPANION } from '@/content/seeds/art-of-being'
 import { COURSES } from '@/content/seeds/courses'
 import { FRAMEWORK } from '@/content/seeds/framework'
 import { GLOSSARY } from '@/content/seeds/glossary'
@@ -8,7 +8,7 @@ import { JOURNAL_PROMPTS } from '@/content/seeds/journal-prompts'
 import type { ContentItem, Course, GlossaryTerm } from './types'
 import { isPubliclyVisible } from './validation'
 
-export const SEED_CONTENT: ContentItem[] = [...FRAMEWORK, ...ART_OF_BEING]
+export const SEED_CONTENT: ContentItem[] = [...FRAMEWORK, ...ART_OF_BEING, ...COMPANION]
 
 /** Overlay CMS items onto seeds by slug; the higher content version wins, and CMS-only items are added. */
 export function mergeContent(seeds: ContentItem[], overlay: ContentItem[]): ContentItem[] {

@@ -4,7 +4,8 @@ The software is built so that none of the following needs an engineer. Each item
 
 ## 1. Content that must come from the PCI Academy
 
-- **The Art of Being manuscript.** All sixteen chapters, the introduction, glossary, appendix and references are registered with their canonical titles, order and scope, as drafts with no text. The Library shows nothing for them — by design (§5.2: a title without a body fails publication). To publish: *Admin → a chapter → paste the text → Save draft → Review → Approved → Published*. The database refuses anything under 400 characters or containing placeholder text.
+- **The Art of Being — published.** The twelve core chapters and four PCI Companion Articles are in the Library, taken verbatim from the author's manuscript files in `content/manuscript/`. To revise a text, edit its markdown file and run `pnpm content:sync` (CI fails if the generated seeds drift from the files), or revise it through *Admin*, which keeps version history.
+- **Still to supply:** the book's introduction, glossary, appendix and references. They are registered as drafts with no text and stay out of the Library until complete text is entered (§5.2: a title without a body fails publication; the database refuses anything under 400 characters or containing placeholder text).
 - **Recorded narration** (optional). Until then, Listen uses the device voice reading the current text, so it cannot drift from the published version.
 - **Course video.** The lesson page shows a player (with required transcript) only when a video exists.
 
@@ -16,7 +17,16 @@ The software is built so that none of the following needs an engineer. Each item
 | Glossary (44 terms) | Canonical or derived | *Derived* where a definition was assembled from the blueprint's description rather than stated |
 | Journal prompt 1 | Canonical | The blueprint's own example |
 | Journal prompts 2–90 | **Provisional** | Written for this build. They pass the constitutional validator, but they are not PCI Academy material until you approve or replace them |
+| *The Art of Being*, chapters 1–12, and four Companion Articles | Canonical | The author's manuscript (canon "2026 current"), carried verbatim. Chapter numbering follows the manuscript, not the blueprint's §5.2 list: AAA, To Sing Is to Breathe, Being Is Becoming and The Neutral Gateway are companion articles rather than chapters 2, 3, 12 and 16 |
 | *PCI Foundations* course | **Derived** | Its short orientations and exercises were written for this build around the canonical texts |
+
+### Manuscript formatting to check
+
+Carried exactly as supplied; worth a look by the author:
+
+- Chapter 9: the word "and" between the chapter's two propositions is marked as a section heading (`## and`), so it renders as one.
+- Chapter 10: the first heading, "Processing", sits directly under the title, so the chapter opens with a section called *Processing* rather than a subtitle.
+- Chapters 1, 2, 7 and 10 have no italic subtitle; the reader shows the blueprint's scope note as their lede instead.
 
 ## 3. Decisions for launch
 

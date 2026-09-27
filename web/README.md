@@ -26,9 +26,10 @@ No backend is needed. Without Supabase settings the app runs **local-first**: ev
 | `pnpm test` | Unit, AI regression corpus, repository/sync, and SQL/RLS tests (Vitest + PGlite) |
 | `pnpm test:e2e` | Playwright end-to-end tests against the static build, served under `/pci-academy/` as on Pages. Build for that path first: `BASE_PATH=/pci-academy/ pnpm build` |
 | `pnpm db:migrate` | Apply `supabase/migrations` to a throwaway Postgres twice (applies and repeats cleanly) |
+| `pnpm content:sync` / `content:check` | Regenerate / verify the book and companion-article seeds from the manuscript files in `content/manuscript/` |
 | `pnpm db:seed` | Regenerate `supabase/seed.sql` from `content/seeds` |
 | `pnpm edge:sync` / `edge:check` | Copy / verify the engine modules shared with the Edge Function |
-| `pnpm gate` | The production build gate: lint · typecheck · test · edge check · build (§10.6) |
+| `pnpm gate` | The production build gate: lint · typecheck · test · manuscript check · edge check · build (§10.6) |
 
 ## Architecture
 
@@ -48,8 +49,10 @@ web/
     content/              Catalog, publication validation, CMS lifecycle, markdown
     relational/           Archive-wide graph, patterns, Cognitive Twin
     search/  audio/  entitlements.ts  env.ts
-  content/seeds/          Framework texts, glossary, Art of Being registry,
-                          journal prompts, courses
+  content/manuscript/     The Art of Being (12 chapters) and PCI Companion
+                          Articles, as the author's markdown — source of truth
+  content/seeds/          Framework texts, glossary, book registry (built from
+                          the manuscript), journal prompts, courses
   supabase/
     migrations/           Schema, RLS, write-once triggers, publication validation,
                           entitlements, pgvector index
