@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import { Empty, Input, Notice, Spinner, Textarea } from '@/components/ui/primitives'
+import { isWritableStep, writeContraryStep, type ContraryDraft, type WritableContraryStep } from '@/lib/ai/contrary-writer'
 import { useApp, useAutosave, useData } from '@/lib/app/context'
 import type { ContrarySession } from '@/lib/db/types'
 import { BALANCE_NOTE, CONTRARY_STEPS, type ContraryStepKey } from '@/lib/pci/canon'
@@ -30,6 +31,9 @@ function SessionEditor({ initial }: { initial: ContrarySession }) {
   const [saved, setSaved] = React.useState(true)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [drafts, setDrafts] = React.useState<Partial<Record<WritableContraryStep, ContraryDraft>>>({})
+  const [writing, setWriting] = React.useState<WritableContraryStep | null>(null)
+  const [writeError, setWriteError] = React.useState<string | null>(null)
 
   const autosave = useAutosave(async () => {
     if (!repo) return
@@ -44,6 +48,28 @@ function SessionEditor({ initial }: { initial: ContrarySession }) {
 
   const step = CONTRARY_STEPS[current]
   const assist = contraryAssist(step.key, steps)
+
+  const write = async (key: WritableContraryStep) => {
+    setWriting(key)
+    setWriteError(null)
+    try {
+      const draft = await writeContraryStep(key, steps, title)
+      setDrafts((d) => ({ ...d, [key]: draft }))
+    } catch (e) {
+      setWriteError(e instanceof Error ? e.message : 'Writing failed.')
+    } finally {
+      setWriting(null)
+    }
+  }
+
+  const applyDraft = (key: WritableContraryStep) => {
+    const draft = drafts[key]
+    if (!draft) return
+    const own = steps[key]?.trim()
+    if (own && !window.confirm('Replace what you have written in this step with this draft?')) return
+    setSteps({ ...steps, [key]: draft.text })
+    touch()
+  }
 
   const complete = async () => {
     if (!repo) return
@@ -152,6 +178,18 @@ function SessionEditor({ initial }: { initial: ContrarySession }) {
               </Button>
             )}
           </div>
+          {isWritableStep(step.key) ? (
+            <WrittenForYou
+              stepKey={step.key}
+              name={step.name}
+              draft={drafts[step.key]}
+              writing={writing === step.key}
+              error={writeError}
+              canWrite={CONTRARY_STEPS.some((s) => s.key !== step.key && steps[s.key]?.trim())}
+              onWrite={() => write(step.key as WritableContraryStep)}
+              onUse={() => applyDraft(step.key as WritableContraryStep)}
+            />
+          ) : null}
         </div>
         <aside className="h-fit rounded-[4px] border border-line bg-raised p-5">
           <p className="eyebrow mb-2">Visible in your words</p>
@@ -164,7 +202,9 @@ function SessionEditor({ initial }: { initial: ContrarySession }) {
           ) : (
             <p className="text-[13px] text-muted">Structure from earlier steps appears here as you write.</p>
           )}
-          <p className="mt-4 border-t border-line pt-3 text-[12px] text-muted">The engine shows structure. It does not write the contrary position or the balance for you.</p>
+          <p className="mt-4 border-t border-line pt-3 text-[12px] text-muted">
+            {isWritableStep(step.key) ? `Below your writing, Claude can write the ${step.name.toLowerCase()} from what you have written so far.` : 'The engine shows structure here. On Contrary Position and Balance it can also write the step out for you to read.'}
+          </p>
         </aside>
       </div>
 
@@ -184,5 +224,70 @@ function SessionEditor({ initial }: { initial: ContrarySession }) {
         </Button>
       </div>
     </div>
+  )
+}
+
+function WrittenForYou({
+  stepKey,
+  name,
+  draft,
+  writing,
+  error,
+  canWrite,
+  onWrite,
+  onUse,
+}: {
+  stepKey: WritableContraryStep
+  name: string
+  draft?: ContraryDraft
+  writing: boolean
+  error: string | null
+  canWrite: boolean
+  onWrite: () => void
+  onUse: () => void
+}) {
+  const label = name.toLowerCase()
+  return (
+    <section aria-label={`${name}, written for you`} className="mt-10 border-t border-line pt-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="eyebrow">Written for you</p>
+        <Button variant={draft ? 'ghost' : 'outline'} onClick={onWrite} disabled={writing || !canWrite}>
+          {writing ? 'Writing…' : draft ? 'Write it again' : `Write the ${label} for me`}
+        </Button>
+      </div>
+      {!canWrite ? <p className="mt-2 text-[13px] text-muted">Write at least one earlier step first.</p> : null}
+      {writing && !draft ? <Spinner label={`Writing the ${label}`} /> : null}
+      {error && !writing ? (
+        <Notice tone="danger" className="mt-3">
+          {error}
+        </Notice>
+      ) : null}
+      {draft ? (
+        <div className={cn('mt-4', writing && 'opacity-50')}>
+          <div className="space-y-4 font-serif text-[17px] leading-relaxed text-ink">
+            {draft.text
+              .split(/\n\s*\n/)
+              .filter((p) => p.trim())
+              .map((p, i) => (
+                <p key={i}>{p.trim()}</p>
+              ))}
+          </div>
+          {stepKey === 'balance' ? <p className="mt-4 border-l-2 border-brass pl-3 text-[13px] text-ink-2">{BALANCE_NOTE}</p> : null}
+          {draft.violations.length ? (
+            <Notice tone="accent" className="mt-4">
+              Parts of this draft lean past observation ({draft.violations.map((v) => v.rule).join(', ')}). Read it with that in mind, or write it again.
+            </Notice>
+          ) : null}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Button variant="outline" onClick={onUse}>
+              Use as my {label}
+            </Button>
+            <span className="text-[12px] text-muted">Written by Claude from your session. It describes a position; it does not take a side.</span>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 text-[12px] text-muted">Sends this session&apos;s text to Claude (Anthropic) to write the draft. Nothing is sent until you ask.</p>
+      )}
+    </section>
   )
 }
