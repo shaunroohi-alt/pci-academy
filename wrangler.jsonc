@@ -27,5 +27,16 @@
       "simple": { "limit": 6, "period": 60 }
     }
   ],
+  // Preview builds (one per PR branch) need their own previews block, and rate
+  // limits are not inherited from the top level, so they are declared again.
+  "previews": {
+    "ratelimits": [
+      {
+        "name": "CONTRARY_LIMITER",
+        "namespace_id": "1002",
+        "simple": { "limit": 6, "period": 60 }
+      }
+    ]
+  },
   "observability": { "enabled": true }
 }
