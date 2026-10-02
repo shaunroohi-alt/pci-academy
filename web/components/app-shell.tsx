@@ -4,6 +4,7 @@ import { Archive, BookOpen, CircleUser, Cloud, CloudOff, Ellipsis, GraduationCap
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as React from 'react'
+import { PciMark, PciSeal } from '@/components/brand/pci-mark'
 import { useApp } from '@/lib/app/context'
 import { cn } from '@/lib/utils'
 
@@ -85,12 +86,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className={cn('no-print sticky top-0 z-40 border-b border-line bg-[color-mix(in_srgb,var(--bg)_92%,transparent)] backdrop-blur-sm')}>
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2" aria-label="PCI Academy — home">
-            <svg viewBox="0 0 512 512" className="h-6 w-6" aria-hidden>
-              <rect width="512" height="512" rx="96" fill="var(--ink)" />
-              <path fill="var(--brass)" fillRule="evenodd" d="M256 106a150 150 0 1 0 .1 0zM256 140a116 116 0 1 1-.1 0z" />
-              <circle cx="256" cy="256" r="75" fill="var(--brass)" />
-            </svg>
-            <span className="display text-[21px] tracking-tight">PCI</span>
+            <PciSeal size={30} className="h-[30px] w-[30px]" />
+            <span className="wordmark text-[17px] text-ink">
+              PCI<span className="hidden text-accent sm:inline"> Academy</span>
+            </span>
           </Link>
           <nav aria-label="Primary" className="hidden flex-1 items-center gap-1 lg:flex">
             {PRIMARY.map((item) => (
@@ -128,9 +127,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      <footer className="no-print mx-auto hidden max-w-6xl border-t border-line px-6 py-8 text-[12px] text-muted lg:block">
-        <p>PCI Academy · Psycho-Creative Intelligence · Canon 2026.09.25</p>
-        <p className="mt-1">Visibility is the output. Human choice begins outside the PCI Engine.</p>
+      <footer className="no-print mx-auto hidden max-w-6xl items-center gap-5 border-t border-line px-6 py-8 text-[12px] text-muted lg:flex">
+        <PciMark title={null} className="h-14 w-auto text-brass" />
+        <div>
+          <p>PCI Academy · Psycho-Creative Intelligence · Canon 2026.09.25</p>
+          <p className="mt-1">Visibility is the output. Human choice begins outside the PCI Engine.</p>
+        </div>
       </footer>
 
       <nav aria-label="Primary" className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg pb-[env(safe-area-inset-bottom)] lg:hidden">

@@ -70,7 +70,7 @@ export function Switch({ checked, onChange, label, description, id }: { checked:
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={cn('relative mt-0.5 h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors', checked ? 'border-ink bg-ink' : 'border-line-strong bg-surface-2')}
+        className={cn('relative mt-0.5 h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors', checked ? 'border-accent bg-accent' : 'border-line-strong bg-surface-2')}
       >
         <span className={cn('absolute left-0 top-0.5 h-4 w-4 rounded-full transition-transform', checked ? 'translate-x-[22px] bg-bg' : 'translate-x-0.5 bg-muted')} />
       </button>

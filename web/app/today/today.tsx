@@ -23,7 +23,7 @@ function currentCourse(progress: LessonProgress[]) {
 
 function Panel({ title, href, action, children }: { title: string; href?: string; action?: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-ink pt-4">
+    <section className="border-t border-brass pt-4">
       <div className="mb-3 flex items-baseline justify-between gap-4">
         <h2 className="eyebrow text-ink">{title}</h2>
         {href ? (
@@ -117,7 +117,7 @@ export function Today() {
               <div>
                 <p className="font-serif text-[17px]">{reading.content_title}</p>
                 <div className="mt-2 h-[3px] w-full rounded-full bg-line-strong" aria-hidden>
-                  <div className="h-[3px] rounded-full bg-ink" style={{ width: `${Math.round(reading.progress * 100)}%` }} />
+                  <div className="h-[3px] rounded-full bg-accent" style={{ width: `${Math.round(reading.progress * 100)}%` }} />
                 </div>
                 <p className="mt-1 text-[12px] text-muted">Position saved {formatDateTime(reading.updated_at)}</p>
               </div>

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { BeginButton } from '@/components/begin-button'
+import { Ornament, PciMark } from '@/components/brand/pci-mark'
 import { LinkButton } from '@/components/ui/button'
 import { CANONICAL_PIPELINE, CORE_BOUNDARY, PCI_IS_NOT, SEVEN_OPERATIONS } from '@/lib/pci/canon'
 import { backendConfigured } from '@/lib/env'
@@ -16,6 +17,7 @@ const ENVIRONMENTS = [
 export default function Home() {
   return (
     <div className="-mt-2">
+      <PciMark className="mx-auto mb-2 h-40 w-auto text-brass lg:hidden" title="PCI Academy" />
       <section className="grid gap-10 pb-16 pt-6 lg:grid-cols-[1.2fr_1fr] lg:items-end lg:pt-14">
         <div>
           <p className="eyebrow mb-5">PCI Academy · Psycho-Creative Intelligence</p>
@@ -30,7 +32,9 @@ export default function Home() {
             </LinkButton>
           </div>
         </div>
-        <aside className="border-l border-line pl-6 text-[14px] text-ink-2">
+        <aside className="text-[14px] text-ink-2">
+          <PciMark className="mx-auto mb-10 hidden h-[340px] w-auto text-brass lg:block" title="PCI Academy" />
+          <div className="border-l border-line pl-6">
           <p className="eyebrow mb-3">Where your material lives</p>
           {backendConfigured ? (
             <p>Your material is private to your account, isolated by row-level security, exportable and deletable at any time. It is never used for training.</p>
@@ -38,10 +42,12 @@ export default function Home() {
             <p>In this edition your material never leaves this device. There is no account and no server: journal, ledger and reports are stored in your browser, and you can export or delete all of it at any time.</p>
           )}
           <p className="mt-3">Comparison with your earlier material is off until you switch it on.</p>
+          </div>
         </aside>
       </section>
 
-      <section className="border-y border-line py-10" aria-labelledby="process-h">
+      <Ornament className="mb-10" />
+      <section className="border-b border-line pb-10" aria-labelledby="process-h">
         <h2 id="process-h" className="eyebrow mb-5">
           The canonical process
         </h2>
@@ -99,7 +105,7 @@ export default function Home() {
         </h2>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {ENVIRONMENTS.map((e) => (
-            <Link key={e.title} href={e.href} className="group block border-t border-ink pt-4">
+            <Link key={e.title} href={e.href} className="group block border-t border-brass pt-4">
               <p className="display text-[26px] group-hover:text-accent">{e.title}</p>
               <p className="mt-2 text-[14px] text-ink-2">{e.body}</p>
             </Link>
