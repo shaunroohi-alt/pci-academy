@@ -89,7 +89,35 @@ Longitudinal comparison — the engine reading earlier material — is **off by 
 
 ### Static site (GitHub Pages)
 
-`.github/workflows/deploy.yml` runs the release gate and deploys `web/out` to GitHub Pages on every push to `main`. The site is served under `/<repository-name>/`; `BASE_PATH` handles that.
+`.github/workflows/deploy.yml` runs the release gate and deploys `web/out` to GitHub Pages on every push to `main`. Without a custom domain the site is served under `/<repository-name>/`; `BASE_PATH` handles that.
+
+To test a root-path build locally (as served at a custom domain): `pnpm build && pnpm start`, then open http://localhost:4173/.
+
+### Custom domain (pci.academy on GoDaddy)
+
+GitHub Pages serves custom domains with free HTTPS. Order matters: DNS first, then the Pages setting, then the build variable.
+
+1. **GoDaddy → My Products → pci.academy → DNS.** Delete the existing `A @ Parked` record, the default `CNAME www → @` record, and any domain forwarding. Then add:
+
+   | Type | Name | Value | TTL |
+   |---|---|---|---|
+   | A | `@` | `185.199.108.153` | 1 hour |
+   | A | `@` | `185.199.109.153` | 1 hour |
+   | A | `@` | `185.199.110.153` | 1 hour |
+   | A | `@` | `185.199.111.153` | 1 hour |
+   | AAAA | `@` | `2606:50c0:8000::153` | 1 hour |
+   | AAAA | `@` | `2606:50c0:8001::153` | 1 hour |
+   | AAAA | `@` | `2606:50c0:8002::153` | 1 hour |
+   | AAAA | `@` | `2606:50c0:8003::153` | 1 hour |
+   | CNAME | `www` | `<github-owner>.github.io` (for this repo: `shaunroohi-alt.github.io`) | 1 hour |
+
+   Leave the `NS` and `SOA` records alone.
+2. **(Recommended) Verify the domain** so nobody else can claim it on Pages: GitHub → your profile *Settings → Pages → Add a domain* → `pci.academy`. GitHub shows a `TXT` record named `_github-pages-challenge-<github-owner>` with a one-off value; add it in GoDaddy and click *Verify*.
+3. **Repository Settings → Pages → Custom domain:** enter `pci.academy` and save. Once the DNS check passes (minutes to a few hours), tick **Enforce HTTPS**. `www.pci.academy` redirects to `pci.academy` automatically.
+4. **Repository Settings → Secrets and variables → Actions → Variables:** add `PAGES_CUSTOM_DOMAIN` = `pci.academy`, then re-run *Deploy to GitHub Pages*. The site now builds for the domain root and `NEXT_PUBLIC_APP_URL` defaults to `https://pci.academy`.
+5. If the Supabase backend is in use, add `https://pci.academy` and `https://pci.academy/account/` to Supabase Auth's site and redirect URLs.
+
+Check: `dig +short pci.academy` returns the four `185.199.x.153` addresses and `dig +short www.pci.academy` returns the `github.io` name.
 
 ### Backend (optional)
 

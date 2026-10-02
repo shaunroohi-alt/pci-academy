@@ -4,6 +4,10 @@ name: Deploy to GitHub Pages
 # happens only after the canonical, functional, epistemic and security gates
 # pass (§10.6). Public Supabase settings, if any, come from repository
 # variables; secrets never enter the static build.
+#
+# Custom domain: set the repository variable PAGES_CUSTOM_DOMAIN (e.g.
+# pci.academy) and the site builds for the domain root. Left unset, it builds
+# for /<repository-name>/ on github.io.
 on:
   push:
     branches: [main]
@@ -43,8 +47,8 @@ jobs:
       - name: Build
         run: pnpm build
         env:
-          BASE_PATH: /${{ github.event.repository.name }}/
-          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          BASE_PATH: ${{ vars.PAGES_CUSTOM_DOMAIN == '' && format('/{0}/', github.event.repository.name) || '' }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL || (vars.PAGES_CUSTOM_DOMAIN != '' && format('https://{0}', vars.PAGES_CUSTOM_DOMAIN)) || '' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       - uses: actions/configure-pages@v5
