@@ -6,68 +6,97 @@ author: "Shaun"
 publisher: "PCI Academy"
 canon: "2026 current"
 content_type: "companion_article"
+edition: "Author’s Voice rewrite, 27 September 2026"
 ---
 
-# The AAA Method
+# The AAA Method — Adopt, Allow, Align
 
 *Adopt · Allow · Align*
 
-A PCI companion article stemming from the conceptual architecture developed in Art of Being. It is published separately so the core book can remain stable while operational PCI models continue to develop, be tested, and be revised.
+A PCI companion article growing out of The Art of Being. It is published separately so the book stays stable while PCI's working methods keep being tested and refined.
 
-AAA describes three observational movements. It does not create an obligation to act, prescribe a correct response, or convert observation into moral authority. Its function is to separate what has entered awareness, what becomes visible when interference is reduced, and what correspondence can be observed between information and participation.
+AAA is PCI's shortest working sequence. It is not designed to make you feel better about everything. It is designed to remove the distortion between what is here, what is allowed to show itself, and what you do next.
 
-The AAA Method is PCI's shortest operational sequence. It is not designed to make a person feel better about every circumstance. It is designed to reduce distortion between what is present, what is permitted to reveal itself, and what action follows. The three movements are Adopt, Allow, Align. They are sequential in logic even when they overlap in practice.
+Three movements: Adopt. Allow. Align. They run in that logical order, even when in real life they overlap.
 
 ## Adopt
 
-To adopt a condition means to take it into the field of observation without first demanding that it be different. Adoption is not approval. It is not surrender to harm. It is not agreement. It is not permanence. It is the refusal to begin analysis with false information. If a relationship is failing, adoption means "this relationship is currently failing" before explanation begins. If anger is present, adoption means "anger is present" before deciding whether anger is justified. If the person wants something they are embarrassed to want, adoption means allowing the desire to exist as information before editing it into something more respectable. Without adoption, the system spends energy maintaining a preferred description. The person analyzes an edited version of reality and then wonders why the solution does not fit. Adoption is therefore the beginning of precision.
+To adopt a condition is to take it into view without first demanding that it be different.
+
+Adoption is not approval. It is not surrender to harm. It is not agreement. It is not forever. It is the refusal to start your analysis with false information.
+
+If the relationship is failing, adoption says "This relationship is failing" before any explanation begins. If anger is here, adoption says "Anger is here" before deciding whether it's justified. If you want something you're embarrassed to want, adoption lets the desire exist as information before you edit it into something more respectable.
+
+Without adoption, you spend your energy maintaining a preferred version of reality. Then you analyze the edited version and wonder why the solution doesn't fit.
+
+Adoption is where precision begins.
 
 ## Allow
 
-Once a condition has been adopted, the next question is whether it can be allowed to complete its informational movement. People often interrupt experience immediately. Fear triggers reassurance. Uncertainty triggers explanation. Shame triggers concealment. Desire triggers strategy. Anger triggers defense. Sadness triggers a demand to recover. Allowing means temporarily removing the automatic intervention. The goal is not to remain passive forever. It is to see what the experience does when it is not forced to become something else in the first seconds of contact. This resembles an experiment. If the observer changes the system before seeing its baseline behavior, the observer no longer knows what was originally there. Allowing creates that baseline. An emotion may intensify and pass. A desire may reveal another need beneath it. A fear may separate into probability and memory. A conflict may reveal that the actual problem is not the event but the identity threatened by the event. The important point is that the result is discovered rather than prescribed.
+Once a condition is adopted, the next question is whether it can finish showing you what it is.
+
+Most people interrupt experience instantly. Fear triggers reassurance. Uncertainty triggers explanation. Shame triggers hiding. Desire triggers strategy. Anger triggers defense. Sadness triggers a demand to recover.
+
+Allowing means pausing the automatic intervention. Not forever, and not passively. Just long enough to see what the experience does when it isn't forced to become something else in the first few seconds.
+
+Think of it as an experiment. If you change the system before you've seen its baseline, you'll never know what was there. Allowing gives you the baseline.
+
+An emotion may peak and pass. A desire may reveal a different need underneath. A fear may split into real probability and old memory. A conflict may turn out not to be about the event at all, but about the identity the event threatened.
+
+The result is discovered, not prescribed.
+
+The Resister is the person who never allows. They adopt instantly and correct instantly, so they never see what the condition would have shown them.
 
 ## Align
 
-Alignment is the movement from observation to participation. A person has adopted what is present and allowed sufficient information to emerge. Alignment asks: what action now corresponds with what has actually become visible? Alignment is not the same as comfort. The aligned action may be difficult, expensive, socially inconvenient, or uncertain. It may involve leaving, staying, apologizing, refusing, practicing, waiting, asking for help, changing strategy, or admitting that no action is yet justified.
+Alignment is the move from seeing to doing. You've adopted what's here and allowed enough of it to come into view. Now: what action actually matches what has become visible?
 
-The defining feature is not emotional ease. It is reduced contradiction between recognized information and chosen participation.
+Alignment is not comfort. The aligned action may be hard, expensive, socially awkward, or uncertain. It may mean leaving or staying, apologizing or refusing, practicing, waiting, asking for help, changing strategy, or admitting that no action is justified yet.
 
-## Why the Sequence Matters
+Its defining feature isn't ease. It is low contradiction between what you now recognize and what you choose to do.
 
-Without Adopt, Allow becomes fantasy because the person is allowing a condition they have not accurately named. Without Allow, Adopt becomes a label. The person recognizes the situation but does not stay with it long enough to learn from it. Without Align, the first two become observation without consequence. AAA is therefore not a relaxation technique. It is an information pipeline.
+## Why the Order Matters
 
-Adopt establishes contact. Allow increases resolution. Align converts resolution into direction.
+Without Adopt, Allow is fantasy. You're allowing a condition you haven't named honestly. Without Allow, Adopt is just a label. You recognized the situation but didn't stay with it long enough to learn anything. Without Align, the first two are observation with no consequence.
 
-## The Method and Control
+AAA is not a relaxation technique. It's an information pipeline.
 
-Control attempts to determine the result before the system has fully revealed its conditions. Power, in the PCI vocabulary, is different. Power is the capacity to participate effectively without requiring reality to obey a preferred narrative. This is why AAA often feels slower at the beginning and faster later. It delays premature action, but reduces the amount of correction required after acting on distorted information. A person who adopts uncertainty may discover that no immediate decision is required. A person who allows jealousy to exist without moralizing it may discover grief, comparison, fear of replacement, or a practical boundary issue. Alignment can then address the actual variable rather than the first emotion.
+Adopt makes contact. Allow raises the resolution. Align turns resolution into direction.
+
+## Force, Control, and Power
+
+Control tries to decide the result before the system has shown its conditions. It is force: impression as a doer.
+
+Power, in PCI's vocabulary, is the ability to act effectively without needing reality to obey your preferred story. It is expression as a performer.
+
+That's why AAA can feel slower at first and faster later. It delays premature action, and it cuts down the correction you'd otherwise need after acting on distorted information.
+
+Adopt uncertainty and you may find no decision is needed yet. Allow jealousy without moralizing it and you may find grief, comparison, fear of being replaced, or a simple boundary issue underneath. Then alignment can deal with the real variable instead of the first emotion.
 
 ## AAA and Other People
 
-The method has an ethical boundary: alignment with oneself does not cancel the autonomy of others. "This feels true to me" is not evidence that another person owes cooperation. Internal guidance can authorize one's own participation, not another person's consent. Therefore alignment includes external reality. Contracts, responsibilities, safety, consequences, law, other people's choices, and material constraints are part of the field. A method that ignores them is not aligned; it is incomplete.
+One firm boundary: your alignment does not cancel anyone else's autonomy.
 
-## AAA as a Repeatable Procedure
+"This feels true to me" is not evidence that someone owes you cooperation. Your inner direction can authorize your own participation. It cannot authorize another person's consent.
 
-In practical use, AAA can be reduced to three questions:
+So real alignment includes the outside world: contracts, responsibilities, safety, consequences, law, other people's choices, material limits. A "method" that ignores them isn't aligned. It's incomplete.
 
-ADOPT: What is here before I explain it?
+## Three Questions
 
-ALLOW: What happens if I stop correcting it long enough to understand its structure?
+In practice, AAA fits into three questions:
 
-ALIGN: What participation corresponds with the information I now have?
+ADOPT: What is here, before I explain it?
 
-The method can be repeated at any scale: an emotion, a creative block, a business decision, a relationship, a personal
+ALLOW: What happens if I stop correcting it long enough to see its structure?
 
-identity, or an entire life structure.
+ALIGN: What action matches what I now know?
 
-Its purpose is not to manufacture certainty.
+Use it at any scale: an emotion, a creative block, a business decision, a relationship, an identity, a whole life.
 
-Its purpose is to reduce the distance between observation and action.
+Its purpose is not to manufacture certainty. Its purpose is to close the distance between seeing and doing.
 
-## Autonomy and the AAA Method
+## Relationship to The Art of Being
 
-PCI's use of alignment overlaps with established psychological work on autonomy only at a functional level. Self-determination theory distinguishes more self-endorsed forms of regulation from externally controlled behavior, while also treating competence and relatedness as important psychological needs (Ryan & Deci, 2000). AAA is not identical to that theory; the overlap is useful because both reject the assumption that autonomy means isolation or the absence of influence.
+The Art of Being names Adoption, Alignment, Allowance, and Being as four recurring conditions. AAA is the working method. They're related but not interchangeable: AAA is a compact sequence you run; the four conditions describe the wider, ongoing relationship between what you know, how you participate, and the Being underneath both.
 
-## Relationship to Art of Being
-
-Art of Being now treats Adoption, Alignment, Allowance, and Being as four recurring PCI conditions. AAA remains a separate operational article. The terms are related but not interchangeable: AAA names a compact observational sequence; the four recurring conditions describe broader states of relationship between information, participation, and Being.
+**Boundary.** AAA overlaps with autonomy research only at a functional level. See Appendix A.

@@ -11,7 +11,8 @@ export function parseBlocks(src: string): Block[] {
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
-    if (!line.trim()) {
+    if (!line.trim() || /^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      // Blank lines and horizontal rules separate blocks; neither is a block.
       i++
       continue
     }
@@ -52,7 +53,7 @@ export function parseBlocks(src: string): Block[] {
       continue
     }
     const buf: string[] = []
-    while (i < lines.length && lines[i].trim() && !/^(```|## |### |[-*] |\d+\. |> )/.test(lines[i])) buf.push(lines[i++].trim())
+    while (i < lines.length && lines[i].trim() && !/^(```|## |### |[-*] |\d+\. |> |(-{3,}|\*{3,}|_{3,})\s*$)/.test(lines[i])) buf.push(lines[i++].trim())
     out.push({ kind: 'p', text: buf.join(' ') })
   }
   return out

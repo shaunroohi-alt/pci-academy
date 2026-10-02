@@ -1,6 +1,12 @@
 // Cloudflare Workers Builds deploys the PCI Web App (web/) as static assets.
 // The Worker name must match the Worker connected in the Cloudflare dashboard.
-// Served from the domain root, so BASE_PATH stays empty (Pages uses /pci-academy/).
+//
+// This Worker is an OPTIONAL SECONDARY host. The primary path for pci.academy
+// is GitHub Pages (.github/workflows/deploy.yml) with the GoDaddy DNS records
+// in web/README.md → "Custom domain (pci.academy on GoDaddy)". Both hosts
+// serve the site from the domain root, which is why `pnpm build` below runs
+// with no BASE_PATH and why web/public/CNAME names the domain; the two must
+// never point the same hostname at both hosts at once.
 {
   "name": "pci-academy",
   "compatibility_date": "2025-09-01",

@@ -11,6 +11,7 @@ import { speak, speechAvailable } from '@/lib/audio/speech'
 import { hrefFor, neighbours, published, readable, TERM_BY_SLUG } from '@/lib/content/catalog'
 import { blockText, parseBlocks, parseInline, type Block, type Inline } from '@/lib/content/markdown'
 import type { ContentItem } from '@/lib/content/types'
+import { SITE, SUB_CHAPTERS } from '@/content/site'
 import type { SpeechHandle } from '@/lib/ai/provider'
 import type { Highlight, Note } from '@/lib/db/types'
 import { CANON_STATUS_META } from '@/lib/pci/canon'
@@ -118,6 +119,10 @@ export function Reader({ slug, collection }: { slug: string; collection: Content
   const item = raw ? readable(raw) : undefined
   const siblings = React.useMemo(() => published(content).filter((c) => c.collection === collection), [content, collection])
   const { prev, next } = neighbours(siblings, slug)
+  // A sub-chapter is filed under a chapter: the item's parent slug, or the handoff's filing.
+  const parentSlug = item?.parent ?? SUB_CHAPTERS.find((s) => s.slug === slug)?.parent
+  const parent = parentSlug ? published(content).find((c) => c.slug === parentSlug) : undefined
+  const parentTitle = parent?.title ?? SUB_CHAPTERS.find((s) => s.slug === slug)?.parentTitle
   const blocks = React.useMemo(() => (item ? parseBlocks(item.body) : []), [item])
   const href = item ? hrefFor(item) : ''
 
@@ -249,7 +254,7 @@ export function Reader({ slug, collection }: { slug: string; collection: Content
 
   return (
     <article className="relative">
-      <div className="no-print sticky top-14 z-30 -mx-4 mb-8 flex items-center gap-1 overflow-x-auto border-b border-line bg-bg px-4 py-2 sm:-mx-6 sm:px-6">
+      <div className="no-print sticky top-0 z-30 -mx-5 mb-10 flex items-center gap-1 overflow-x-auto border-b border-line bg-bg px-5 py-2 sm:-mx-6 sm:px-6">
         <div role="group" aria-label="Read or listen" className="mr-2 inline-flex rounded-[3px] border border-line">
           <button type="button" aria-pressed={listening === 'idle'} onClick={() => { handle.current?.stop(); setListening('idle') }} className={cn('cursor-pointer px-3 py-1 text-[12px] font-medium', listening === 'idle' ? 'bg-ink text-bg' : 'text-muted')}>
             Read
@@ -295,7 +300,6 @@ export function Reader({ slug, collection }: { slug: string; collection: Content
           <option value="system">System</option>
           <option value="light">Light</option>
           <option value="dark">Dark</option>
-          <option value="paper">Warm paper</option>
         </select>
         <Button variant="ghost" size="icon" aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} onClick={toggleFullscreen}>
           {fullscreen ? <Shrink className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
@@ -306,12 +310,35 @@ export function Reader({ slug, collection }: { slug: string; collection: Content
         <p className="no-print -mt-5 mb-6 text-[12px] text-muted">Device voice, reading the current text version. Recorded narration is not yet available for this text.</p>
       ) : null}
 
-      <header className="mx-auto mb-10 max-w-[680px]">
-        <p className="eyebrow mb-3">
-          {collection === 'art-of-being' ? (item.type === 'chapter' ? `The Art of Being · Chapter ${item.order}` : 'The Art of Being') : collection === 'companion' ? 'PCI Companion Article' : collection === 'articles' ? 'Article' : 'PCI Framework'}
+      <header className="mx-auto mb-12 max-w-[680px]">
+        <p className="kicker mb-4">
+          {collection === 'art-of-being'
+            ? item.type === 'chapter'
+              ? `${SITE.book} · Chapter ${item.order}`
+              : SITE.book
+            : collection === 'library' || item.type === 'sub_chapter'
+              ? `${SITE.book} · Sub-chapter`
+              : collection === 'companion'
+                ? 'Companion article'
+                : collection === 'articles'
+                  ? 'Article'
+                  : 'Library'}
         </p>
-        <h1 className="display text-[40px] sm:text-[52px]">{item.title}</h1>
-        {item.summary ? <p className="mt-4 font-serif text-[19px] italic leading-relaxed text-ink-2">{item.summary}</p> : null}
+        <h1 className="display text-[40px] leading-[1.08] sm:text-[54px]">{item.title}</h1>
+        <hr className="rule-draw mt-6 w-16" aria-hidden />
+        {parentTitle ? (
+          <p className="label mt-5 text-muted">
+            Filed under{' '}
+            {parent ? (
+              <Link href={hrefFor(parent)} className="border-b border-accent pb-0.5 text-ink hover:text-accent">
+                {parentTitle}
+              </Link>
+            ) : (
+              parentTitle
+            )}
+          </p>
+        ) : null}
+        {item.summary ? <p className="mt-5 font-display text-[22px] italic leading-snug text-ink-2">{item.summary}</p> : null}
         {!resumeDismissed && marksData?.position && marksData.position.block > 1 ? (
           <button
             type="button"
@@ -376,6 +403,8 @@ export function Reader({ slug, collection }: { slug: string; collection: Content
         })}
       </div>
 
+      <p className="mx-auto mt-12 max-w-[680px] font-display text-[21px] italic text-ink-2">{SITE.libraryEnding}</p>
+
       {selection ? (
         <div className="no-print fixed z-50 -translate-x-1/2 -translate-y-full rounded-[3px] border border-line bg-ink p-1 shadow-lg" style={{ left: selection.x, top: selection.y - 8 }}>
           <button type="button" onClick={addHighlight} className="inline-flex cursor-pointer items-center gap-1 px-2 py-1 text-[12px] font-medium text-bg">
@@ -439,24 +468,24 @@ export function Reader({ slug, collection }: { slug: string; collection: Content
             </ul>
           </div>
         ) : null}
-        <nav aria-label="Previous and next" className="no-print mb-6 grid grid-cols-2 gap-4">
+        <nav aria-label="Previous and next" className="no-print mb-8 grid grid-cols-2 gap-6">
           {prev ? (
-            <Link href={hrefFor(prev)} className="rounded-[3px] border border-line p-3 hover:bg-surface">
+            <Link href={hrefFor(prev)} className="group block">
               <span className="eyebrow">Previous</span>
-              <span className="mt-1 block font-serif text-[15px]">{prev.title}</span>
+              <span className="mt-1 block font-display text-[19px] leading-tight group-hover:text-accent">{prev.title}</span>
             </Link>
           ) : (
             <span />
           )}
           {next ? (
-            <Link href={hrefFor(next)} className="rounded-[3px] border border-line p-3 text-right hover:bg-surface">
+            <Link href={hrefFor(next)} className="group block text-right">
               <span className="eyebrow">Next</span>
-              <span className="mt-1 block font-serif text-[15px]">{next.title}</span>
+              <span className="mt-1 block font-display text-[19px] leading-tight group-hover:text-accent">{next.title}</span>
             </Link>
           ) : null}
         </nav>
-        <p className="text-[12px] text-muted">
-          {CANON_STATUS_META[item.canon_status].label} · canon {item.canon_version} · content version {item.content_version} · updated {formatDate(item.updated_at)}
+        <p className="label text-[12px] text-muted">
+          Content version {item.content_version} · updated {formatDate(item.updated_at)}
           {item.source ? ` · ${item.source}` : ''}
         </p>
         {raw && raw.status !== 'published' ? <Notice className="mt-3">A revision of this text is in preparation. You are reading the current published version.</Notice> : null}

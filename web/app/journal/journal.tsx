@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
 import { Button, LinkButton } from '@/components/ui/button'
+import { AskQuestions } from '@/components/pci/ask-questions'
 import { Badge, Input, Label, Notice, Spinner, Textarea } from '@/components/ui/primitives'
-import { PROMPT_CONCEPT_LABELS, promptForDate } from '@/content/seeds/journal-prompts'
 import { useApp, useAutosave, useData } from '@/lib/app/context'
 import { relatedTo } from '@/lib/relational/related'
 import type { JournalEntry } from '@/lib/db/types'
@@ -24,7 +24,6 @@ export function Journal() {
 function JournalEditor({ date, initial }: { date: string; initial: JournalEntry | undefined }) {
   const router = useRouter()
   const isToday = date === today()
-  const prompt = promptForDate(date)
   const { repo, prefs } = useApp()
   const { data: live } = useData((r) => r.journalEntry(date), [date])
   const entry = live ?? initial
@@ -38,10 +37,14 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
   const [showHistory, setShowHistory] = React.useState(false)
   const tagList = (t: string) => t.split(',').map((x) => x.trim()).filter(Boolean)
 
+  // No prompt is assigned. The fields stay in the record, empty; an entry
+  // written before this edition keeps the prompt text it was written under.
+  const promptFields = { prompt_id: entry?.prompt_id ?? '', prompt_text: entry?.prompt_text ?? '' }
+
   // Autosave after a pause in typing; flushed if the page is left sooner.
   const autosave = useAutosave(async () => {
     if (!repo) return
-    await repo.saveJournal({ date, prompt_id: prompt.id, prompt_text: prompt.text, body, tags: tagList(tags) })
+    await repo.saveJournal({ date, ...promptFields, body, tags: tagList(tags) })
     setSaveState('saved')
   })
 
@@ -59,7 +62,7 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
     setAnalysing(true)
     setError(null)
     try {
-      await repo.saveJournal({ date, prompt_id: prompt.id, prompt_text: prompt.text, body, tags: tagList(tags) })
+      await repo.saveJournal({ date, ...promptFields, body, tags: tagList(tags) })
       const { observation } = await repo.analyzeJournal(date)
       router.push(`/observe/report/?id=${observation.id}`)
     } catch (e) {
@@ -120,11 +123,9 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
         </LinkButton>
       </div>
 
-      <p className="eyebrow mb-3">
-        {formatDate(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · {PROMPT_CONCEPT_LABELS[prompt.concept] ?? prompt.concept}
-      </p>
-      <h1 className="display text-[32px] leading-tight sm:text-[40px]">{entry?.prompt_text ?? prompt.text}</h1>
-      {prompt.canon_status === 'provisional' ? <p className="mt-2 text-[12px] text-muted">Provisional prompt — awaiting canon review.</p> : null}
+      <p className="eyebrow mb-3">Journal · private</p>
+      <h1 className="display text-[32px] leading-tight sm:text-[40px]">{formatDate(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h1>
+      {entry?.prompt_text ? <p className="mt-2 text-[13px] text-muted">Written under an earlier edition’s subject: {entry.prompt_text}</p> : null}
 
       <div className="mt-8">
         <label htmlFor="journal-body" className="sr-only">
@@ -142,6 +143,8 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
           <span>{body.trim() ? body.trim().split(/\s+/).length : 0} words</span>
         </div>
       </div>
+
+      {body.trim() ? <AskQuestions material={body} className="mt-6" /> : null}
 
       <div className="mt-6 max-w-md">
         <Label htmlFor="journal-tags">Tags</Label>

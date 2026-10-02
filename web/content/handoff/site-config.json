@@ -1,0 +1,56 @@
+{
+  "name": "PCI",
+  "longName": "Psycho-Creative Intelligence",
+  "book": "The Art of Being",
+  "line": "Perform who you are.",
+  "close": "PCI observes. PCI reports. Then PCI stops.",
+  "disclaimer": "Education, not therapy. Not medical, clinical, or crisis care.",
+  "palette": {
+    "paper": "#F7F3EA",
+    "ink": "#2A2723",
+    "muted": "#6B6558",
+    "gold": "#8A7344",
+    "rule": "#C8C2B4",
+    "dark": "#1C1916"
+  },
+  "nav": ["Art of Being", "Library", "Method", "Academy", "Practitioners", "Boundary"],
+  "operations": [
+    {"n": 1, "name": "Input", "q": "What is present, before it is explained?"},
+    {"n": 2, "name": "Decomposition", "q": "Event, behavior, interpretation, emotion, judgment, assumption, context, identity, unknown."},
+    {"n": 3, "name": "Contextual comparison", "q": "Where has something like this appeared, and what was different?"},
+    {"n": 4, "name": "Pattern detection", "q": "What repeats, and under what conditions?"},
+    {"n": 5, "name": "Contradiction detection", "q": "What does not agree with itself?"},
+    {"n": 6, "name": "Evidentiary separation", "q": "Evidenced, inferred, symbolic, unknown."},
+    {"n": 7, "name": "Observational report", "q": "What can be seen without deciding what to become or do?"}
+  ],
+  "chapters": [
+    {"n": 1, "title": "Discover Your Hidden Abilities", "line": "Recognition comes before refinement."},
+    {"n": 2, "title": "Practice as a Mythology", "line": "Performance is the default state."},
+    {"n": 3, "title": "You Were Finished at Birth", "line": "Eligibility was settled on arrival."},
+    {"n": 4, "title": "Darkness Is an Opportunity to Shine", "line": "What is unnamed still runs the day."},
+    {"n": 5, "title": "Individualism", "line": "Authorship, not isolation."},
+    {"n": 6, "title": "The Principle of Balance", "line": "The scale reports the weights it carries."},
+    {"n": 7, "title": "Identity — The Field of Possibilities", "line": "A name is not the field."},
+    {"n": 8, "title": "Growth Is Effortless", "line": "Effort proves expenditure, not growth."},
+    {"n": 9, "title": "You Are Bound to Choose", "line": "There is no seat outside your own life."},
+    {"n": 10, "title": "The Observer Gets Observed", "line": "The watcher is in the room."},
+    {"n": 11, "title": "The Illusion of Challenge", "line": "A problem is not an event. An emotion is not an identity."},
+    {"n": 12, "title": "Repetition Is Not Repetition", "line": "The file can be identical. The listener is not."}
+  ],
+  "articles": [
+    "The AAA Method",
+    "To Sing Is to Breathe; To Breathe Is to Be",
+    "Being Is Becoming",
+    "The Neutral Gateway",
+    "YOUR “BUSINESS” EVOLVES AROUND OTHERS"
+  ],
+  "retired": [
+    "sixteen-chapter edition as reading order",
+    "twelve Academy principles as method",
+    "booklets",
+    "Reading types as identity",
+    "prescribed practices"
+  ],
+  "memberTools": ["Observe", "Journal", "On the Contrary", "Library"],
+  "loop": "Analyze, reflect, stop"
+}

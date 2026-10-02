@@ -1,12 +1,12 @@
 import { expect, type Page } from '@playwright/test'
 
-export async function onboard(page: Page, opts: { longitudinal?: boolean } = {}) {
-  await page.goto('onboarding/')
-  await page.getByRole('button', { name: 'Continue' }).click()
-  await page.getByRole('button', { name: 'Continue' }).click()
-  if (opts.longitudinal) await page.getByRole('switch', { name: /earlier material/ }).click()
-  await page.getByRole('button', { name: 'Enter PCI' }).click()
-  await expect(page).toHaveURL(/\/today\/$/)
+/** Open the member entry page and check that it names the three tools. Nothing is set up; the tools open directly. */
+export async function enter(page: Page) {
+  await page.goto('enter/')
+  const tools = page.getByRole('list', { name: 'Tools' })
+  await expect(tools.getByRole('link', { name: 'Observe', exact: true })).toBeVisible()
+  await expect(tools.getByRole('link', { name: 'Journal', exact: true })).toBeVisible()
+  await expect(tools.getByRole('link', { name: 'On the Contrary', exact: true })).toBeVisible()
 }
 
 export const SAMPLE =

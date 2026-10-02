@@ -2,9 +2,9 @@
 // PCI content or the user's private material. Private results come only
 // from the signed-in user's own store (RLS-isolated in account mode).
 import { stripInline } from '@/lib/content/markdown'
-import type { ContentItem, Course, GlossaryTerm } from '@/lib/content/types'
+import type { ContentItem, GlossaryTerm } from '@/lib/content/types'
 import { hrefFor } from '@/lib/content/catalog'
-import type { ContrarySession, JournalEntry, LedgerEntry } from '@/lib/db/types'
+import type { ContrarySession, JournalEntry } from '@/lib/db/types'
 import type { ObservationSummary } from '@/lib/db/repository'
 import { stem, tokenize } from '@/lib/pci/text'
 
@@ -25,21 +25,16 @@ export interface SearchHit extends SearchDoc {
   snippet: string
 }
 
-export function publicDocs(content: ContentItem[], glossary: GlossaryTerm[], courses: Course[]): SearchDoc[] {
+export function publicDocs(content: ContentItem[], glossary: GlossaryTerm[]): SearchDoc[] {
   return [
     ...content.map((c) => ({ id: `content:${c.slug}`, scope: 'public' as const, kind: c.collection === 'art-of-being' ? 'The Art of Being' : c.collection === 'pci-framework' ? 'PCI Framework' : c.collection === 'companion' ? 'Companion Article' : 'Article', title: c.title, text: stripInline(`${c.summary}\n${c.body}`), href: c.collection === 'articles' ? `/library/view/?slug=${c.slug}` : hrefFor(c) })),
     ...glossary.map((g) => ({ id: `term:${g.slug}`, scope: 'public' as const, kind: 'Glossary', title: g.term, text: g.definition, href: `/library/glossary/#${g.slug}` })),
-    ...courses.flatMap((c) => [
-      { id: `course:${c.slug}`, scope: 'public' as const, kind: 'Course', title: c.title, text: c.summary, href: `/academy/${c.slug}/` },
-      ...c.lessons.map((l) => ({ id: `lesson:${c.slug}/${l.lesson_id}`, scope: 'public' as const, kind: 'Lesson', title: l.title, text: `${l.orientation} ${l.observation} ${l.journal_prompt}`, href: `/academy/${c.slug}/${l.lesson_id}/` })),
-    ]),
   ]
 }
 
-export function privateDocs(args: { journal: JournalEntry[]; ledger: LedgerEntry[]; observations: ObservationSummary[]; contrary: ContrarySession[] }): SearchDoc[] {
+export function privateDocs(args: { journal: JournalEntry[]; observations: ObservationSummary[]; contrary: ContrarySession[] }): SearchDoc[] {
   return [
     ...args.journal.map((j) => ({ id: `journal:${j.id}`, scope: 'private' as const, kind: 'Journal', title: `Journal — ${j.date}`, text: [j.body, ...j.follow_ups.map((f) => f.text), j.tags.join(' ')].join('\n'), href: `/journal/?date=${j.date}`, date: j.date })),
-    ...args.ledger.map((l) => ({ id: `ledger:${l.id}`, scope: 'private' as const, kind: 'Ledger', title: l.title || l.body.slice(0, 60), text: `${l.title}\n${l.body}\n${l.tags.join(' ')}`, href: `/ledger/entry/?id=${l.id}`, date: l.created_at })),
     ...args.observations.map((o) => ({
       id: `obs:${o.input.id}`,
       scope: 'private' as const,

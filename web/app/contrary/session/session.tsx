@@ -83,9 +83,13 @@ function SessionEditor({ initial }: { initial: ContrarySession }) {
       {session.source ? (
         <p className="text-[13px] text-muted">
           From{' '}
-          <Link href={session.source.kind === 'ledger' ? `/ledger/entry/?id=${session.source.id}` : session.source.kind === 'journal' ? `/journal/?date=${session.source.id}` : `/observe/report/?id=${session.source.id}`} className="text-accent">
-            {session.source.label}
-          </Link>
+          {session.source.kind === 'ledger' ? (
+            session.source.label
+          ) : (
+            <Link href={session.source.kind === 'journal' ? `/journal/?date=${session.source.id}` : `/observe/report/?id=${session.source.id}`} className="text-accent">
+              {session.source.label}
+            </Link>
+          )}
         </p>
       ) : null}
 

@@ -17,7 +17,7 @@ export function JournalArchive() {
 
   return (
     <div>
-      <PageHeader eyebrow="Journal" title="Archive" actions={<LinkButton href="/journal/" variant="outline" size="sm">Today’s entry</LinkButton>}>
+      <PageHeader eyebrow="Journal" title="Archive" actions={<LinkButton href="/journal/" variant="outline" size="sm">Write</LinkButton>}>
         Every entry, newest first. Private to you.
       </PageHeader>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -36,12 +36,15 @@ export function JournalArchive() {
         <ul className="divide-y divide-line border-y border-line">
           {shown.map((e) => (
             <li key={e.id}>
-              <Link href={e.source ? `/academy/${e.source.id}/` : `/journal/?date=${e.date}`} className="block py-4 hover:bg-surface sm:px-2">
+              <Link href={`/journal/?date=${e.date}`} className="block py-4 hover:bg-surface sm:px-2">
                 <p className="eyebrow">{formatDate(e.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                <p className="mt-1 text-[13px] text-muted">
-                  {e.source ? `${e.source.label} · ` : ''}
-                  {e.prompt_text}
-                </p>
+                {e.source || e.prompt_text ? (
+                  <p className="mt-1 text-[13px] text-muted">
+                    {e.source ? e.source.label : ''}
+                    {e.source && e.prompt_text ? ' · ' : ''}
+                    {e.prompt_text}
+                  </p>
+                ) : null}
                 <p className="mt-1 line-clamp-2 font-serif text-[16px]">{e.body || '—'}</p>
                 <p className="mt-1 flex flex-wrap gap-1.5">
                   {e.tags.map((t) => (
@@ -55,7 +58,7 @@ export function JournalArchive() {
           ))}
         </ul>
       ) : (
-        <Empty title={entries?.length ? 'No matching entries' : 'No entries yet'}>{entries?.length ? 'Try another word or tag.' : 'Today’s subject is waiting in the Journal.'}</Empty>
+        <Empty title={entries?.length ? 'No matching entries' : 'Nothing has been entered.'}>{entries?.length ? 'Try another word or tag.' : 'There is no score for an empty page.'}</Empty>
       )}
     </div>
   )

@@ -4,17 +4,16 @@ import Link from 'next/link'
 import * as React from 'react'
 import { Button, LinkButton } from '@/components/ui/button'
 import { Badge, Empty, Input, Label, Notice, PageHeader, Select, Tabs, Textarea } from '@/components/ui/primitives'
-import { JOURNAL_PROMPTS, PROMPT_CONCEPT_LABELS } from '@/content/seeds/journal-prompts'
 import { useApp } from '@/lib/app/context'
 import { useCms } from '@/lib/app/use-cms'
-import { ALL_COURSES, GLOSSARY_TERMS } from '@/lib/content/catalog'
+import { GLOSSARY_TERMS } from '@/lib/content/catalog'
 import { LIFECYCLE_LABELS } from '@/lib/content/lifecycle'
 import { validateForPublication } from '@/lib/content/validation'
 import type { CommunityEvent, ServiceOffering } from '@/lib/db/types'
 import { CANON_STATUS_META } from '@/lib/pci/canon'
 import { formatDateTime } from '@/lib/utils'
 
-type Tab = 'content' | 'prompts' | 'glossary' | 'courses' | 'events' | 'services'
+type Tab = 'content' | 'glossary' | 'events' | 'services'
 
 export function Admin() {
   const { content, mode } = useApp()
@@ -66,9 +65,7 @@ export function Admin() {
         onChange={setTab}
         items={[
           { value: 'content', label: 'Texts', count: content.length },
-          { value: 'prompts', label: 'Journal prompts', count: JOURNAL_PROMPTS.length },
           { value: 'glossary', label: 'Glossary', count: GLOSSARY_TERMS.length },
-          { value: 'courses', label: 'Courses', count: ALL_COURSES.length },
           { value: 'events', label: 'Gatherings', count: events.length },
           { value: 'services', label: 'Services', count: services.length },
         ]}
@@ -112,20 +109,6 @@ export function Admin() {
               </tbody>
             </table>
           </div>
-        ) : tab === 'prompts' ? (
-          <div>
-            <Notice className="mb-4">Prompt 1 is canonical (from the blueprint). The rest are provisional drafts awaiting canon review; approve or replace them before promoting their status.</Notice>
-            <ol className="divide-y divide-line">
-              {JOURNAL_PROMPTS.map((p) => (
-                <li key={p.id} className="grid gap-1 py-2 text-[13.5px] sm:grid-cols-[70px_150px_minmax(0,1fr)_100px]">
-                  <span className="font-mono text-[11px] text-muted">{p.id}</span>
-                  <span className="text-muted">{PROMPT_CONCEPT_LABELS[p.concept]}</span>
-                  <span>{p.text}</span>
-                  <Badge tone={p.canon_status === 'canonical' ? 'solid' : 'neutral'}>{CANON_STATUS_META[p.canon_status].label}</Badge>
-                </li>
-              ))}
-            </ol>
-          </div>
         ) : tab === 'glossary' ? (
           <ul className="divide-y divide-line">
             {GLOSSARY_TERMS.map((t) => (
@@ -133,22 +116,6 @@ export function Admin() {
                 <span className="font-medium">{t.term}</span>
                 <span className="text-ink-2">{t.definition}</span>
                 <span className="text-muted">{CANON_STATUS_META[t.canon_status].label}</span>
-              </li>
-            ))}
-          </ul>
-        ) : tab === 'courses' ? (
-          <ul className="space-y-3">
-            {ALL_COURSES.map((c) => (
-              <li key={c.slug} className="rounded-[3px] border border-line p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{c.title}</span>
-                  <Badge tone={c.status === 'published' ? 'solid' : 'neutral'}>{LIFECYCLE_LABELS[c.status]}</Badge>
-                  <Badge>{CANON_STATUS_META[c.canon_status].label}</Badge>
-                </div>
-                <p className="mt-1 text-[13px] text-ink-2">{c.summary}</p>
-                <p className="mt-1 text-[12px] text-muted">
-                  {c.lessons.length} lessons · {c.lessons.filter((l) => l.video).length} with video
-                </p>
               </li>
             ))}
           </ul>
