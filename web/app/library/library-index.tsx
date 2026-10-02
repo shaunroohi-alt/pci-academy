@@ -27,7 +27,7 @@ export function LibraryIndex() {
           <p className="eyebrow mb-1">Continue reading</p>
           <p className="font-serif text-[18px]">{reading.content_title}</p>
           <div className="mt-2 h-[3px] rounded-full bg-line-strong" aria-hidden>
-            <div className="h-[3px] rounded-full bg-ink" style={{ width: `${Math.round(reading.progress * 100)}%` }} />
+            <div className="h-[3px] rounded-full bg-accent" style={{ width: `${Math.round(reading.progress * 100)}%` }} />
           </div>
         </Link>
       ) : null}
@@ -56,7 +56,7 @@ export function LibraryIndex() {
         </ol>
       </section>
 
-      <section className="mb-14 grid gap-10 border-t border-ink pt-8 lg:grid-cols-[1fr_1.3fr]" aria-labelledby="aob-h">
+      <section className="mb-14 grid gap-10 border-t border-brass pt-8 lg:grid-cols-[1fr_1.3fr]" aria-labelledby="aob-h">
         <div>
           <h2 id="aob-h" className="display text-[32px]">
             The Art of Being
@@ -83,7 +83,7 @@ export function LibraryIndex() {
       </section>
 
       {companion.length ? (
-        <section className="mb-14 border-t border-ink pt-8" aria-labelledby="companion-h">
+        <section className="mb-14 border-t border-brass pt-8" aria-labelledby="companion-h">
           <h2 id="companion-h" className="display text-[32px]">
             Companion Articles
           </h2>
@@ -102,7 +102,7 @@ export function LibraryIndex() {
       ) : null}
 
       {articles.length ? (
-        <section className="mb-14 border-t border-ink pt-8" aria-labelledby="articles-h">
+        <section className="mb-14 border-t border-brass pt-8" aria-labelledby="articles-h">
           <h2 id="articles-h" className="display mb-5 text-[32px]">
             Articles
           </h2>
@@ -119,7 +119,7 @@ export function LibraryIndex() {
         </section>
       ) : null}
 
-      <section className="border-t border-ink pt-8" aria-labelledby="glossary-h">
+      <section className="border-t border-brass pt-8" aria-labelledby="glossary-h">
         <div className="flex items-baseline justify-between">
           <h2 id="glossary-h" className="display text-[32px]">
             Glossary

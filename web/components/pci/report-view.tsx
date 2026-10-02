@@ -489,7 +489,7 @@ export function ReportView({ report }: { report: ObservationalReport }) {
           ) : null}
         </Block>
 
-        <section id="boundary" className="scroll-mt-24 border-y-2 border-ink py-6 text-center">
+        <section id="boundary" className="scroll-mt-24 border-y-2 border-brass py-6 text-center">
           <p className="eyebrow mb-2">Boundary</p>
           <p className="display text-[24px]">{BOUNDARY_STATEMENT}</p>
           <p className="mt-2 text-[13px] text-muted">What follows from this is a human choice, made outside the PCI Engine.</p>

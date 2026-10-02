@@ -4,6 +4,9 @@ import { Archive, BookOpen, CircleUser, Cloud, CloudOff, Ellipsis, GraduationCap
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as React from 'react'
+import { BrandBackdrop, Diamond, PIPELINE_GLYPHS } from '@/components/brand/glyphs'
+import { PciMark, PciSeal } from '@/components/brand/pci-mark'
+import { CANONICAL_PIPELINE } from '@/lib/pci/canon'
 import { useApp } from '@/lib/app/context'
 import { cn } from '@/lib/utils'
 
@@ -14,17 +17,25 @@ const PRIMARY = [
   { href: '/contrary/', label: 'On the Contrary' },
   { href: '/library/', label: 'Library' },
   { href: '/academy/', label: 'Academy' },
+  { href: '/media/', label: 'Media' },
 ]
 
 const MORE = [
   { href: '/contrary/', label: 'On the Contrary', note: 'Examine an apparent error within its system' },
   { href: '/relate/', label: 'Relate', note: 'Patterns, contradictions and connections over time' },
   { href: '/academy/', label: 'Academy', note: 'Courses built on the PCI corpus' },
+  { href: '/media/', label: 'Media', note: 'Recorded seminars, courses and visual essays' },
   { href: '/community/', label: 'Community', note: 'Gatherings and seminars' },
   { href: '/services/', label: 'Services', note: 'Consultation and booking' },
   { href: '/search/', label: 'Search', note: 'PCI content and your own material' },
   { href: '/account/', label: 'Account', note: 'Privacy, export, deletion, appearance' },
   { href: '/admin/', label: 'Admin', note: 'PCI Academy content management' },
+]
+
+const FOOTER = [
+  { title: 'Practice', links: [{ href: '/today/', label: 'Today' }, { href: '/reflection/', label: 'Reflection' }, { href: '/ledger/', label: 'Ledger' }, { href: '/contrary/', label: 'On the Contrary' }, { href: '/relate/', label: 'Relate' }] },
+  { title: 'Learn', links: [{ href: '/library/', label: 'Library' }, { href: '/academy/', label: 'Academy' }, { href: '/media/', label: 'Media' }, { href: '/library/glossary/', label: 'Glossary' }] },
+  { title: 'Connect', links: [{ href: '/community/', label: 'Community' }, { href: '/services/', label: 'Services' }, { href: '/search/', label: 'Search' }, { href: '/account/', label: 'Account' }] },
 ]
 
 const MOBILE = [
@@ -78,19 +89,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [moreOpen])
 
   return (
-    <div className="min-h-dvh">
+    <div className="relative min-h-dvh overflow-x-clip">
+      <BrandBackdrop className="absolute -right-[22rem] -top-[18rem] -z-0 hidden w-[56rem] opacity-70 [mask-image:linear-gradient(to_bottom,black_35%,transparent_75%)] md:block" />
       <a href="#main" className="skip-link">
         Skip to content
       </a>
       <header className={cn('no-print sticky top-0 z-40 border-b border-line bg-[color-mix(in_srgb,var(--bg)_92%,transparent)] backdrop-blur-sm')}>
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2" aria-label="PCI Academy — home">
-            <svg viewBox="0 0 512 512" className="h-6 w-6" aria-hidden>
-              <rect width="512" height="512" rx="96" fill="var(--ink)" />
-              <path fill="var(--brass)" fillRule="evenodd" d="M256 106a150 150 0 1 0 .1 0zM256 140a116 116 0 1 1-.1 0z" />
-              <circle cx="256" cy="256" r="75" fill="var(--brass)" />
-            </svg>
-            <span className="display text-[21px] tracking-tight">PCI</span>
+            <PciSeal size={30} className="h-[30px] w-[30px]" />
+            <span className="wordmark text-[17px] text-ink">
+              PCI<span className="hidden text-accent sm:inline"> Academy</span>
+            </span>
           </Link>
           <nav aria-label="Primary" className="hidden flex-1 items-center gap-1 lg:flex">
             {PRIMARY.map((item) => (
@@ -98,9 +108,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 aria-current={isActive(pathname, item.href) ? 'page' : undefined}
-                className={cn('rounded-[3px] px-2.5 py-1.5 text-[13px] font-medium transition-colors', isActive(pathname, item.href) ? 'text-ink' : 'text-muted hover:text-ink')}
+                className={cn('relative rounded-[3px] px-2.5 py-1.5 text-[13px] font-medium transition-colors', isActive(pathname, item.href) ? 'text-ink' : 'text-muted hover:text-ink')}
               >
                 {item.label}
+                {isActive(pathname, item.href) ? <Diamond className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-accent" /> : null}
               </Link>
             ))}
             <button type="button" onClick={() => setMoreOpen(true)} className="cursor-pointer rounded-[3px] px-2.5 py-1.5 text-[13px] font-medium text-muted hover:text-ink">
@@ -121,16 +132,52 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main id="main" className={cn('mx-auto w-full px-4 pb-28 pt-8 sm:px-6 lg:pb-16', reading ? 'max-w-4xl' : 'max-w-6xl')}>
+      <main id="main" className={cn('relative mx-auto w-full px-4 pb-28 pt-8 sm:px-6 lg:pb-16', reading ? 'max-w-4xl' : 'max-w-6xl')}>
         <div className="sm:hidden [&:not(:empty)]:mb-4">
           <StatusIndicator />
         </div>
         {children}
       </main>
 
-      <footer className="no-print mx-auto hidden max-w-6xl border-t border-line px-6 py-8 text-[12px] text-muted lg:block">
-        <p>PCI Academy · Psycho-Creative Intelligence · Canon 2026.09.25</p>
-        <p className="mt-1">Visibility is the output. Human choice begins outside the PCI Engine.</p>
+      <footer className="no-print relative border-t border-line bg-surface pb-24 lg:pb-0">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+          <ol aria-label="The canonical process" className="mb-12 flex flex-wrap items-center gap-x-2 gap-y-3 text-brass">
+            {CANONICAL_PIPELINE.map((step, i) => {
+              const Glyph = PIPELINE_GLYPHS[i]
+              return (
+                <li key={step} className="flex items-center gap-2">
+                  <Glyph className="h-6 w-6" />
+                  <span className={cn('text-[11px] font-semibold uppercase tracking-[0.14em]', step === 'STOP' ? 'text-accent' : 'text-muted')}>{step}</span>
+                  {i < CANONICAL_PIPELINE.length - 1 ? <span className="mx-1 h-px w-4 bg-brass/60" aria-hidden /> : null}
+                </li>
+              )
+            })}
+          </ol>
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+            <div className="flex items-start gap-5">
+              <PciMark title={null} className="h-24 w-auto shrink-0 text-brass" />
+              <div className="text-[13px] text-ink-2">
+                <p className="wordmark text-[15px] text-ink">PCI Academy</p>
+                <p className="mt-2">Psycho-Creative Intelligence. Visibility is the output; human choice begins outside the PCI Engine.</p>
+              </div>
+            </div>
+            {FOOTER.map((col) => (
+              <nav key={col.title} aria-label={col.title}>
+                <p className="eyebrow mb-3">{col.title}</p>
+                <ul className="space-y-2 text-[13px]">
+                  {col.links.map((l) => (
+                    <li key={l.href}>
+                      <Link href={l.href} className="text-ink-2 hover:text-accent">
+                        {l.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ))}
+          </div>
+          <p className="mt-12 border-t border-line pt-6 text-[12px] text-muted">PCI Academy · Canon 2026.09.25</p>
+        </div>
       </footer>
 
       <nav aria-label="Primary" className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg pb-[env(safe-area-inset-bottom)] lg:hidden">

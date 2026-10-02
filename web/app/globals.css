@@ -1,55 +1,61 @@
 @import 'tailwindcss';
 
-/* ── Palette (§10.2): paper, charcoal, graphite, bone, muted metallic ───── */
+/* ── Palette: taken from the PCI marks. Cream ground and muted gold from the
+   fine-line logo (light); deep black and bright gold from the seal (dark). ── */
 :root {
-  --bg: #f4f2ee;
-  --surface: #ebe7df;
-  --surface-2: #e1dcd2;
-  --raised: #faf9f6;
-  --ink: #1f1e1c;
-  --ink-2: #45423d;
-  --muted: #6b675f;
-  --line: color-mix(in srgb, #1f1e1c 14%, transparent);
-  --line-strong: color-mix(in srgb, #1f1e1c 28%, transparent);
-  --accent: #7d5a22;
-  --accent-soft: color-mix(in srgb, #b68235 16%, transparent);
-  --brass: #b68235;
+  --bg: #faf8f3;
+  --surface: #f3efe4;
+  --surface-2: #ebe5d6;
+  --raised: #fdfcf9;
+  --ink: #1c1914;
+  --ink-2: #4a4336;
+  --muted: #6e6553;
+  --line: color-mix(in srgb, #ae9665 34%, transparent);
+  --line-strong: color-mix(in srgb, #6e5a32 42%, transparent);
+  --accent: #7a6332;
+  --accent-soft: color-mix(in srgb, #ae9665 18%, transparent);
+  --brass: #ae9665;
   --danger: #8a2f25;
-  --focus: #7d5a22;
+  --focus: #7a6332;
+  --primary: #1c1914;
+  --primary-hover: #4a4336;
 
   --ep-evidence: #2f3b32;
-  --ep-interpretation: #7d5a22;
+  --ep-interpretation: #7a6332;
   --ep-inference: #3f5670;
   --ep-hypothesis: #66507a;
   --ep-symbolic: #3f6763;
   --ep-philosophical: #5e5f2c;
-  --ep-unknown: #6b675f;
+  --ep-unknown: #6e6553;
 
   --reader-size: 19px;
   color-scheme: light;
 }
 
 :root[data-theme='dark'] {
-  --bg: #141312;
-  --surface: #1c1b19;
-  --surface-2: #26241f;
-  --raised: #201f1c;
-  --ink: #ece7de;
-  --ink-2: #cdc6ba;
-  --muted: #a39d92;
-  --line: color-mix(in srgb, #ece7de 14%, transparent);
-  --line-strong: color-mix(in srgb, #ece7de 30%, transparent);
-  --accent: #d4a55e;
-  --accent-soft: color-mix(in srgb, #d4a55e 16%, transparent);
+  --bg: #0e0d0b;
+  --surface: #171512;
+  --surface-2: #211e19;
+  --raised: #1a1814;
+  --ink: #f2ead9;
+  --ink-2: #d5cab3;
+  --muted: #a89d86;
+  --line: color-mix(in srgb, #dcac45 20%, transparent);
+  --line-strong: color-mix(in srgb, #dcac45 38%, transparent);
+  --accent: #dcac45;
+  --accent-soft: color-mix(in srgb, #dcac45 15%, transparent);
+  --brass: #c9a04a;
   --danger: #e08a7e;
-  --focus: #d4a55e;
+  --focus: #dcac45;
+  --primary: #dcac45;
+  --primary-hover: #e8c26f;
   --ep-evidence: #b9c9bb;
-  --ep-interpretation: #d4a55e;
+  --ep-interpretation: #dcac45;
   --ep-inference: #9fb6d1;
   --ep-hypothesis: #c3acd6;
   --ep-symbolic: #9cc5bf;
   --ep-philosophical: #c9c98b;
-  --ep-unknown: #a39d92;
+  --ep-unknown: #a89d86;
   color-scheme: dark;
 }
 
@@ -61,9 +67,9 @@
   --ink: #2a2417;
   --ink-2: #4b4230;
   --muted: #6c6048;
-  --line: color-mix(in srgb, #2a2417 16%, transparent);
+  --line: color-mix(in srgb, #8f7646 30%, transparent);
   --line-strong: color-mix(in srgb, #2a2417 30%, transparent);
-  --accent: #74501a;
+  --accent: #6e5524;
 }
 
 @theme inline {
@@ -80,6 +86,8 @@
   --color-accent-soft: var(--accent-soft);
   --color-brass: var(--brass);
   --color-danger: var(--danger);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --font-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, serif;
   --font-serif: 'Lora', 'Iowan Old Style', Georgia, serif;
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -148,8 +156,8 @@ body {
 /* ── Editorial typography ───────────────────────────────────────────── */
 .display {
   font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  letter-spacing: -0.005em;
   line-height: 1.08;
 }
 
@@ -157,14 +165,30 @@ body {
   font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
+}
+
+/* Spaced small-caps wordmark beside the seal */
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* Faint geometric field from the mark, behind hero sections */
+.brand-field {
+  background-image:
+    radial-gradient(circle at center, transparent 0 59.6%, color-mix(in srgb, var(--brass) 30%, transparent) 59.8% 60%, transparent 60.2%),
+    radial-gradient(circle at center, transparent 0 79.6%, color-mix(in srgb, var(--brass) 22%, transparent) 79.8% 80%, transparent 80.2%);
 }
 
 .rule {
   height: 1px;
-  background: var(--line);
+  background: linear-gradient(90deg, transparent, var(--brass) 18%, var(--brass) 82%, transparent);
+  opacity: 0.55;
   border: 0;
 }
 

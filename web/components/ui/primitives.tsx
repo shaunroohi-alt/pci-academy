@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { Diamond } from '@/components/brand/glyphs'
 import { cn } from '@/lib/utils'
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -25,13 +26,24 @@ export function Eyebrow({ className, ...props }: React.HTMLAttributes<HTMLParagr
 
 export function PageHeader({ eyebrow, title, children, actions }: { eyebrow?: string; title: React.ReactNode; children?: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="max-w-2xl">
-        {eyebrow ? <Eyebrow className="mb-2">{eyebrow}</Eyebrow> : null}
-        <h1 className="display text-[40px] sm:text-[48px]">{title}</h1>
-        {children ? <div className="mt-3 text-[15px] text-ink-2">{children}</div> : null}
+    <header className="mb-10">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-2xl">
+          {eyebrow ? (
+            <Eyebrow className="mb-3 flex items-center gap-2">
+              <Diamond /> {eyebrow}
+            </Eyebrow>
+          ) : null}
+          <h1 className="display text-[40px] sm:text-[52px]">{title}</h1>
+          {children ? <div className="mt-3 text-[15px] text-ink-2">{children}</div> : null}
+        </div>
+        {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
       </div>
-      {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+      <div className="mt-6 flex items-center gap-2 text-brass" aria-hidden>
+        <span className="h-1.5 w-1.5 rounded-full bg-brass" />
+        <span className="h-px w-24 bg-brass/70" />
+        <span className="h-px flex-1 bg-line" />
+      </div>
     </header>
   )
 }
@@ -70,7 +82,7 @@ export function Switch({ checked, onChange, label, description, id }: { checked:
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={cn('relative mt-0.5 h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors', checked ? 'border-ink bg-ink' : 'border-line-strong bg-surface-2')}
+        className={cn('relative mt-0.5 h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors', checked ? 'border-accent bg-accent' : 'border-line-strong bg-surface-2')}
       >
         <span className={cn('absolute left-0 top-0.5 h-4 w-4 rounded-full transition-transform', checked ? 'translate-x-[22px] bg-bg' : 'translate-x-0.5 bg-muted')} />
       </button>

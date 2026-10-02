@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import * as React from 'react'
+import { PciMark } from '@/components/brand/pci-mark'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/primitives'
 import { useApp } from '@/lib/app/context'
@@ -25,9 +26,10 @@ export function Onboarding() {
 
   return (
     <div className="mx-auto max-w-2xl py-6">
+      <PciMark title={null} className="mx-auto mb-8 h-24 w-auto text-brass" />
       <ol className="mb-10 flex gap-2" aria-label="Onboarding progress">
         {[0, 1, 2].map((i) => (
-          <li key={i} className={cn('h-[3px] flex-1 rounded-full', i <= step ? 'bg-ink' : 'bg-line-strong')} aria-current={i === step ? 'step' : undefined}>
+          <li key={i} className={cn('h-[3px] flex-1 rounded-full', i <= step ? 'bg-accent' : 'bg-line-strong')} aria-current={i === step ? 'step' : undefined}>
             <span className="sr-only">Step {i + 1} of 3</span>
           </li>
         ))}

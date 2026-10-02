@@ -141,7 +141,7 @@ export function Observe() {
                       onClick={() => setStep(i)}
                       aria-label={`Question ${o.n}: ${o.name}`}
                       aria-current={i === step ? 'step' : undefined}
-                      className={cn('block h-1.5 w-full cursor-pointer rounded-full', i === step ? 'bg-ink' : guided[String(o.n)]?.trim() ? 'bg-ink-2/60' : 'bg-line-strong')}
+                      className={cn('block h-1.5 w-full cursor-pointer rounded-full', i === step ? 'bg-accent' : guided[String(o.n)]?.trim() ? 'bg-ink-2/60' : 'bg-line-strong')}
                     />
                   </li>
                 ))}
