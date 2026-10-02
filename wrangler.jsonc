@@ -1,15 +1,31 @@
-// Cloudflare Workers Builds deploys the PCI Web App (web/) as static assets.
+// Cloudflare Workers Builds deploys the PCI Web App (web/) as static assets,
+// plus a small Worker (web/worker) that answers /api/* requests.
 // The Worker name must match the Worker connected in the Cloudflare dashboard.
 // Served from the domain root, so BASE_PATH stays empty (Pages uses /pci-academy/).
+//
+// Secret (set once in the dashboard, or `npx wrangler secret put ANTHROPIC_API_KEY`):
+//   ANTHROPIC_API_KEY   powers the On the Contrary writer (/api/contrary)
 {
   "name": "pci-academy",
+  "main": "./web/worker/index.ts",
   "compatibility_date": "2025-09-01",
   "build": {
     "command": "cd web && corepack enable && pnpm install --frozen-lockfile && pnpm build"
   },
   "assets": {
     "directory": "./web/out",
+    "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "html_handling": "auto-trailing-slash"
-  }
+    "html_handling": "auto-trailing-slash",
+    "run_worker_first": ["/api/*"]
+  },
+  // Per-visitor cap on the paid writer endpoint.
+  "ratelimits": [
+    {
+      "name": "CONTRARY_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 6, "period": 60 }
+    }
+  ],
+  "observability": { "enabled": true }
 }
