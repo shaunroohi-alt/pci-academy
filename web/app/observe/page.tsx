@@ -1,13 +1,8 @@
 import type { Metadata } from 'next'
-import { Suspense } from 'react'
-import { Observe } from './observe'
+import { Redirect } from '@/components/redirect'
 
-export const metadata: Metadata = { title: 'Observe' }
+export const metadata: Metadata = { title: 'Reflection' }
 
 export default function Page() {
-  return (
-    <Suspense>
-      <Observe />
-    </Suspense>
-  )
+  return <Redirect to="/reflection/" query="tab=observe" />
 }

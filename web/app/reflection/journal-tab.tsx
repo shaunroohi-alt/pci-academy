@@ -52,7 +52,7 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
     autosave.schedule()
   }
 
-  const go = (d: string) => router.push(`/journal/?date=${d}`)
+  const go = (d: string) => router.push(`/reflection/?date=${d}`)
 
   const analyse = async () => {
     if (!repo) return
@@ -87,12 +87,12 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
     if (!prefs.longitudinal || !all || !body.trim()) return []
     return relatedTo(
       { id: date, text: body },
-      all.filter((e) => !e.source).map((e) => ({ id: e.id, text: e.body, date: e.date, title: formatDate(e.date), href: `/journal/?date=${e.date}` })),
+      all.filter((e) => !e.source).map((e) => ({ id: e.id, text: e.body, date: e.date, title: formatDate(e.date), href: `/reflection/?date=${e.date}` })),
     )
   }, [prefs.longitudinal, all, body, date])
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <div className="mb-8 flex items-center justify-between gap-3">
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={() => go(shiftDate(date, -1))} aria-label="Previous day">
@@ -115,7 +115,7 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
             </Button>
           ) : null}
         </div>
-        <LinkButton href="/journal/archive/" variant="outline" size="sm">
+        <LinkButton href="/reflection/archive/" variant="outline" size="sm">
           Archive
         </LinkButton>
       </div>
@@ -123,7 +123,7 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
       <p className="eyebrow mb-3">
         {formatDate(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · {PROMPT_CONCEPT_LABELS[prompt.concept] ?? prompt.concept}
       </p>
-      <h1 className="display text-[32px] leading-tight sm:text-[40px]">{entry?.prompt_text ?? prompt.text}</h1>
+      <h2 className="display text-[32px] leading-tight sm:text-[40px]">{entry?.prompt_text ?? prompt.text}</h2>
       {prompt.canon_status === 'provisional' ? <p className="mt-2 text-[12px] text-muted">Provisional prompt — awaiting canon review.</p> : null}
 
       <div className="mt-8">

@@ -19,7 +19,7 @@ test.describe('Onboarding (R1)', () => {
 test.describe('Observe (R1)', () => {
   test('direct analysis produces a report that ends at the boundary', async ({ page }) => {
     await onboard(page)
-    await page.goto('observe/')
+    await page.goto('reflection/?tab=observe')
     await page.getByLabel('Material', { exact: true }).fill(SAMPLE)
     await page.getByRole('button', { name: 'Observe', exact: true }).click()
     await expect(page).toHaveURL(/observe\/report\/\?id=/)
@@ -36,7 +36,7 @@ test.describe('Observe (R1)', () => {
 
   test('guided mode walks the seven questions', async ({ page }) => {
     await onboard(page)
-    await page.goto('observe/')
+    await page.goto('reflection/?tab=observe')
     await page.getByRole('tab', { name: /Guided/ }).click()
     await expect(page.getByText('Question 1 of 7 · Input')).toBeVisible()
     await page.getByRole('textbox', { name: /What actually occurred/ }).fill('I cancelled the rehearsal an hour before it started.')
@@ -52,7 +52,7 @@ test.describe('Observe (R1)', () => {
 
   test('report reopens; re-analysis creates a new version and keeps the original unchanged', async ({ page }) => {
     await onboard(page)
-    await page.goto('observe/')
+    await page.goto('reflection/?tab=observe')
     await page.getByLabel('Material', { exact: true }).fill('I left the party early without saying goodbye.')
     await page.getByRole('button', { name: 'Observe', exact: true }).click()
     await expect(page).toHaveURL(/report/)
@@ -73,13 +73,13 @@ test.describe('Observe (R1)', () => {
 
   test('an observation can be deleted', async ({ page }) => {
     await onboard(page)
-    await page.goto('observe/')
+    await page.goto('reflection/?tab=observe')
     await page.getByLabel('Material', { exact: true }).fill('Temporary material to delete.')
     await page.getByRole('button', { name: 'Observe', exact: true }).click()
     await expect(page).toHaveURL(/report/)
     page.on('dialog', (d) => d.accept())
     await page.getByRole('button', { name: 'Delete observation' }).click()
-    await expect(page).toHaveURL(/\/observe\/$/)
+    await expect(page).toHaveURL(/\/reflection\/\?tab=observe$/)
     await expect(page.getByText('Temporary material to delete.')).toHaveCount(0)
   })
 })
@@ -87,7 +87,7 @@ test.describe('Observe (R1)', () => {
 test.describe('Journal (R1/R2)', () => {
   test('autosaves privately, survives reload, and analyses through PCI', async ({ page }) => {
     await onboard(page)
-    await page.goto('journal/')
+    await page.goto('reflection/')
     const editor = page.getByLabel('Journal entry')
     await editor.fill('I snapped at my brother at dinner. I was tired and I always do this when I am tired.')
     await expect(page.getByText('Saved', { exact: true })).toBeVisible()
@@ -100,7 +100,7 @@ test.describe('Journal (R1/R2)', () => {
 
   test('date navigation and archive search', async ({ page }) => {
     await onboard(page)
-    await page.goto('journal/')
+    await page.goto('reflection/')
     await page.getByLabel('Journal entry').fill('An entry about the harbour.')
     await expect(page.getByText('Saved', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Previous day' }).click()
@@ -127,5 +127,19 @@ test.describe('Account and privacy', () => {
     await expect(page.getByText('All private material has been deleted.')).toBeVisible()
     await page.goto('ledger/')
     await expect(page.getByText('The Ledger is empty')).toBeVisible()
+  })
+})
+
+test.describe('Reflection', () => {
+  test('old Observe and Journal links open the matching Reflection tab', async ({ page }) => {
+    await onboard(page)
+    await page.goto('observe/')
+    await expect(page).toHaveURL(/\/reflection\/\?tab=observe$/)
+    await expect(page.getByLabel('Material', { exact: true })).toBeVisible()
+    await page.goto('journal/?date=2026-01-05')
+    await expect(page).toHaveURL(/\/reflection\/\?date=2026-01-05$/)
+    await expect(page.getByLabel('Journal date')).toHaveValue('2026-01-05')
+    await page.getByRole('tab', { name: 'Observe' }).click()
+    await expect(page.getByRole('button', { name: 'Observe', exact: true })).toBeVisible()
   })
 })

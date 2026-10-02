@@ -41,7 +41,7 @@ test.describe('Library and reader (R2)', () => {
 
   test('glossary and search label public vs private results', async ({ page }) => {
     await onboard(page)
-    await page.goto('journal/')
+    await page.goto('reflection/')
     await page.getByLabel('Journal entry').fill('A private thought about balance at work.')
     await expect(page.getByText('Saved', { exact: true })).toBeVisible()
     await page.goto('search/?q=balance')
@@ -126,7 +126,7 @@ test.describe('Academy (R3)', () => {
     await expect(page.getByRole('button', { name: 'Completed' })).toBeDisabled()
     await page.goto('academy/pci-foundations/')
     await expect(page.getByText('Completed').first()).toBeVisible()
-    await page.goto('journal/archive/')
+    await page.goto('reflection/archive/')
     await expect(page.getByText(/A friend told me to quit/)).toBeVisible()
   })
 })

@@ -31,7 +31,7 @@ export function Report() {
   if (loading) return <Spinner label="Opening report" />
   if (!bundle) {
     return (
-      <Empty title="Observation not found" action={<Link href="/observe/" className="text-accent">Back to Observe</Link>}>
+      <Empty title="Observation not found" action={<Link href="/reflection/?tab=observe" className="text-accent">Back to Reflection</Link>}>
         It may have been deleted, or it belongs to material stored on another device.
       </Empty>
     )
@@ -66,7 +66,7 @@ export function Report() {
     if (!repo) return
     if (!window.confirm('Delete this observation, its original input and every analysis version? This cannot be undone.')) return
     await repo.deleteObservation(input.id)
-    router.push('/observe/')
+    router.push('/reflection/?tab=observe')
   }
 
   return (
@@ -83,7 +83,7 @@ export function Report() {
               {' '}
               · from{' '}
               {input.source_ref.kind === 'journal' ? (
-                <Link className="text-accent" href={`/journal/?date=${input.source_ref.id}`}>
+                <Link className="text-accent" href={`/reflection/?date=${input.source_ref.id}`}>
                   {input.source_ref.label}
                 </Link>
               ) : input.source_ref.kind === 'ledger' ? (
