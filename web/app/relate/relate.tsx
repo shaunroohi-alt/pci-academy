@@ -15,7 +15,7 @@ import { Timeline } from './timeline'
 type Tab = 'timeline' | 'patterns' | 'contradictions' | 'connections' | 'twin'
 
 function hrefForSource(id: string): string {
-  if (id.startsWith('journal:')) return `/journal/?date=${id.slice(8)}`
+  if (id.startsWith('journal:')) return `/reflection/?date=${id.slice(8)}`
   if (id.startsWith('ledger:')) return `/ledger/entry/?id=${id.slice(7)}`
   if (id.startsWith('contrary:')) return `/contrary/session/?id=${id.slice(9)}`
   return `/observe/report/?id=${id}`

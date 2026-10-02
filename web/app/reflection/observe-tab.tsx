@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
 import { Button } from '@/components/ui/button'
-import { Badge, Label, Notice, PageHeader, Select, Spinner, Switch, Tabs, Textarea } from '@/components/ui/primitives'
+import { Badge, Label, Notice, Select, Spinner, Switch, Tabs, Textarea } from '@/components/ui/primitives'
 import { useApp, useAutosave, useData } from '@/lib/app/context'
 import { SEVEN_OPERATIONS, SOURCE_TYPES, SOURCE_TYPE_LABELS, type SourceType } from '@/lib/pci/canon'
 import type { GuidedAnswers } from '@/lib/pci/schema'
@@ -14,7 +14,7 @@ type Mode = 'direct' | 'guided'
 const SELECTABLE: SourceType[] = SOURCE_TYPES.filter((s) => !['journal_entry', 'ledger_entry', 'contrary_session'].includes(s))
 
 export function Observe() {
-  const { repo, provider, prefs, online } = useApp()
+  const { repo, provider, prefs, setPrefs, online } = useApp()
   const router = useRouter()
   const params = useSearchParams()
   const [mode, setMode] = React.useState<Mode>('direct')
@@ -97,10 +97,6 @@ export function Observe() {
 
   return (
     <div>
-      <PageHeader eyebrow="PCI Engine" title="Observe">
-        Submit material and receive an observational report. The original is preserved unchanged; each analysis is a separate, revisable version.
-      </PageHeader>
-
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div>
           <Tabs<Mode>
@@ -186,7 +182,7 @@ export function Observe() {
             <Button size="lg" onClick={submit} disabled={!canSubmit}>
               {busy ? 'Observing…' : 'Observe'}
             </Button>
-            {busy ? <Spinner label="Running the seven operations" /> : null}
+            {busy ? <Spinner label={prefs.writeup ? 'Observing, then writing the report' : 'Running the seven operations'} /> : null}
             {savedAt && !busy ? <span className="text-[12px] text-muted">Draft saved on this device</span> : null}
           </div>
         </div>
@@ -203,6 +199,7 @@ export function Observe() {
             <p className="eyebrow mb-1">Optional depth</p>
             <Switch id="opt-lenses" checked={lenses} onChange={setLenses} label="Multi-lens analysis" description="Findings under separate lenses, compared only after isolation." />
             <Switch id="opt-causal" checked={causal} onChange={setCausal} label="Causal hypotheses" description="Sequences held as hypotheses, with alternatives and disconfirming evidence." />
+            <Switch id="opt-writeup" checked={prefs.writeup} onChange={(v) => void setPrefs({ writeup: v })} label="Written observation and analysis" description="Claude writes the report as prose. The material is sent to Anthropic to do this." />
           </div>
         </aside>
       </div>

@@ -15,7 +15,7 @@ function linkHref(l: MaterialLink): string {
     case 'observation':
       return `/observe/report/?id=${l.id}`
     case 'journal':
-      return `/journal/?date=${l.id}`
+      return `/reflection/?date=${l.id}`
     case 'ledger':
       return `/ledger/entry/?id=${l.id}`
     case 'contrary':

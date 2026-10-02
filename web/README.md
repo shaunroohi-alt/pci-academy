@@ -95,6 +95,8 @@ Longitudinal comparison — the engine reading earlier material — is **off by 
 
 `wrangler.jsonc` at the repository root deploys `web/out` plus a small Worker (`web/worker/`) that answers `/api/*`. `/api/contrary` writes the On the Contrary **Contrary Position** or **Balance** as prose with Claude (`claude-opus-5-5`), checks the draft against the constitutional validator with one repair round, and is rate-limited per visitor. It needs one Worker secret, `ANTHROPIC_API_KEY` (Cloudflare dashboard → Workers → pci-academy → Settings → Variables and Secrets, or `npx wrangler secret put ANTHROPIC_API_KEY`). Optional plain variable `CONTRARY_MODEL` overrides the model. Without the key the button explains that the writer is not configured.
 
+`/api/reflect` uses the same key, model and rate limit to write the **Observation** and **Analysis** of every Observe and Journal report as prose, from the material, the engine's findings and (only when the user allows comparison) the earlier material the engine compared against. Both parts go through the same validator with one repair round. The write-up is stored on the analysis version; without the key, reports keep their structural form and say why the write-up is missing. Users can turn writing off under Account → Privacy.
+
 ### Backend (optional)
 
 1. Create a Supabase project.

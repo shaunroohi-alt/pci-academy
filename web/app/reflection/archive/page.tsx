@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
-import { Redirect } from '@/components/redirect'
+import { JournalArchive } from './archive'
 
 export const metadata: Metadata = { title: 'Journal archive' }
 
 export default function Page() {
-  return <Redirect to="/reflection/archive/" />
+  return <JournalArchive />
 }

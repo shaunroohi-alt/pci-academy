@@ -6,8 +6,8 @@ import { backendConfigured } from '@/lib/env'
 
 const ENVIRONMENTS = [
   { title: 'Read', body: 'The PCI framework, the glossary, and — as each chapter is approved — The Art of Being, in a reader built for sustained attention.', href: '/library/' },
-  { title: 'Document', body: 'One observational subject a day in the Journal, and an unrestricted Ledger for everything else.', href: '/journal/' },
-  { title: 'Observe', body: 'Submit material and receive an observational report: separated, compared, classified, and traced to your own words.', href: '/observe/' },
+  { title: 'Reflect', body: 'One observational subject a day in the journal, or any material submitted for an observational report: separated, compared, classified, and traced to your own words.', href: '/reflection/' },
+  { title: 'Document', body: 'An unrestricted Ledger for everything else worth keeping.', href: '/ledger/' },
   { title: 'Examine', body: 'On the Contrary: examine an apparent error inside the wider system it belongs to — without forcing it into a positive reading.', href: '/contrary/' },
   { title: 'Relate', body: 'With your permission, see how material relates across time: patterns, contradictions, revisions. Nothing becomes an identity claim.', href: '/relate/' },
   { title: 'Learn', body: 'Courses that reuse the canonical corpus. Progress is informational; nothing is scored.', href: '/academy/' },

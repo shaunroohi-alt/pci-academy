@@ -29,7 +29,7 @@ test.describe('PWA and offline (R5)', () => {
     await page.goto('library/epistemic-classes/')
     await expect(page.getByRole('heading', { level: 1, name: 'Epistemic Classes and Confidence' })).toBeVisible()
     await expect(page.getByText('Offline — saving on this device').first()).toBeVisible()
-    await page.goto('journal/')
+    await page.goto('reflection/')
     await page.getByLabel('Journal entry').fill('Written without a connection.')
     await expect(page.getByText('Saved', { exact: true })).toBeVisible()
     await context.setOffline(false)

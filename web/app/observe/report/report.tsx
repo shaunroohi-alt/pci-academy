@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
 import { ReportView } from '@/components/pci/report-view'
+import { WrittenReport } from '@/components/pci/written-report'
 import { Button } from '@/components/ui/button'
 import { Badge, Empty, Label, Notice, Spinner, Switch, Textarea } from '@/components/ui/primitives'
 import { useApp, useData } from '@/lib/app/context'
@@ -31,7 +32,7 @@ export function Report() {
   if (loading) return <Spinner label="Opening report" />
   if (!bundle) {
     return (
-      <Empty title="Observation not found" action={<Link href="/observe/" className="text-accent">Back to Observe</Link>}>
+      <Empty title="Observation not found" action={<Link href="/reflection/?tab=observe" className="text-accent">Back to Reflection</Link>}>
         It may have been deleted, or it belongs to material stored on another device.
       </Empty>
     )
@@ -66,7 +67,7 @@ export function Report() {
     if (!repo) return
     if (!window.confirm('Delete this observation, its original input and every analysis version? This cannot be undone.')) return
     await repo.deleteObservation(input.id)
-    router.push('/observe/')
+    router.push('/reflection/?tab=observe')
   }
 
   return (
@@ -83,7 +84,7 @@ export function Report() {
               {' '}
               · from{' '}
               {input.source_ref.kind === 'journal' ? (
-                <Link className="text-accent" href={`/journal/?date=${input.source_ref.id}`}>
+                <Link className="text-accent" href={`/reflection/?date=${input.source_ref.id}`}>
                   {input.source_ref.label}
                 </Link>
               ) : input.source_ref.kind === 'ledger' ? (
@@ -218,6 +219,16 @@ export function Report() {
             Version {current.version} · {current.provider === 'local' ? 'PCI Local Engine' : 'PCI Engine (AI provider)'} {current.model} · canon {current.canon_version}
             {current.longitudinal ? ' · compared with earlier material' : ''}
           </p>
+          {current.writeup ? (
+            <>
+              <WrittenReport writeup={current.writeup} />
+              <h2 className="display mb-6 border-t border-line pt-8 text-[24px]">The structure behind it</h2>
+            </>
+          ) : current.writeup_error ? (
+            <Notice title="The written observation and analysis are missing from this version" className="no-print mb-8">
+              {current.writeup_error} The structural report below is complete. Re-analyse to try writing it again.
+            </Notice>
+          ) : null}
           <ReportView report={current.report} />
         </>
       ) : null}

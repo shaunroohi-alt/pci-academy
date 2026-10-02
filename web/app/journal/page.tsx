@@ -1,13 +1,8 @@
 import type { Metadata } from 'next'
-import { Suspense } from 'react'
-import { Journal } from './journal'
+import { Redirect } from '@/components/redirect'
 
-export const metadata: Metadata = { title: 'Journal' }
+export const metadata: Metadata = { title: 'Reflection' }
 
 export default function Page() {
-  return (
-    <Suspense>
-      <Journal />
-    </Suspense>
-  )
+  return <Redirect to="/reflection/" />
 }

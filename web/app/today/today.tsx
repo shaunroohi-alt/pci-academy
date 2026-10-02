@@ -74,19 +74,19 @@ export function Today() {
 
       <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr]">
         <div className="space-y-10">
-          <Panel title="Today’s journal subject" href={`/journal/?date=${date}`} action={data?.entry?.body.trim() ? 'Continue' : 'Write'}>
+          <Panel title="Today’s journal subject" href={`/reflection/?date=${date}`} action={data?.entry?.body.trim() ? 'Continue' : 'Write'}>
             <p className="eyebrow mb-2 text-muted">{PROMPT_CONCEPT_LABELS[prompt.concept]}</p>
             <p className="font-display text-[28px] leading-snug">{prompt.text}</p>
             {data?.entry?.body.trim() ? (
               <p className="mt-3 line-clamp-2 font-serif text-[15px] text-ink-2">{data.entry.body}</p>
             ) : (
               <div className="mt-5">
-                <LinkButton href={`/journal/?date=${date}`}>Write</LinkButton>
+                <LinkButton href={`/reflection/?date=${date}`}>Write</LinkButton>
               </div>
             )}
           </Panel>
 
-          <Panel title="Recent observation" href={recentObs ? `/observe/report/?id=${recentObs.input.id}` : '/observe/'} action={recentObs ? 'Open report' : 'Observe'}>
+          <Panel title="Recent observation" href={recentObs ? `/observe/report/?id=${recentObs.input.id}` : '/reflection/?tab=observe'} action={recentObs ? 'Open report' : 'Observe'}>
             {recentObs ? (
               <div>
                 <p className="font-serif text-[18px]">{recentObs.input.title}</p>

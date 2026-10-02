@@ -152,6 +152,13 @@ export function Account() {
             description="Lets the engine read your earlier observations, journal, ledger and On the Contrary sessions to find recurrence, revisions and context changes. Off by default; switching it off stops all longitudinal comparison immediately."
           />
           <Switch
+            id="pref-writeup"
+            checked={prefs.writeup}
+            onChange={(v) => setPrefs({ writeup: v })}
+            label="Write my reports as prose"
+            description="Claude writes each report’s observation and analysis for you to read. The material being analysed (and any earlier material it is compared with) is sent to Anthropic to do this. Off keeps every analysis on this device, as structure only."
+          />
+          <Switch
             id="pref-twin"
             checked={prefs.twin_opt_in}
             onChange={(v) => setPrefs({ twin_opt_in: v })}

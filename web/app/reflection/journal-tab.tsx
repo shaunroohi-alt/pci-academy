@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
 import { Button, LinkButton } from '@/components/ui/button'
-import { Badge, Input, Label, Notice, Spinner, Textarea } from '@/components/ui/primitives'
+import { Badge, Input, Label, Notice, Spinner, Switch, Textarea } from '@/components/ui/primitives'
 import { PROMPT_CONCEPT_LABELS, promptForDate } from '@/content/seeds/journal-prompts'
 import { useApp, useAutosave, useData } from '@/lib/app/context'
 import { relatedTo } from '@/lib/relational/related'
@@ -25,7 +25,7 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
   const router = useRouter()
   const isToday = date === today()
   const prompt = promptForDate(date)
-  const { repo, prefs } = useApp()
+  const { repo, prefs, setPrefs } = useApp()
   const { data: live } = useData((r) => r.journalEntry(date), [date])
   const entry = live ?? initial
   const { data: all } = useData((r) => r.journalEntries(), [])
@@ -52,7 +52,7 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
     autosave.schedule()
   }
 
-  const go = (d: string) => router.push(`/journal/?date=${d}`)
+  const go = (d: string) => router.push(`/reflection/?date=${d}`)
 
   const analyse = async () => {
     if (!repo) return
@@ -87,12 +87,12 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
     if (!prefs.longitudinal || !all || !body.trim()) return []
     return relatedTo(
       { id: date, text: body },
-      all.filter((e) => !e.source).map((e) => ({ id: e.id, text: e.body, date: e.date, title: formatDate(e.date), href: `/journal/?date=${e.date}` })),
+      all.filter((e) => !e.source).map((e) => ({ id: e.id, text: e.body, date: e.date, title: formatDate(e.date), href: `/reflection/?date=${e.date}` })),
     )
   }, [prefs.longitudinal, all, body, date])
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <div className="mb-8 flex items-center justify-between gap-3">
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={() => go(shiftDate(date, -1))} aria-label="Previous day">
@@ -115,7 +115,7 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
             </Button>
           ) : null}
         </div>
-        <LinkButton href="/journal/archive/" variant="outline" size="sm">
+        <LinkButton href="/reflection/archive/" variant="outline" size="sm">
           Archive
         </LinkButton>
       </div>
@@ -123,7 +123,7 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
       <p className="eyebrow mb-3">
         {formatDate(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · {PROMPT_CONCEPT_LABELS[prompt.concept] ?? prompt.concept}
       </p>
-      <h1 className="display text-[32px] leading-tight sm:text-[40px]">{entry?.prompt_text ?? prompt.text}</h1>
+      <h2 className="display text-[32px] leading-tight sm:text-[40px]">{entry?.prompt_text ?? prompt.text}</h2>
       {prompt.canon_status === 'provisional' ? <p className="mt-2 text-[12px] text-muted">Provisional prompt — awaiting canon review.</p> : null}
 
       <div className="mt-8">
@@ -158,12 +158,16 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
         <Button onClick={analyse} disabled={!body.trim() || analysing}>
           {analysing ? 'Analysing…' : 'Analyse through PCI'}
         </Button>
-        {analysing ? <Spinner label="Observing" /> : null}
+        {analysing ? <Spinner label={prefs.writeup ? 'Observing, then writing the report' : 'Observing'} /> : null}
         {entry ? (
           <Button variant="ghost" size="sm" onClick={remove} className="ml-auto text-danger">
             Delete entry
           </Button>
         ) : null}
+      </div>
+
+      <div className="mt-4 max-w-md">
+        <Switch id="journal-writeup" checked={prefs.writeup} onChange={(v) => void setPrefs({ writeup: v })} label="Written observation and analysis" description="Claude writes the report as prose. The entry is sent to Anthropic to do this." />
       </div>
 
       {entry?.observation_ids.length ? (

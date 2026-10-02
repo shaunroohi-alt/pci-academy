@@ -1,6 +1,6 @@
 'use client'
 
-import { BookOpen, CircleUser, Cloud, CloudOff, Ellipsis, Eye, GraduationCap, House, NotebookPen, Search, X } from 'lucide-react'
+import { Archive, BookOpen, CircleUser, Cloud, CloudOff, Ellipsis, GraduationCap, House, NotebookPen, Search, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as React from 'react'
@@ -9,8 +9,7 @@ import { cn } from '@/lib/utils'
 
 const PRIMARY = [
   { href: '/today/', label: 'Today' },
-  { href: '/observe/', label: 'Observe' },
-  { href: '/journal/', label: 'Journal' },
+  { href: '/reflection/', label: 'Reflection' },
   { href: '/ledger/', label: 'Ledger' },
   { href: '/contrary/', label: 'On the Contrary' },
   { href: '/library/', label: 'Library' },
@@ -18,7 +17,6 @@ const PRIMARY = [
 ]
 
 const MORE = [
-  { href: '/ledger/', label: 'Ledger', note: 'Unrestricted observational storage' },
   { href: '/contrary/', label: 'On the Contrary', note: 'Examine an apparent error within its system' },
   { href: '/relate/', label: 'Relate', note: 'Patterns, contradictions and connections over time' },
   { href: '/academy/', label: 'Academy', note: 'Courses built on the PCI corpus' },
@@ -31,8 +29,8 @@ const MORE = [
 
 const MOBILE = [
   { href: '/today/', label: 'Today', icon: House },
-  { href: '/observe/', label: 'Observe', icon: Eye },
-  { href: '/journal/', label: 'Journal', icon: NotebookPen },
+  { href: '/reflection/', label: 'Reflection', icon: NotebookPen },
+  { href: '/ledger/', label: 'Ledger', icon: Archive },
   { href: '/library/', label: 'Library', icon: BookOpen },
 ]
 

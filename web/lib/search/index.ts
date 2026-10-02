@@ -38,7 +38,7 @@ export function publicDocs(content: ContentItem[], glossary: GlossaryTerm[], cou
 
 export function privateDocs(args: { journal: JournalEntry[]; ledger: LedgerEntry[]; observations: ObservationSummary[]; contrary: ContrarySession[] }): SearchDoc[] {
   return [
-    ...args.journal.map((j) => ({ id: `journal:${j.id}`, scope: 'private' as const, kind: 'Journal', title: `Journal — ${j.date}`, text: [j.body, ...j.follow_ups.map((f) => f.text), j.tags.join(' ')].join('\n'), href: `/journal/?date=${j.date}`, date: j.date })),
+    ...args.journal.map((j) => ({ id: `journal:${j.id}`, scope: 'private' as const, kind: 'Journal', title: `Journal — ${j.date}`, text: [j.body, ...j.follow_ups.map((f) => f.text), j.tags.join(' ')].join('\n'), href: `/reflection/?date=${j.date}`, date: j.date })),
     ...args.ledger.map((l) => ({ id: `ledger:${l.id}`, scope: 'private' as const, kind: 'Ledger', title: l.title || l.body.slice(0, 60), text: `${l.title}\n${l.body}\n${l.tags.join(' ')}`, href: `/ledger/entry/?id=${l.id}`, date: l.created_at })),
     ...args.observations.map((o) => ({
       id: `obs:${o.input.id}`,

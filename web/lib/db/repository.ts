@@ -5,7 +5,7 @@
 //  - export and deletion cover every private collection (§9.1)
 import { CANON_VERSION, type SourceType } from '@/lib/pci/canon'
 import { runPipeline, type AnalyzeCapable } from '@/lib/pci/pipeline'
-import type { GuidedAnswers, SourceRef } from '@/lib/pci/schema'
+import type { GuidedAnswers, ObservationalReport, SourceRef } from '@/lib/pci/schema'
 import { contentHash, splitSentences, truncate } from '@/lib/pci/text'
 import type { ArchiveSource, EngineInput } from '@/lib/pci/types'
 import { ImmutableRecordError, type Doc, type DocStore } from './docstore'
@@ -36,9 +36,14 @@ import {
 
 export type WriteListener = (col: Collection, op: 'put' | 'insert' | 'delete', id: string, doc?: unknown, prev?: unknown) => void
 
+/** Writes a report's observation and analysis as prose. */
+export type ReportWriter = (input: EngineInput, report: ObservationalReport) => Promise<NonNullable<AnalysisVersion['writeup']>>
+
 export interface RepositoryDeps {
   store: DocStore
   provider: () => AnalyzeCapable
+  /** Optional prose writer; when it returns undefined, reports stay structural. */
+  writer?: () => ReportWriter | undefined
   now?: () => Date
   id?: () => string
   onWrite?: WriteListener
@@ -62,6 +67,7 @@ export interface ObservationSummary {
 export class Repository {
   private store: DocStore
   private provider: () => AnalyzeCapable
+  private writer: () => ReportWriter | undefined
   private now: () => Date
   private newId: () => string
   private listeners = new Set<WriteListener>()
@@ -69,6 +75,7 @@ export class Repository {
   constructor(deps: RepositoryDeps) {
     this.store = deps.store
     this.provider = deps.provider
+    this.writer = deps.writer ?? (() => undefined)
     this.now = deps.now ?? (() => new Date())
     this.newId = deps.id ?? (() => crypto.randomUUID())
     if (deps.onWrite) this.listeners.add(deps.onWrite)
@@ -225,9 +232,20 @@ export class Repository {
   async analyze(id: string, options: { lenses: boolean; causal: boolean } = { lenses: false, causal: false }): Promise<AnalysisVersion> {
     const engineInput = await this.engineInput(id, options)
     const result = await runPipeline(this.provider(), engineInput)
+    // The written observation and analysis travel with the version, so the version stays write-once.
+    let written: Pick<AnalysisVersion, 'writeup' | 'writeup_error'> = {}
+    const writer = this.writer()
+    if (writer && result.status === 'valid' && result.report) {
+      try {
+        written = { writeup: await writer(engineInput, result.report) }
+      } catch (e) {
+        written = { writeup_error: e instanceof Error ? e.message : 'Writing failed.' }
+      }
+    }
     const existing = (await this.store.list<AnalysisVersion>('observation_versions')).filter((v) => v.observation_id === id)
     const version: AnalysisVersion = {
       ...result,
+      ...written,
       id: this.newId(),
       observation_id: id,
       version: existing.reduce((m, v) => Math.max(m, v.version), 0) + 1,
