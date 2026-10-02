@@ -4,6 +4,7 @@
 // the browser bundle.
 import Anthropic from '@anthropic-ai/sdk'
 import { hasMaterial, parseWriteRequest, writeContrary, type Generate } from './contrary.ts'
+import { parseReflectRequest, writeReflection } from './reflect.ts'
 
 interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>
@@ -100,10 +101,57 @@ async function contrary(request: Request, env: Env): Promise<Response> {
   }
 }
 
+async function reflect(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
+  const origin = request.headers.get('Origin')
+  if (origin && new URL(origin).host !== new URL(request.url).host) return json({ error: 'Forbidden.' }, 403)
+  if (!env.ANTHROPIC_API_KEY) return json({ error: 'The writer is not configured for this site yet.' }, 501)
+
+  if (env.CONTRARY_LIMITER) {
+    const key = request.headers.get('CF-Connecting-IP') ?? 'anon'
+    const { success } = await env.CONTRARY_LIMITER.limit({ key })
+    if (!success) return json({ error: 'Too many requests. Wait a minute and try again.' }, 429)
+  }
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON.' }, 400)
+  }
+  const req = parseReflectRequest(body)
+  if (!req) return json({ error: 'The material could not be read.' }, 400)
+
+  const model = env.CONTRARY_MODEL || DEFAULT_CONTRARY_MODEL
+  try {
+    const r = await writeReflection(anthropicGenerate(env.ANTHROPIC_API_KEY, model), req)
+    log('reflection_written', { rounds: r.rounds, violations: r.violations.map((v) => v.rule), chars: r.observation.length + r.analysis.length, earlier: req.earlier?.length ?? 0 })
+    if (!r.observation || !r.analysis) return json({ error: 'The writer returned an incomplete write-up. Try again.' }, 502)
+    return json({ observation: r.observation, analysis: r.analysis, violations: r.violations, model })
+  } catch (e) {
+    if (e instanceof RefusalError) {
+      log('reflection_refused', { category: e.category })
+      return json({ error: 'The writer declined this material.' }, 422)
+    }
+    if (e instanceof Anthropic.RateLimitError) return json({ error: 'The writer is busy. Try again shortly.' }, 429)
+    if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) {
+      log('reflection_auth_error', {})
+      return json({ error: 'The writer is misconfigured.' }, 500)
+    }
+    if (e instanceof Anthropic.APIError) {
+      log('reflection_provider_error', { status: e.status })
+      return json({ error: 'The writer is unavailable right now.' }, 502)
+    }
+    log('reflection_error', { message: e instanceof Error ? e.message.slice(0, 200) : 'unknown' })
+    return json({ error: 'Writing failed.' }, 500)
+  }
+}
+
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url)
     if (pathname === '/api/contrary' || pathname === '/api/contrary/') return contrary(request, env)
+    if (pathname === '/api/reflect' || pathname === '/api/reflect/') return reflect(request, env)
     if (pathname.startsWith('/api/')) return json({ error: 'Not found.' }, 404)
     return env.ASSETS.fetch(request)
   },

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
 import { ReportView } from '@/components/pci/report-view'
+import { WrittenReport } from '@/components/pci/written-report'
 import { Button } from '@/components/ui/button'
 import { Badge, Empty, Label, Notice, Spinner, Switch, Textarea } from '@/components/ui/primitives'
 import { useApp, useData } from '@/lib/app/context'
@@ -218,6 +219,16 @@ export function Report() {
             Version {current.version} · {current.provider === 'local' ? 'PCI Local Engine' : 'PCI Engine (AI provider)'} {current.model} · canon {current.canon_version}
             {current.longitudinal ? ' · compared with earlier material' : ''}
           </p>
+          {current.writeup ? (
+            <>
+              <WrittenReport writeup={current.writeup} />
+              <h2 className="display mb-6 border-t border-line pt-8 text-[24px]">The structure behind it</h2>
+            </>
+          ) : current.writeup_error ? (
+            <Notice title="The written observation and analysis are missing from this version" className="no-print mb-8">
+              {current.writeup_error} The structural report below is complete. Re-analyse to try writing it again.
+            </Notice>
+          ) : null}
           <ReportView report={current.report} />
         </>
       ) : null}

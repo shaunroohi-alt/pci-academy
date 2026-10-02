@@ -371,6 +371,17 @@ export const AnalysisVersionSchema = z.strictObject({
   addenda_included: z.array(z.string()),
   longitudinal: z.boolean(),
   options: z.strictObject({ lenses: z.boolean(), causal: z.boolean() }),
+  /** The observation and analysis written as prose for the user to read. Optional: older versions have none. */
+  writeup: z
+    .strictObject({
+      observation: z.string(),
+      analysis: z.string(),
+      model: z.string(),
+      violations: z.array(ViolationSchema),
+    })
+    .optional(),
+  /** Why no write-up was produced for this version, when one was attempted. */
+  writeup_error: z.string().optional(),
 })
 export type AnalysisVersion = z.infer<typeof AnalysisVersionSchema>
 

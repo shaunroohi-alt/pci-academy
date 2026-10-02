@@ -14,7 +14,7 @@ type Mode = 'direct' | 'guided'
 const SELECTABLE: SourceType[] = SOURCE_TYPES.filter((s) => !['journal_entry', 'ledger_entry', 'contrary_session'].includes(s))
 
 export function Observe() {
-  const { repo, provider, prefs, online } = useApp()
+  const { repo, provider, prefs, setPrefs, online } = useApp()
   const router = useRouter()
   const params = useSearchParams()
   const [mode, setMode] = React.useState<Mode>('direct')
@@ -182,7 +182,7 @@ export function Observe() {
             <Button size="lg" onClick={submit} disabled={!canSubmit}>
               {busy ? 'Observing…' : 'Observe'}
             </Button>
-            {busy ? <Spinner label="Running the seven operations" /> : null}
+            {busy ? <Spinner label={prefs.writeup ? 'Observing, then writing the report' : 'Running the seven operations'} /> : null}
             {savedAt && !busy ? <span className="text-[12px] text-muted">Draft saved on this device</span> : null}
           </div>
         </div>
@@ -199,6 +199,7 @@ export function Observe() {
             <p className="eyebrow mb-1">Optional depth</p>
             <Switch id="opt-lenses" checked={lenses} onChange={setLenses} label="Multi-lens analysis" description="Findings under separate lenses, compared only after isolation." />
             <Switch id="opt-causal" checked={causal} onChange={setCausal} label="Causal hypotheses" description="Sequences held as hypotheses, with alternatives and disconfirming evidence." />
+            <Switch id="opt-writeup" checked={prefs.writeup} onChange={(v) => void setPrefs({ writeup: v })} label="Written observation and analysis" description="Claude writes the report as prose. The material is sent to Anthropic to do this." />
           </div>
         </aside>
       </div>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
 import { Button, LinkButton } from '@/components/ui/button'
-import { Badge, Input, Label, Notice, Spinner, Textarea } from '@/components/ui/primitives'
+import { Badge, Input, Label, Notice, Spinner, Switch, Textarea } from '@/components/ui/primitives'
 import { PROMPT_CONCEPT_LABELS, promptForDate } from '@/content/seeds/journal-prompts'
 import { useApp, useAutosave, useData } from '@/lib/app/context'
 import { relatedTo } from '@/lib/relational/related'
@@ -25,7 +25,7 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
   const router = useRouter()
   const isToday = date === today()
   const prompt = promptForDate(date)
-  const { repo, prefs } = useApp()
+  const { repo, prefs, setPrefs } = useApp()
   const { data: live } = useData((r) => r.journalEntry(date), [date])
   const entry = live ?? initial
   const { data: all } = useData((r) => r.journalEntries(), [])
@@ -158,12 +158,16 @@ function JournalEditor({ date, initial }: { date: string; initial: JournalEntry 
         <Button onClick={analyse} disabled={!body.trim() || analysing}>
           {analysing ? 'Analysing…' : 'Analyse through PCI'}
         </Button>
-        {analysing ? <Spinner label="Observing" /> : null}
+        {analysing ? <Spinner label={prefs.writeup ? 'Observing, then writing the report' : 'Observing'} /> : null}
         {entry ? (
           <Button variant="ghost" size="sm" onClick={remove} className="ml-auto text-danger">
             Delete entry
           </Button>
         ) : null}
+      </div>
+
+      <div className="mt-4 max-w-md">
+        <Switch id="journal-writeup" checked={prefs.writeup} onChange={(v) => void setPrefs({ writeup: v })} label="Written observation and analysis" description="Claude writes the report as prose. The entry is sent to Anthropic to do this." />
       </div>
 
       {entry?.observation_ids.length ? (

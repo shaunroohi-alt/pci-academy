@@ -217,6 +217,8 @@ export interface Preferences {
   lenses_default: boolean
   causal_default: boolean
   twin_opt_in: boolean
+  /** Have Claude write each report's observation and analysis as prose. Sends the material to Anthropic. */
+  writeup: boolean
   updated_at: string
 }
 
@@ -233,6 +235,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   lenses_default: false,
   causal_default: false,
   twin_opt_in: false,
+  writeup: true,
   updated_at: new Date(0).toISOString(),
 }
 

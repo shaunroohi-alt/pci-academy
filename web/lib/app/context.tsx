@@ -7,6 +7,7 @@ import type { Session } from '@supabase/supabase-js'
 import * as React from 'react'
 import { localProvider } from '@/lib/ai/local'
 import type { PCIProvider } from '@/lib/ai/provider'
+import { writeReflection } from '@/lib/ai/reflection-writer'
 import { remoteProvider } from '@/lib/ai/remote'
 import { mergeContent, SEED_CONTENT } from '@/lib/content/catalog'
 import type { ContentItem } from '@/lib/content/types'
@@ -100,6 +101,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const p = prefsRef.current
         return p.provider === 'remote' && backendConfigured && userId ? remoteProvider() : localProvider
       },
+      writer: () => (prefsRef.current.writeup ? writeReflection : undefined),
     })
     let engine: SyncEngine | null = null
     let unsubSync: (() => void) | undefined

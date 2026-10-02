@@ -143,3 +143,37 @@ test.describe('Reflection', () => {
     await expect(page.getByRole('button', { name: 'Observe', exact: true })).toBeVisible()
   })
 })
+
+test.describe('Written report', () => {
+  test('a report opens with the written observation and analysis', async ({ page }) => {
+    await onboard(page)
+    await page.route('**/api/reflect', (route) =>
+      route.fulfill({
+        json: {
+          observation: 'You left the party early without saying goodbye.\n\nNothing in what you wrote says how the host saw it.',
+          analysis: 'The leaving is described; its meaning is not yet given.',
+          model: 'claude-test',
+          violations: [],
+        },
+      }),
+    )
+    await page.goto('reflection/?tab=observe')
+    await page.getByLabel('Material', { exact: true }).fill('I left the party early without saying goodbye.')
+    await page.getByRole('button', { name: 'Observe', exact: true }).click()
+    await expect(page).toHaveURL(/report/)
+    await expect(page.getByRole('heading', { name: 'Observation', exact: true })).toBeVisible()
+    await expect(page.getByText('Nothing in what you wrote says how the host saw it.')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Analysis', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'What Became Visible' })).toBeVisible()
+  })
+
+  test('without the writer, the report says so and keeps the structure', async ({ page }) => {
+    await onboard(page)
+    await page.route('**/api/reflect', (route) => route.fulfill({ status: 501, json: { error: 'The writer is not configured for this site yet.' } }))
+    await page.goto('reflection/?tab=observe')
+    await page.getByLabel('Material', { exact: true }).fill('I missed the train.')
+    await page.getByRole('button', { name: 'Observe', exact: true }).click()
+    await expect(page.getByText('The writer is not configured for this site yet.', { exact: false })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'What Became Visible' })).toBeVisible()
+  })
+})
