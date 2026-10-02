@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import * as React from 'react'
+import { AskQuestions } from '@/components/pci/ask-questions'
 import { ReportView } from '@/components/pci/report-view'
 import { Button } from '@/components/ui/button'
 import { Badge, Empty, Label, Notice, Spinner, Switch, Textarea } from '@/components/ui/primitives'
@@ -86,16 +87,8 @@ export function Report() {
                 <Link className="text-accent" href={`/journal/?date=${input.source_ref.id}`}>
                   {input.source_ref.label}
                 </Link>
-              ) : input.source_ref.kind === 'ledger' ? (
-                <Link className="text-accent" href={`/ledger/entry/?id=${input.source_ref.id}`}>
-                  {input.source_ref.label}
-                </Link>
               ) : input.source_ref.kind === 'contrary' ? (
                 <Link className="text-accent" href={`/contrary/session/?id=${input.source_ref.id}`}>
-                  {input.source_ref.label}
-                </Link>
-              ) : input.source_ref.kind === 'lesson' ? (
-                <Link className="text-accent" href={`/academy/${input.source_ref.id}/`}>
                   {input.source_ref.label}
                 </Link>
               ) : (
@@ -221,6 +214,9 @@ export function Report() {
           <ReportView report={current.report} />
         </>
       ) : null}
+
+      {/* Questions only on request. The button is the only entry; nothing runs until it is pressed. */}
+      <AskQuestions material={input.raw} className="no-print mt-10 border-t border-line pt-6" />
 
       <div className="no-print mt-10 flex flex-wrap gap-2 border-t border-line pt-6">
         <Button variant="outline" size="sm" onClick={() => window.print()}>

@@ -1,69 +1,64 @@
 @import 'tailwindcss';
 
-/* ── Palette (§10.2): paper, charcoal, graphite, bone, muted metallic ───── */
+/* ── Palette (handoff 03-DESIGN.md): paper, ink, muted, gold, rule ─────────
+   Gold is a rule and a kicker, not a fill. The variable names are kept so the
+   member screens keep working; the values are the handoff palette. */
 :root {
-  --bg: #f4f2ee;
-  --surface: #ebe7df;
-  --surface-2: #e1dcd2;
-  --raised: #faf9f6;
-  --ink: #1f1e1c;
-  --ink-2: #45423d;
-  --muted: #6b675f;
-  --line: color-mix(in srgb, #1f1e1c 14%, transparent);
-  --line-strong: color-mix(in srgb, #1f1e1c 28%, transparent);
-  --accent: #7d5a22;
-  --accent-soft: color-mix(in srgb, #b68235 16%, transparent);
-  --brass: #b68235;
+  --bg: #f7f3ea;
+  --surface: #f1ece0;
+  --surface-2: #e9e3d5;
+  --raised: #fbf8f1;
+  --ink: #2a2723;
+  --ink-2: #4a453e;
+  --muted: #6b6558;
+  --line: #c8c2b4;
+  --line-strong: #a9a292;
+  --accent: #8a7344;
+  --accent-soft: color-mix(in srgb, #8a7344 12%, transparent);
+  --brass: #8a7344;
   --danger: #8a2f25;
-  --focus: #7d5a22;
+  --focus: #8a7344;
 
   --ep-evidence: #2f3b32;
-  --ep-interpretation: #7d5a22;
+  --ep-interpretation: #8a7344;
   --ep-inference: #3f5670;
   --ep-hypothesis: #66507a;
   --ep-symbolic: #3f6763;
   --ep-philosophical: #5e5f2c;
-  --ep-unknown: #6b675f;
+  --ep-unknown: #6b6558;
 
   --reader-size: 19px;
   color-scheme: light;
 }
 
 :root[data-theme='dark'] {
-  --bg: #141312;
-  --surface: #1c1b19;
-  --surface-2: #26241f;
-  --raised: #201f1c;
-  --ink: #ece7de;
-  --ink-2: #cdc6ba;
-  --muted: #a39d92;
-  --line: color-mix(in srgb, #ece7de 14%, transparent);
-  --line-strong: color-mix(in srgb, #ece7de 30%, transparent);
-  --accent: #d4a55e;
-  --accent-soft: color-mix(in srgb, #d4a55e 16%, transparent);
+  --bg: #1c1916;
+  --surface: #24201c;
+  --surface-2: #2d2823;
+  --raised: #221e1a;
+  --ink: #ede7da;
+  --ink-2: #cfc8b9;
+  --muted: #a8a091;
+  --line: #3a352e;
+  --line-strong: #544d43;
+  --accent: #b59a5f;
+  --accent-soft: color-mix(in srgb, #b59a5f 14%, transparent);
+  --brass: #b59a5f;
   --danger: #e08a7e;
-  --focus: #d4a55e;
+  --focus: #b59a5f;
   --ep-evidence: #b9c9bb;
-  --ep-interpretation: #d4a55e;
+  --ep-interpretation: #b59a5f;
   --ep-inference: #9fb6d1;
   --ep-hypothesis: #c3acd6;
   --ep-symbolic: #9cc5bf;
   --ep-philosophical: #c9c98b;
-  --ep-unknown: #a39d92;
+  --ep-unknown: #a8a091;
   color-scheme: dark;
 }
 
+/* The whole site is paper now; an older 'paper' preference resolves to the light tokens. */
 :root[data-theme='paper'] {
-  --bg: #f1e7cf;
-  --surface: #e8dcbf;
-  --surface-2: #dfd1b0;
-  --raised: #f6eedb;
-  --ink: #2a2417;
-  --ink-2: #4b4230;
-  --muted: #6c6048;
-  --line: color-mix(in srgb, #2a2417 16%, transparent);
-  --line-strong: color-mix(in srgb, #2a2417 30%, transparent);
-  --accent: #74501a;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -80,17 +75,24 @@
   --color-accent-soft: var(--accent-soft);
   --color-brass: var(--brass);
   --color-danger: var(--danger);
-  --font-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, serif;
+  --font-display: 'EB Garamond', 'Iowan Old Style', Georgia, serif;
   --font-serif: 'Lora', 'Iowan Old Style', Georgia, serif;
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 @font-face {
-  font-family: 'Cormorant Garamond';
+  font-family: 'EB Garamond';
   font-style: normal;
-  font-weight: 300 700;
+  font-weight: 400;
   font-display: swap;
-  src: url('./fonts/cormorant-garamond-latin.woff2') format('woff2');
+  src: url('./fonts/eb-garamond-latin-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'EB Garamond';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/eb-garamond-latin-italic.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Lora';
@@ -129,7 +131,7 @@ body {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--brass) 32%, transparent);
+  background: color-mix(in srgb, var(--brass) 28%, transparent);
 }
 
 .skip-link {
@@ -148,18 +150,35 @@ body {
 /* ── Editorial typography ───────────────────────────────────────────── */
 .display {
   font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.08;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  line-height: 1.1;
 }
 
+/* Kicker: small grotesque, tracked slightly open. Small caps, not shouting. */
 .eyebrow {
   font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+.kicker {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* Labels and nav: plain grotesque, small, tracked slightly open. */
+.label {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  letter-spacing: 0.03em;
 }
 
 .rule {
@@ -168,23 +187,51 @@ body {
   border: 0;
 }
 
+/* A rule that draws in. The only motion on the site. */
+.rule-draw {
+  height: 1px;
+  background: var(--accent);
+  border: 0;
+  transform-origin: left;
+  animation: rule-draw 900ms ease-out both;
+}
+@keyframes rule-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Public site body copy: serif, 18–20px, generous line height. */
+.site-body {
+  font-family: var(--font-serif);
+  font-size: 18.5px;
+  line-height: 1.72;
+  color: var(--ink);
+}
+.site-body p + p {
+  margin-top: 1.1em;
+}
+
 /* Reader prose */
 .prose-pci {
   font-family: var(--font-serif);
   font-size: var(--reader-size);
-  line-height: 1.72;
+  line-height: 1.74;
   color: var(--ink);
 }
 .prose-pci h2 {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.6em;
+  font-weight: 400;
+  font-size: 1.65em;
   line-height: 1.15;
   margin: 2.2em 0 0.6em;
 }
 .prose-pci h3 {
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: 400;
   font-size: 1.3em;
   margin: 1.8em 0 0.5em;
 }
@@ -218,7 +265,7 @@ body {
   list-style: decimal;
 }
 .prose-pci blockquote {
-  border-left: 2px solid var(--brass);
+  border-left: 1px solid var(--brass);
   padding: 0.1em 0 0.1em 1em;
   font-style: italic;
   color: var(--ink-2);
@@ -239,7 +286,7 @@ body {
   font-weight: 600;
 }
 .prose-pci mark {
-  background: color-mix(in srgb, var(--brass) 30%, transparent);
+  background: color-mix(in srgb, var(--brass) 26%, transparent);
   color: inherit;
   padding: 0 1px;
 }
@@ -263,6 +310,10 @@ body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+  .rule-draw {
+    animation: none;
+    transform: none;
   }
 }
 

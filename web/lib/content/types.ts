@@ -3,8 +3,8 @@ import type { CanonStatus } from '@/lib/pci/canon'
 export const LIFECYCLE = ['draft', 'review', 'approved', 'published', 'revised', 'superseded'] as const
 export type Lifecycle = (typeof LIFECYCLE)[number]
 
-export type ContentType = 'framework' | 'article' | 'chapter' | 'front_matter' | 'back_matter' | 'booklet' | 'research_note'
-export type Collection = 'pci-framework' | 'art-of-being' | 'companion' | 'articles'
+export type ContentType = 'framework' | 'article' | 'chapter' | 'sub_chapter' | 'front_matter' | 'back_matter' | 'booklet' | 'research_note'
+export type Collection = 'pci-framework' | 'art-of-being' | 'companion' | 'library' | 'articles'
 
 export interface ContentVersionRecord {
   content_version: number
@@ -30,6 +30,8 @@ export interface ContentItem {
   canon_version: string
   content_version: number
   order?: number
+  /** Parent chapter slug, for sub-chapters filed under a chapter (e.g. 'chapter-05'). */
+  parent?: string
   scope?: string
   source?: string
   related: string[]

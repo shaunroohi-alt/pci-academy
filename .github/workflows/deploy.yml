@@ -4,6 +4,22 @@ name: Deploy to GitHub Pages
 # happens only after the canonical, functional, epistemic and security gates
 # pass (§10.6). Public Supabase settings, if any, come from repository
 # variables; secrets never enter the static build.
+#
+# Custom domain (pci.academy). The domain is committed in web/public/CNAME.
+# When that file exists and is non-empty, the "Site origin" step below sets
+# BASE_PATH='' (the site is built for the domain root) and
+# NEXT_PUBLIC_APP_URL=https://<its contents>; the repository variable
+# NEXT_PUBLIC_APP_URL, if set, still overrides the URL. When the file is
+# absent or empty, the site builds for /<repository-name>/ on github.io as
+# before. No repository variable is needed, so the mechanism works from a
+# plain merge to main.
+#
+# Note: GitHub ignores CNAME files for Actions-based Pages deployments. The
+# custom domain must ALSO be set once, by hand, under Settings → Pages →
+# Custom domain, to the same name as the file (then Enforce HTTPS). The file
+# is there for humans and for the Cloudflare Worker (wrangler.jsonc), and it
+# drives the build; the setting is what makes Pages answer for the domain.
+# DNS records for GoDaddy are in web/README.md.
 on:
   push:
     branches: [main]
@@ -40,11 +56,27 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Release gate
         run: pnpm lint && pnpm typecheck && pnpm test && pnpm edge:check
+      - name: Site origin (from web/public/CNAME)
+        id: site
+        run: |
+          domain=''
+          if [ -s public/CNAME ]; then
+            domain="$(tr -d '[:space:]' < public/CNAME)"
+          fi
+          if [ -n "$domain" ]; then
+            echo "Custom domain: $domain — building for the domain root"
+            echo "base_path=" >> "$GITHUB_OUTPUT"
+            echo "app_url=https://$domain" >> "$GITHUB_OUTPUT"
+          else
+            echo "No custom domain — building for /${{ github.event.repository.name }}/"
+            echo "base_path=/${{ github.event.repository.name }}/" >> "$GITHUB_OUTPUT"
+            echo "app_url=" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build
         run: pnpm build
         env:
-          BASE_PATH: /${{ github.event.repository.name }}/
-          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          BASE_PATH: ${{ steps.site.outputs.base_path }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL || steps.site.outputs.app_url }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       - uses: actions/configure-pages@v5

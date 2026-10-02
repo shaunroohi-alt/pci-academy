@@ -1,7 +1,15 @@
 // PCI Framework reference — transcribed from the Consolidated Blueprint &
 // Implementation Roadmap, canon 2026.09.25. Wording follows the source; the
-// section each article draws on is recorded in `source`. These are canonical
-// because the source is the canon document itself.
+// section each article draws on is recorded in `source`.
+//
+// NOT LIVE. The PCI website handoff (content/handoff/01-SITE-BRIEF.md) names
+// the live corpus: the seven operations, the twelve chapters of The Art of
+// Being, the five companion articles and the two sub-chapters under
+// Individualism. These fifteen blueprint texts are not part of that handoff,
+// and several describe retired material (Relational Intelligence and the
+// Cognitive Twin, Pattern Adoption, Canon Governance, Multi-Lens Analysis).
+// Every item is therefore registered as a `draft`: isPubliclyVisible() hides
+// drafts, so readers never see them, while the CMS/admin can still hold them.
 import type { ContentItem } from '@/lib/content/types'
 
 const CANON = '2026.09.25'
@@ -15,12 +23,11 @@ const seed = (s: Seed): ContentItem => ({
   id: `framework:${s.slug}`,
   type: 'framework',
   collection: 'pci-framework',
-  status: 'published',
+  status: 'draft',
   canon_status: s.canon_status ?? 'canonical',
   canon_version: CANON,
   content_version: 1,
   updated_at: AT,
-  published_at: AT,
   history: [],
 })
 

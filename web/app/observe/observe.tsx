@@ -33,7 +33,7 @@ export function Observe() {
 
   const { data: history } = useData((r) => r.observations(), [])
 
-  // Restore the draft, or accept prefilled material (from a lesson).
+  // Restore the draft, or accept material prefilled through the query string.
   React.useEffect(() => {
     if (!repo || draftLoaded) return
     const prefill = params.get('prefill')

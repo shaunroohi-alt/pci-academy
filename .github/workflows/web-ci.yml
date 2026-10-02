@@ -2,6 +2,11 @@ name: Web CI
 
 # Release gates (§19.3) run on every change to the web app:
 # lint · typecheck · unit + SQL/RLS tests · migrations · edge function · build · end-to-end.
+#
+# The build and the end-to-end tests use the same base path production uses:
+# the domain root when web/public/CNAME names a custom domain (see
+# deploy.yml), otherwise /<repository-name>/ as on github.io. CI therefore
+# builds exactly what production builds.
 on:
   pull_request:
     paths: ['web/**', '.github/workflows/web-ci.yml']
@@ -56,16 +61,34 @@ jobs:
         run: |
           deno check --config pci-analyze/deno.json pci-analyze/index.ts
           deno test --config pci-analyze/deno.json --allow-env _shared/analyze.test.ts
-      - name: Build (GitHub Pages base path)
+      - name: Site origin (from web/public/CNAME)
+        id: site
+        run: |
+          domain=''
+          if [ -s public/CNAME ]; then
+            domain="$(tr -d '[:space:]' < public/CNAME)"
+          fi
+          if [ -n "$domain" ]; then
+            echo "Custom domain: $domain — building for the domain root"
+            echo "base_path=" >> "$GITHUB_OUTPUT"
+            echo "app_url=https://$domain" >> "$GITHUB_OUTPUT"
+          else
+            echo "No custom domain — building for /${{ github.event.repository.name }}/"
+            echo "base_path=/${{ github.event.repository.name }}/" >> "$GITHUB_OUTPUT"
+            echo "app_url=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build (same base path as production)
         run: pnpm build
         env:
-          BASE_PATH: /${{ github.event.repository.name }}/
+          BASE_PATH: ${{ steps.site.outputs.base_path }}
+          NEXT_PUBLIC_APP_URL: ${{ steps.site.outputs.app_url }}
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
       - name: End-to-end tests
         run: pnpm test:e2e
         env:
           CI: 'true'
+          BASE_PATH: ${{ steps.site.outputs.base_path }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

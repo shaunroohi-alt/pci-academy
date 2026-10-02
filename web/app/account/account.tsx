@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge, Label, Notice, PageHeader, Section, Select, Switch } from '@/components/ui/primitives'
@@ -130,7 +129,7 @@ export function Account() {
                     Keep this device’s
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => repo && syncEngine?.resolveKeepRemote(c.id, repo)}>
-                    Keep the other (save mine to Ledger)
+                    Keep the other (mine is kept as a private record)
                   </Button>
                 </div>
               ))}
@@ -149,14 +148,7 @@ export function Account() {
             checked={prefs.longitudinal}
             onChange={(v) => setPrefs({ longitudinal: v })}
             label="Compare new material with my earlier material"
-            description="Lets the engine read your earlier observations, journal, ledger and On the Contrary sessions to find recurrence, revisions and context changes. Off by default; switching it off stops all longitudinal comparison immediately."
-          />
-          <Switch
-            id="pref-twin"
-            checked={prefs.twin_opt_in}
-            onChange={(v) => setPrefs({ twin_opt_in: v })}
-            label="Cognitive Twin"
-            description={<>An opt-in, revisable structural model built from your material over time. <Link href="/relate/#twin" className="text-accent">Learn more</Link></>}
+            description="Lets the engine read your earlier observations, journal entries and On the Contrary sessions to find recurrence, revisions and context changes. Off by default; switching it off stops all longitudinal comparison immediately. It reports what repeats. It does not build a model of you."
           />
           <Switch
             id="pref-training"
@@ -236,7 +228,7 @@ export function Account() {
       <Section title="Your data" eyebrow="Export and deletion">
         <p className="text-[14px] text-ink-2">
           {total} private record{total === 1 ? '' : 's'}
-          {counts ? ` — ${counts.observation_inputs ?? 0} observations, ${counts.journal_entries ?? 0} journal entries, ${counts.ledger_entries ?? 0} ledger entries, ${counts.contrary_sessions ?? 0} On the Contrary sessions` : ''}.
+          {counts ? ` — ${counts.observation_inputs ?? 0} observations, ${counts.journal_entries ?? 0} journal entries, ${counts.contrary_sessions ?? 0} On the Contrary sessions` : ''}.
         </p>
         <Button variant="outline" className="mt-4" onClick={exportAll}>
           Export everything (JSON)
@@ -244,7 +236,7 @@ export function Account() {
         <div className="mt-8 rounded-[4px] border border-danger p-5">
           <p className="font-medium text-danger">Delete</p>
           <p className="mt-1 text-[13px] text-ink-2">
-            Deletes every observation, analysis, journal entry, ledger entry, session, note, bookmark and preference{mode === 'account' ? ' — on this device and in your account' : ' on this device'}. It cannot be undone. Type DELETE to confirm.
+            Deletes every observation, analysis, journal entry, session, note, bookmark and preference{mode === 'account' ? ' — on this device and in your account' : ' on this device'}. It cannot be undone. Type DELETE to confirm.
           </p>
           <input aria-label="Type DELETE to confirm" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} className="mt-3 h-9 w-40 rounded-[3px] border border-line-strong bg-transparent px-2 text-[13px]" />
           <div className="mt-3 flex flex-wrap gap-2">

@@ -208,14 +208,21 @@ describe('Seed (R0.4)', () => {
     await db.exec(seed)
     await db.exec(seed)
     const pub = await asUser(db, null, () => db.query<{ collection: string; n: number }>(`select collection, count(*)::int as n from public.content_items where slug not in ('art-1') group by collection order by collection`))
+    // Anonymous readers see only published rows: the live corpus. The blueprint framework texts are drafts.
     expect(pub.rows).toEqual([
       { collection: 'art-of-being', n: 12 },
-      { collection: 'companion', n: 4 },
+      { collection: 'companion', n: 5 },
+      { collection: 'library', n: 2 },
+    ])
+    const sub = await asUser(db, null, () => db.query<{ slug: string; type: string }>(`select slug, type from public.content_items where collection = 'library' order by chapter_order`))
+    expect(sub.rows).toEqual([
+      { slug: 'other-peoples-material', type: 'sub_chapter' },
+      { slug: 'coherence-in-business', type: 'sub_chapter' },
+    ])
+    const drafts = await db.query<{ collection: string; n: number }>(`select collection, count(*)::int as n from public.content_items where status = 'draft' and slug not in ('ch-1', 'art-1') group by collection order by collection`)
+    expect(drafts.rows).toEqual([
+      { collection: 'art-of-being', n: 4 },
       { collection: 'pci-framework', n: 15 },
     ])
-    const drafts = await db.query<{ n: number }>(`select count(*)::int as n from public.content_items where collection = 'art-of-being' and status = 'draft'`)
-    expect(drafts.rows[0].n).toBe(4)
-    const prompts = await asUser(db, null, () => db.query<{ n: number }>(`select count(*)::int as n from public.journal_prompts`))
-    expect(prompts.rows[0].n).toBeGreaterThanOrEqual(90)
   })
 })

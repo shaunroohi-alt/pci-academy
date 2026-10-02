@@ -1,18 +1,19 @@
 import type { Metadata, Viewport } from 'next'
 import { AppShell } from '@/components/app-shell'
 import { ServiceWorker } from '@/components/service-worker'
+import { PALETTE, SITE } from '@/content/site'
 import { AppProvider, THEME_BOOTSTRAP } from '@/lib/app/context'
 import './globals.css'
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
 
 export const metadata: Metadata = {
-  title: { default: 'PCI Academy', template: '%s · PCI Academy' },
-  description: 'Psycho-Creative Intelligence: an observational intelligence environment. Visibility is the output; human choice begins outside the engine.',
-  applicationName: 'PCI Academy',
+  title: { default: `${SITE.name} · ${SITE.book}`, template: `%s · ${SITE.name}` },
+  description: 'PCI is an observational method. It separates what happened from what was decided about it. It reports what can be seen. Then it stops. The direction is yours.',
+  applicationName: SITE.name,
   manifest: `${base}/manifest.webmanifest`,
   icons: { icon: `${base}/icon.svg`, apple: `${base}/icons/apple-touch-icon.png` },
-  appleWebApp: { capable: true, title: 'PCI', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: SITE.name, statusBarStyle: 'default' },
   robots: { index: true, follow: true },
 }
 
@@ -21,8 +22,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f4f2ee' },
-    { media: '(prefers-color-scheme: dark)', color: '#141312' },
+    { media: '(prefers-color-scheme: light)', color: PALETTE.paper },
+    { media: '(prefers-color-scheme: dark)', color: PALETTE.dark },
   ],
 }
 

@@ -12,7 +12,10 @@ const dest = join(root, 'supabase', 'functions', '_shared', 'pci')
 const HEADER = '// GENERATED from web/lib/pci by scripts/sync-edge-shared.mjs — do not edit here.\n'
 const check = process.argv.includes('--check')
 
-const files = readdirSync(src).filter((f) => f.endsWith('.ts'))
+// UI-side modules that read the Library catalog are not part of the engine the
+// Edge Function validates with; they stay out of the Deno copy.
+const EXCLUDE = new Set(['questions.ts'])
+const files = readdirSync(src).filter((f) => f.endsWith('.ts') && !EXCLUDE.has(f))
 let stale = []
 if (!check) {
   if (existsSync(dest)) rmSync(dest, { recursive: true })

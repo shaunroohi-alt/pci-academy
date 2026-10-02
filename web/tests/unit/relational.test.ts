@@ -9,7 +9,6 @@ import { buildTwin, twinReadiness } from '@/lib/relational/twin'
 import { privateDocs, publicDocs, search } from '@/lib/search'
 import { FRAMEWORK } from '@/content/seeds/framework'
 import { GLOSSARY } from '@/content/seeds/glossary'
-import { COURSES } from '@/content/seeds/courses'
 import type { JournalEntry, TwinVersion } from '@/lib/db/types'
 
 describe('On the Contrary (§3.5, §15)', () => {
@@ -139,8 +138,8 @@ describe('Related-entry detection', () => {
 })
 
 describe('Search (§3.7)', () => {
-  const journal: JournalEntry = { id: '2026-09-25', date: '2026-09-25', prompt_id: 'x', prompt_text: 'p', body: 'A private note about contradiction at work.', tags: [], created_at: day(0), updated_at: day(0), revisions: [], follow_ups: [], observation_ids: [] }
-  const docs = [...publicDocs(FRAMEWORK, GLOSSARY, COURSES), ...privateDocs({ journal: [journal], ledger: [], observations: [], contrary: [] })]
+  const journal: JournalEntry = { id: '2026-09-25', date: '2026-09-25', prompt_id: '', prompt_text: '', body: 'A private note about contradiction at work.', tags: [], created_at: day(0), updated_at: day(0), revisions: [], follow_ups: [], observation_ids: [] }
+  const docs = [...publicDocs(FRAMEWORK, GLOSSARY), ...privateDocs({ journal: [journal], observations: [], contrary: [] })]
 
   it('labels every result with its scope', () => {
     const hits = search(docs, 'contradiction')

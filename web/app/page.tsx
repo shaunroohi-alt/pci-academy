@@ -1,111 +1,45 @@
-import Link from 'next/link'
-import { BeginButton } from '@/components/begin-button'
-import { LinkButton } from '@/components/ui/button'
-import { CANONICAL_PIPELINE, CORE_BOUNDARY, PCI_IS_NOT, SEVEN_OPERATIONS } from '@/lib/pci/canon'
-import { backendConfigured } from '@/lib/env'
+import { CloseLine, TextLink } from '@/components/site/page-intro'
+import { SITE } from '@/content/site'
 
-const ENVIRONMENTS = [
-  { title: 'Read', body: 'The PCI framework, the glossary, and — as each chapter is approved — The Art of Being, in a reader built for sustained attention.', href: '/library/' },
-  { title: 'Document', body: 'One observational subject a day in the Journal, and an unrestricted Ledger for everything else.', href: '/journal/' },
-  { title: 'Observe', body: 'Submit material and receive an observational report: separated, compared, classified, and traced to your own words.', href: '/observe/' },
-  { title: 'Examine', body: 'On the Contrary: examine an apparent error inside the wider system it belongs to — without forcing it into a positive reading.', href: '/contrary/' },
-  { title: 'Relate', body: 'With your permission, see how material relates across time: patterns, contradictions, revisions. Nothing becomes an identity claim.', href: '/relate/' },
-  { title: 'Learn', body: 'Courses that reuse the canonical corpus. Progress is informational; nothing is scored.', href: '/academy/' },
-]
+const THREE_LINES = [
+  'Ability is capacity. Skill is capacity organized. Identity is the story that decides which of those may count.',
+  'You were finished at birth. Growth changes function. It does not buy worth.',
+  'Visibility is not obligation.',
+] as const
 
 export default function Home() {
   return (
-    <div className="-mt-2">
-      <section className="grid gap-10 pb-16 pt-6 lg:grid-cols-[1.2fr_1fr] lg:items-end lg:pt-14">
-        <div>
-          <p className="eyebrow mb-5">PCI Academy · Psycho-Creative Intelligence</p>
-          <h1 className="display text-[54px] sm:text-[76px]">Visibility is the output.</h1>
-          <p className="mt-6 max-w-xl font-serif text-[19px] leading-relaxed text-ink-2">
-            PCI receives what you bring, separates event from meaning, compares it where evidence allows, and shows you its structure. Then it stops. Human choice begins outside the engine.
-          </p>
-          <div className="mt-9 flex flex-wrap gap-3">
-            <BeginButton />
-            <LinkButton href="/library/what-pci-is/" variant="outline" size="lg">
-              Read what PCI is
-            </LinkButton>
-          </div>
-        </div>
-        <aside className="border-l border-line pl-6 text-[14px] text-ink-2">
-          <p className="eyebrow mb-3">Where your material lives</p>
-          {backendConfigured ? (
-            <p>Your material is private to your account, isolated by row-level security, exportable and deletable at any time. It is never used for training.</p>
-          ) : (
-            <p>In this edition your material never leaves this device. There is no account and no server: journal, ledger and reports are stored in your browser, and you can export or delete all of it at any time.</p>
-          )}
-          <p className="mt-3">Comparison with your earlier material is off until you switch it on.</p>
-        </aside>
-      </section>
+    <div>
+      <header className="pt-6 sm:pt-12">
+        <p className="kicker mb-5">{SITE.longName}</p>
+        <h1 className="display text-[56px] leading-[1.02] sm:text-[80px]">{SITE.book}</h1>
+        <hr className="rule-draw mt-8 w-16" aria-hidden />
+        <p className="mt-8 font-display text-[26px] italic leading-snug text-ink-2 sm:text-[30px]">You are not missing anything. You are missing sight of something.</p>
+      </header>
 
-      <section className="border-y border-line py-10" aria-labelledby="process-h">
-        <h2 id="process-h" className="eyebrow mb-5">
-          The canonical process
-        </h2>
-        <ol className="flex flex-wrap items-center gap-x-3 gap-y-2 font-display text-[21px]">
-          {CANONICAL_PIPELINE.map((step, i) => (
-            <li key={step} className="flex items-center gap-3">
-              <span className={step === 'STOP' ? 'font-semibold text-accent' : ''}>{step}</span>
-              {i < CANONICAL_PIPELINE.length - 1 ? <span className="text-brass" aria-hidden>→</span> : null}
-            </li>
-          ))}
-        </ol>
-      </section>
+      <div className="site-body mt-10">
+        <p>PCI is an observational method. It separates what happened from what was decided about it. It reports what can be seen. Then it stops. The direction is yours.</p>
+      </div>
 
-      <section className="py-16" aria-labelledby="ops-h">
-        <div className="mb-8 flex items-end justify-between gap-4">
-          <h2 id="ops-h" className="display text-[36px]">
-            Seven questions
-          </h2>
-          <Link href="/library/seven-operations/" className="text-[13px] font-medium text-accent">
-            Read the principles →
-          </Link>
-        </div>
-        <ol className="grid gap-px overflow-hidden rounded-[4px] border border-line bg-line md:grid-cols-2 md:[&>li:last-child]:col-span-2">
-          {SEVEN_OPERATIONS.map((op) => (
-            <li key={op.key} className="bg-bg p-6">
-              <p className="eyebrow mb-2">
-                {op.n} · {op.name}
-              </p>
-              <p className="font-serif text-[17px] leading-relaxed">{op.question}</p>
-              <p className="mt-2 text-[13px] text-muted">{op.principle}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
+      <ul className="mt-14 border-b border-line">
+        {THREE_LINES.map((line) => (
+          <li key={line} className="flex gap-5 border-t border-line py-5 sm:gap-8">
+            <span className="mt-[0.8em] h-px w-8 shrink-0 bg-accent" aria-hidden />
+            <span className="font-display text-[22px] leading-snug text-ink sm:text-[24px]">{line}</span>
+          </li>
+        ))}
+      </ul>
 
-      <section className="grid gap-12 border-t border-line py-16 lg:grid-cols-[1fr_1.4fr]" aria-labelledby="not-h">
-        <div>
-          <h2 id="not-h" className="display text-[36px]">
-            What PCI is not
-          </h2>
-          <p className="mt-4 text-[14px] text-ink-2">{CORE_BOUNDARY}</p>
-        </div>
-        <ul className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-          {PCI_IS_NOT.map((x) => (
-            <li key={x} className="border-b border-line pb-3 font-serif text-[16px]">
-              {x}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <nav aria-label="Begin" className="mt-12 flex flex-wrap items-baseline gap-x-10 gap-y-4">
+        <TextLink href="/art-of-being/" className="text-[15px]">
+          Read the book
+        </TextLink>
+        <TextLink href="/method/" className="border-line text-muted">
+          The method
+        </TextLink>
+      </nav>
 
-      <section className="border-t border-line py-16" aria-labelledby="env-h">
-        <h2 id="env-h" className="display mb-8 text-[36px]">
-          The environments
-        </h2>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {ENVIRONMENTS.map((e) => (
-            <Link key={e.title} href={e.href} className="group block border-t border-ink pt-4">
-              <p className="display text-[26px] group-hover:text-accent">{e.title}</p>
-              <p className="mt-2 text-[14px] text-ink-2">{e.body}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <CloseLine>{SITE.close}</CloseLine>
     </div>
   )
 }

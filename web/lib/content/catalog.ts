@@ -1,14 +1,12 @@
 // The corpus: seeded canonical content, overlaid by CMS revisions (local
 // workspace or Supabase). Readers see only published, complete items.
-import { ART_OF_BEING, COMPANION } from '@/content/seeds/art-of-being'
-import { COURSES } from '@/content/seeds/courses'
+import { ART_OF_BEING, COMPANION, LIBRARY } from '@/content/seeds/art-of-being'
 import { FRAMEWORK } from '@/content/seeds/framework'
 import { GLOSSARY } from '@/content/seeds/glossary'
-import { JOURNAL_PROMPTS } from '@/content/seeds/journal-prompts'
-import type { ContentItem, Course, GlossaryTerm } from './types'
+import type { ContentItem, GlossaryTerm } from './types'
 import { isPubliclyVisible } from './validation'
 
-export const SEED_CONTENT: ContentItem[] = [...FRAMEWORK, ...ART_OF_BEING, ...COMPANION]
+export const SEED_CONTENT: ContentItem[] = [...FRAMEWORK, ...ART_OF_BEING, ...COMPANION, ...LIBRARY]
 
 /** Overlay CMS items onto seeds by slug; the higher content version wins, and CMS-only items are added. */
 export function mergeContent(seeds: ContentItem[], overlay: ContentItem[]): ContentItem[] {
@@ -62,13 +60,6 @@ export function hrefFor(item: Pick<ContentItem, 'slug' | 'collection'>): string 
 
 export const GLOSSARY_TERMS: GlossaryTerm[] = [...GLOSSARY].sort((a, b) => a.term.localeCompare(b.term))
 export const TERM_BY_SLUG = new Map(GLOSSARY.map((t) => [t.slug, t]))
-export const PROMPTS = JOURNAL_PROMPTS
-export const PUBLISHED_COURSES: Course[] = COURSES.filter((c) => c.status === 'published')
-export const ALL_COURSES = COURSES
-
-export function courseBySlug(slug: string): Course | undefined {
-  return COURSES.find((c) => c.slug === slug)
-}
 
 /** Neighbouring published items within a collection, for previous / next. */
 export function neighbours(items: ContentItem[], slug: string) {
