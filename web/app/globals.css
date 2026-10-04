@@ -300,3 +300,82 @@ body {
     color: black;
   }
 }
+
+/* ── MP Audio (/mp-audio): its own brand, scoped to .mpa so PCI tokens are
+   untouched. Always dark: graphite studio panels with a signal-orange accent. ── */
+.mpa {
+  --mpa-bg: #0b0c0f;
+  --mpa-panel: #13151a;
+  --mpa-panel-2: #1a1d24;
+  --mpa-ink: #f4f4f5;
+  --mpa-ink-2: #c9cbd2;
+  --mpa-muted: #8b8f9a;
+  --mpa-line: rgba(255, 255, 255, 0.08);
+  --mpa-line-strong: rgba(255, 255, 255, 0.16);
+  --mpa-accent: #ff7a1a;
+  --mpa-accent-2: #3ad6c5;
+  --mpa-accent-soft: rgba(255, 122, 26, 0.14);
+  --focus: #ff7a1a;
+  background: var(--mpa-bg);
+  color: var(--mpa-ink);
+  font-family: var(--font-sans);
+  color-scheme: dark;
+}
+.mpa .skip-link {
+  background: var(--mpa-accent);
+  color: #000;
+}
+.mpa :focus-visible {
+  outline: 2px solid var(--mpa-accent);
+  outline-offset: 2px;
+}
+.mpa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.mpa-btn-primary {
+  background: var(--mpa-accent);
+  color: #120800;
+}
+.mpa-btn-primary:hover {
+  background: #ff9445;
+}
+.mpa-btn-ghost {
+  border: 1px solid var(--mpa-line-strong);
+  color: var(--mpa-ink);
+}
+.mpa-btn-ghost:hover {
+  border-color: var(--mpa-accent);
+  color: var(--mpa-accent);
+}
+.mpa-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mpa-accent);
+}
+.mpa-grid-bg {
+  background-image:
+    linear-gradient(var(--mpa-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--mpa-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 75%);
+}
+@keyframes mpa-meter {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.mpa-meter > span {
+  transform-origin: bottom;
+  animation: mpa-meter 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mpa-meter > span { animation: none; }
+}
