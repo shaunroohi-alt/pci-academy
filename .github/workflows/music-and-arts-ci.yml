@@ -1,0 +1,69 @@
+name: Music and Arts CI
+
+# Lint, typecheck, migrations, build and end-to-end tests for the Music and Arts site (music-and-arts/).
+on:
+  pull_request:
+    paths: ['music-and-arts/**', '.github/workflows/music-and-arts-ci.yml']
+  push:
+    branches: [main]
+    paths: ['music-and-arts/**', '.github/workflows/music-and-arts-ci.yml']
+
+concurrency:
+  group: music-and-arts-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/maa
+  ADMIN_PASSWORD: ci-secret
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: maa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: music-and-arts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: music-and-arts/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: music-and-arts/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Migrations apply and repeat cleanly
+        run: pnpm db:migrate && pnpm db:migrate
+      - name: Build
+        run: pnpm build
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: End-to-end tests
+        run: pnpm test:e2e
+        env:
+          CI: 'true'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: music-and-arts-playwright-report
+          path: music-and-arts/playwright-report
+          retention-days: 7
