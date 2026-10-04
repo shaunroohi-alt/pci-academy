@@ -1,6 +1,6 @@
 'use client'
 
-import { Archive, BookOpen, CircleUser, Cloud, CloudOff, Ellipsis, GraduationCap, House, NotebookPen, Search, X } from 'lucide-react'
+import { Archive, AudioWaveform, BookOpen, CircleUser, Cloud, CloudOff, Ellipsis, GraduationCap, House, NotebookPen, Search, SlidersHorizontal, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as React from 'react'
@@ -18,7 +18,12 @@ const PRIMARY = [
   { href: '/library/', label: 'Library' },
   { href: '/academy/', label: 'Academy' },
   { href: '/media/', label: 'Media' },
-  { href: '/production/', label: 'Production' },
+]
+
+// Production and MP Audio are their own businesses, so they sit apart from the PCI tabs.
+const STUDIO = [
+  { href: '/production/', label: 'Production', icon: SlidersHorizontal },
+  { href: '/mp-audio/', label: 'MP Audio', icon: AudioWaveform },
 ]
 
 const MORE = [
@@ -29,6 +34,7 @@ const MORE = [
   { href: '/community/', label: 'Community', note: 'Gatherings and seminars' },
   { href: '/services/', label: 'Services', note: 'Consultation and booking' },
   { href: '/production/', label: 'Production', note: 'Coaching, engineering, beats and production' },
+  { href: '/mp-audio/', label: 'MP Audio', note: 'Virtual instruments and mixing plugins' },
   { href: '/search/', label: 'Search', note: 'PCI content and your own material' },
   { href: '/account/', label: 'Account', note: 'Privacy, export, deletion, appearance' },
   { href: '/admin/', label: 'Admin', note: 'PCI Academy content management' },
@@ -37,7 +43,7 @@ const MORE = [
 const FOOTER = [
   { title: 'Practice', links: [{ href: '/today/', label: 'Today' }, { href: '/reflection/', label: 'Reflection' }, { href: '/ledger/', label: 'Ledger' }, { href: '/contrary/', label: 'On the Contrary' }, { href: '/relate/', label: 'Relate' }] },
   { title: 'Learn', links: [{ href: '/library/', label: 'Library' }, { href: '/academy/', label: 'Academy' }, { href: '/media/', label: 'Media' }, { href: '/library/glossary/', label: 'Glossary' }] },
-  { title: 'Connect', links: [{ href: '/community/', label: 'Community' }, { href: '/services/', label: 'Services' }, { href: '/production/', label: 'Production' }, { href: '/search/', label: 'Search' }, { href: '/account/', label: 'Account' }] },
+  { title: 'Connect', links: [{ href: '/community/', label: 'Community' }, { href: '/services/', label: 'Services' }, { href: '/production/', label: 'Production' }, { href: '/mp-audio/', label: 'MP Audio' }, { href: '/search/', label: 'Search' }, { href: '/account/', label: 'Account' }] },
 ]
 
 const MOBILE = [
@@ -45,6 +51,7 @@ const MOBILE = [
   { href: '/reflection/', label: 'Reflection', icon: NotebookPen },
   { href: '/ledger/', label: 'Ledger', icon: Archive },
   { href: '/library/', label: 'Library', icon: BookOpen },
+  ...STUDIO,
 ]
 
 function isActive(pathname: string, href: string) {
@@ -105,7 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="flex items-center gap-2" aria-label="PCI Academy — home">
             <PciSeal size={30} className="h-[30px] w-[30px]" />
             <span className="wordmark text-[17px] text-ink">
-              PCI<span className="hidden text-accent sm:inline"> Academy</span>
+              PCI<span className="hidden text-accent sm:inline lg:hidden xl:inline"> Academy</span>
             </span>
           </Link>
           <nav aria-label="Primary" className="hidden flex-1 items-center gap-1 lg:flex">
@@ -114,15 +121,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 aria-current={isActive(pathname, item.href) ? 'page' : undefined}
-                className={cn('relative rounded-[3px] px-2.5 py-1.5 text-[13px] font-medium transition-colors', isActive(pathname, item.href) ? 'text-ink' : 'text-muted hover:text-ink')}
+                className={cn('relative whitespace-nowrap rounded-[3px] px-2 py-1.5 text-[13px] font-medium transition-colors xl:px-2.5', isActive(pathname, item.href) ? 'text-ink' : 'text-muted hover:text-ink')}
               >
                 {item.label}
                 {isActive(pathname, item.href) ? <Diamond className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-accent" /> : null}
               </Link>
             ))}
-            <button type="button" onClick={() => setMoreOpen(true)} className="cursor-pointer rounded-[3px] px-2.5 py-1.5 text-[13px] font-medium text-muted hover:text-ink">
+            <button type="button" onClick={() => setMoreOpen(true)} className="cursor-pointer rounded-[3px] px-2 py-1.5 text-[13px] font-medium text-muted hover:text-ink xl:px-2.5">
               More
             </button>
+            <span className="mx-1.5 h-5 w-px bg-line" aria-hidden />
+            {STUDIO.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={isActive(pathname, item.href) ? 'page' : undefined}
+                className={cn('relative whitespace-nowrap rounded-[3px] px-2 py-1.5 text-[13px] font-medium transition-colors xl:px-2.5', isActive(pathname, item.href) ? 'text-ink' : 'text-muted hover:text-ink')}
+              >
+                {item.label}
+                {isActive(pathname, item.href) ? <Diamond className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-accent" /> : null}
+              </Link>
+            ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden sm:inline">
@@ -187,13 +206,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </footer>
 
       <nav aria-label="Primary" className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg pb-[env(safe-area-inset-bottom)] lg:hidden">
-        <ul className="mx-auto grid max-w-md grid-cols-5">
+        <ul className="mx-auto grid max-w-xl grid-cols-7">
           {MOBILE.map(({ href, label, icon: Icon }) => (
             <li key={href}>
               <Link
                 href={href}
                 aria-current={isActive(pathname, href) ? 'page' : undefined}
-                className={cn('flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium', isActive(pathname, href) ? 'text-ink' : 'text-muted')}
+                className={cn('flex h-16 flex-col items-center justify-center gap-1 whitespace-nowrap text-[10.5px] font-medium', isActive(pathname, href) ? 'text-ink' : 'text-muted')}
               >
                 <Icon className="h-5 w-5" aria-hidden />
                 {label}
@@ -201,7 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </li>
           ))}
           <li>
-            <button type="button" onClick={() => setMoreOpen(true)} className="flex h-16 w-full cursor-pointer flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted">
+            <button type="button" onClick={() => setMoreOpen(true)} className="flex h-16 w-full cursor-pointer flex-col items-center justify-center gap-1 text-[10.5px] font-medium text-muted">
               <Ellipsis className="h-5 w-5" aria-hidden />
               More
             </button>
