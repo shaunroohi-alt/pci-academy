@@ -18,6 +18,7 @@ const PRIMARY = [
   { href: '/library/', label: 'Library' },
   { href: '/academy/', label: 'Academy' },
   { href: '/media/', label: 'Media' },
+  { href: '/production/', label: 'Production' },
 ]
 
 const MORE = [
@@ -27,6 +28,7 @@ const MORE = [
   { href: '/media/', label: 'Media', note: 'Recorded seminars, courses and visual essays' },
   { href: '/community/', label: 'Community', note: 'Gatherings and seminars' },
   { href: '/services/', label: 'Services', note: 'Consultation and booking' },
+  { href: '/production/', label: 'Production', note: 'Coaching, engineering, beats and production' },
   { href: '/search/', label: 'Search', note: 'PCI content and your own material' },
   { href: '/account/', label: 'Account', note: 'Privacy, export, deletion, appearance' },
   { href: '/admin/', label: 'Admin', note: 'PCI Academy content management' },
@@ -35,7 +37,7 @@ const MORE = [
 const FOOTER = [
   { title: 'Practice', links: [{ href: '/today/', label: 'Today' }, { href: '/reflection/', label: 'Reflection' }, { href: '/ledger/', label: 'Ledger' }, { href: '/contrary/', label: 'On the Contrary' }, { href: '/relate/', label: 'Relate' }] },
   { title: 'Learn', links: [{ href: '/library/', label: 'Library' }, { href: '/academy/', label: 'Academy' }, { href: '/media/', label: 'Media' }, { href: '/library/glossary/', label: 'Glossary' }] },
-  { title: 'Connect', links: [{ href: '/community/', label: 'Community' }, { href: '/services/', label: 'Services' }, { href: '/search/', label: 'Search' }, { href: '/account/', label: 'Account' }] },
+  { title: 'Connect', links: [{ href: '/community/', label: 'Community' }, { href: '/services/', label: 'Services' }, { href: '/production/', label: 'Production' }, { href: '/search/', label: 'Search' }, { href: '/account/', label: 'Account' }] },
 ]
 
 const MOBILE = [
