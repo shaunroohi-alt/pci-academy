@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { MpLogo, MpWordmark } from './brand'
 
@@ -16,7 +17,7 @@ export function MpShell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       <header className="sticky top-0 z-40 border-b border-[var(--mpa-line)] bg-[color-mix(in_srgb,var(--mpa-bg)_88%,transparent)] backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
           <Link href="/mp-audio/" className="flex items-center gap-2.5" aria-label="MP Audio home">
             <MpLogo size={32} />
             <MpWordmark className="text-[14px] text-[var(--mpa-ink)]" />
@@ -28,8 +29,13 @@ export function MpShell({ children }: { children: React.ReactNode }) {
               </a>
             ))}
           </nav>
-          <a href="/mp-audio/#waitlist" className="mpa-btn mpa-btn-primary ml-auto h-9 px-4 text-[13px]">
-            Get early access
+          <Link href="/" className="ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-1.5 text-[13px] font-medium text-[var(--mpa-muted)] hover:text-[var(--mpa-ink)]">
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            PCI<span className="hidden sm:inline"> Academy</span>
+          </Link>
+          <a href="/mp-audio/#waitlist" className="mpa-btn mpa-btn-primary h-9 shrink-0 whitespace-nowrap px-3 text-[13px] sm:px-4">
+            <span className="sm:hidden">Early access</span>
+            <span className="hidden sm:inline">Get early access</span>
           </a>
         </div>
       </header>
