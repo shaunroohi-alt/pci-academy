@@ -82,6 +82,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [moreOpen, setMoreOpen] = React.useState(false)
   const dialogRef = React.useRef<HTMLDialogElement>(null)
   const reading = /^\/library\/.+\/.+/.test(pathname) && !pathname.startsWith('/library/glossary')
+  // MP Audio is a separate brand with its own chrome (app/mp-audio/layout.tsx).
+  const standalone = pathname.startsWith('/mp-audio')
 
   React.useEffect(() => {
     const d = dialogRef.current
@@ -89,6 +91,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (moreOpen && !d.open) d.showModal()
     if (!moreOpen && d.open) d.close()
   }, [moreOpen])
+
+  if (standalone) return <>{children}</>
 
   return (
     <div className="relative min-h-dvh overflow-x-clip">
