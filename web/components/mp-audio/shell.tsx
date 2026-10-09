@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { PreviewGate } from '@/components/preview-gate'
 import { MpLogo, MpWordmark } from './brand'
 
 const NAV = [
@@ -22,21 +23,26 @@ export function MpShell({ children }: { children: React.ReactNode }) {
             <MpLogo size={32} />
             <MpWordmark className="text-[14px] text-[var(--mpa-ink)]" />
           </Link>
-          <nav aria-label="MP Audio" className="hidden flex-1 items-center gap-1 md:flex">
-            {NAV.map((n) => (
-              <a key={n.href} href={n.href} className="rounded-md px-3 py-1.5 text-[13px] font-medium text-[var(--mpa-muted)] hover:text-[var(--mpa-ink)]">
-                {n.label}
-              </a>
-            ))}
-          </nav>
+          {/* Section links and early access point at the placeholder store, so they show in owner preview only. */}
+          <PreviewGate>
+            <nav aria-label="MP Audio" className="hidden flex-1 items-center gap-1 md:flex">
+              {NAV.map((n) => (
+                <a key={n.href} href={n.href} className="rounded-md px-3 py-1.5 text-[13px] font-medium text-[var(--mpa-muted)] hover:text-[var(--mpa-ink)]">
+                  {n.label}
+                </a>
+              ))}
+            </nav>
+          </PreviewGate>
           <Link href="/" className="ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-1.5 text-[13px] font-medium text-[var(--mpa-muted)] hover:text-[var(--mpa-ink)]">
             <ArrowLeft className="h-4 w-4" aria-hidden />
             PCI<span className="hidden sm:inline"> Academy</span>
           </Link>
-          <a href="/mp-audio/#waitlist" className="mpa-btn mpa-btn-primary h-9 shrink-0 whitespace-nowrap px-3 text-[13px] sm:px-4">
-            <span className="sm:hidden">Early access</span>
-            <span className="hidden sm:inline">Get early access</span>
-          </a>
+          <PreviewGate>
+            <a href="/mp-audio/#waitlist" className="mpa-btn mpa-btn-primary h-9 shrink-0 whitespace-nowrap px-3 text-[13px] sm:px-4">
+              <span className="sm:hidden">Early access</span>
+              <span className="hidden sm:inline">Get early access</span>
+            </a>
+          </PreviewGate>
         </div>
       </header>
       <main id="mpa-main">{children}</main>
@@ -47,11 +53,13 @@ export function MpShell({ children }: { children: React.ReactNode }) {
             <MpWordmark className="text-[12px] text-[var(--mpa-ink)]" />
           </div>
           <nav aria-label="MP Audio footer" className="flex flex-wrap gap-x-5 gap-y-2">
-            {NAV.map((n) => (
-              <a key={n.href} href={n.href} className="hover:text-[var(--mpa-ink)]">
-                {n.label}
-              </a>
-            ))}
+            <PreviewGate>
+              {NAV.map((n) => (
+                <a key={n.href} href={n.href} className="hover:text-[var(--mpa-ink)]">
+                  {n.label}
+                </a>
+              ))}
+            </PreviewGate>
             <Link href="/" className="hover:text-[var(--mpa-ink)]">
               PCI Academy
             </Link>
