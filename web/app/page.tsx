@@ -5,6 +5,7 @@ import { ComparisonGlyph, ContradictionGlyph, Diamond, InputGlyph, PIPELINE_GLYP
 import { Ornament, PciMark } from '@/components/brand/pci-mark'
 import { SevenWheel } from '@/components/brand/seven-wheel'
 import { MediaCard } from '@/components/media/media'
+import { PreviewGate } from '@/components/preview-gate'
 import { LinkButton } from '@/components/ui/button'
 import { backendConfigured } from '@/lib/env'
 import { MEDIA } from '@/lib/media/catalog'
@@ -128,22 +129,24 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Visual material. */}
-      <section className="border-t border-line py-24" aria-labelledby="media-h">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <SectionTitle eyebrow="Media" title="Seminars, courses and visual essays." id="media-h" />
-          <Link href="/media/" className="mb-12 text-[13px] font-medium text-accent">
-            All media →
-          </Link>
-        </div>
-        <ul className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
-          {MEDIA.slice(0, 3).map((m) => (
-            <li key={m.slug}>
-              <MediaCard item={m} />
-            </li>
-          ))}
-        </ul>
-      </section>
+      {/* Visual material: placeholder entries, shown in owner preview only until real recordings exist. */}
+      <PreviewGate>
+        <section className="border-t border-line py-24" aria-labelledby="media-h">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <SectionTitle eyebrow="Media" title="Seminars, courses and visual essays." id="media-h" />
+            <Link href="/media/" className="mb-12 text-[13px] font-medium text-accent">
+              All media →
+            </Link>
+          </div>
+          <ul className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+            {MEDIA.slice(0, 3).map((m) => (
+              <li key={m.slug}>
+                <MediaCard item={m} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      </PreviewGate>
 
       {/* The boundary. */}
       <section className="border-t border-line py-24" aria-labelledby="not-h">

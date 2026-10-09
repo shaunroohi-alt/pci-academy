@@ -3,6 +3,7 @@
 import { Check, Download, Infinity as InfinityIcon, KeyRound, Layers, Music2, SlidersHorizontal } from 'lucide-react'
 import * as React from 'react'
 import { BUNDLE_MONTHLY, PLANS, PLUGINS, type PluginKind, usd } from '@/lib/mp-audio/catalog'
+import { PreviewGate } from '@/components/preview-gate'
 import { cn } from '@/lib/utils'
 import { PluginArt } from './brand'
 
@@ -344,9 +345,32 @@ function Waitlist() {
   )
 }
 
+function ComingSoon() {
+  return (
+    <div className="relative">
+      <div className="mpa-grid-bg pointer-events-none absolute inset-0" aria-hidden />
+      <div className="relative mx-auto max-w-3xl px-4 pb-24 pt-20 text-center sm:px-6 lg:pt-28">
+        <div className="flex justify-center">
+          <Meter />
+        </div>
+        <p className="mpa-eyebrow mt-8">Launching soon</p>
+        <h1 className="mt-3 text-[44px] font-extrabold leading-[1.02] tracking-tight sm:text-[64px]">
+          Instruments that play.
+          <br />
+          <span className="text-[var(--mpa-accent)]">Mixers that finish.</span>
+        </h1>
+        <p className="mx-auto mt-6 max-w-xl text-[17px] text-[var(--mpa-ink-2)]">
+          Virtual instrument and mixing plugins from MP Audio. The catalogue and plans open here at launch: subscribe to one plugin, rent it until it&rsquo;s yours, or get every plugin in a single monthly bundle.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** The catalogue and prices are placeholders, so visitors see the coming-soon hero; the full store shows in owner preview. */
 export function Storefront() {
   return (
-    <>
+    <PreviewGate badge fallback={<ComingSoon />}>
       <div className="border-b border-[var(--mpa-line)] bg-[var(--mpa-accent-soft)] px-4 py-2 text-center text-[12px] text-[var(--mpa-ink-2)]">
         Store preview: the plugins and prices shown are placeholders.
       </div>
@@ -356,6 +380,6 @@ export function Storefront() {
       <RentToOwn />
       <Faq />
       <Waitlist />
-    </>
+    </PreviewGate>
   )
 }
