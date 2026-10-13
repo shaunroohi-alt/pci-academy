@@ -1,0 +1,75 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #1b1a2e;
+  --color-ink-soft: #3b3a52;
+  --color-muted: #6b6980;
+  --color-line: #e6e1d6;
+  --color-cream: #faf7f1;
+  --color-paper: #ffffff;
+  --color-gold: #b9892f;
+  --color-gold-deep: #8f6820;
+  --color-gold-soft: #f6ecd3;
+  --color-plum: #4a2f6e;
+  --color-plum-soft: #ece4f5;
+  --color-success: #2f6f4e;
+  --color-success-soft: #e2f1e8;
+  --color-danger: #a33a2f;
+  --color-danger-soft: #f8e4e1;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-cream text-ink font-sans antialiased;
+}
+
+h1, h2, h3, .display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.container-x {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition
+    focus:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed;
+}
+.btn-primary { @apply btn bg-ink text-white hover:bg-ink-soft; }
+.btn-gold { @apply btn bg-gold text-white hover:bg-gold-deep; }
+.btn-outline { @apply btn border border-ink/20 bg-transparent text-ink hover:border-ink hover:bg-white; }
+.btn-ghost { @apply btn text-ink hover:bg-ink/5; }
+.btn-sm { @apply px-3 py-1.5 text-xs; }
+
+.card {
+  @apply rounded-2xl border border-line bg-paper p-6 shadow-[0_1px_0_rgba(27,26,46,0.04)];
+}
+
+.eyebrow {
+  @apply text-xs font-semibold uppercase tracking-[0.18em] text-gold-deep;
+}
+
+.label { @apply block text-sm font-medium text-ink; }
+.input {
+  @apply mt-1.5 block w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink shadow-sm
+    placeholder:text-muted/70 focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/30;
+}
+.input-error { @apply border-danger focus:border-danger focus:ring-danger/30; }
+.help { @apply mt-1 text-xs text-muted; }
+.error { @apply mt-1 text-xs font-medium text-danger; }
+
+.badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+
+.table-wrap { @apply overflow-x-auto rounded-2xl border border-line bg-paper; }
+.table { @apply w-full min-w-[720px] text-left text-sm; }
+.table th { @apply border-b border-line bg-cream px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted; }
+.table td { @apply border-b border-line px-4 py-3 align-top; }
+.table tr:last-child td { @apply border-b-0; }
+
+.prose-tight p + p { @apply mt-3; }
