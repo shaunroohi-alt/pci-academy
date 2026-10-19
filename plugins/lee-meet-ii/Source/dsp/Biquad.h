@@ -3,6 +3,8 @@
 
 namespace lm2::dsp
 {
+inline constexpr double kPi = 3.14159265358979323846;
+
 /** Minimal transposed-direct-form-II biquad in double precision. */
 struct Biquad
 {
@@ -22,7 +24,7 @@ struct Biquad
     /** 2nd-order Butterworth-style high-pass (RBJ cookbook). */
     void setHighPass (double sampleRate, double freq, double q) noexcept
     {
-        const double w0 = 2.0 * M_PI * freq / sampleRate;
+        const double w0 = 2.0 * kPi * freq / sampleRate;
         const double cs = std::cos (w0), sn = std::sin (w0);
         const double alpha = sn / (2.0 * q);
         const double a0 = 1.0 + alpha;
@@ -37,7 +39,7 @@ struct Biquad
     void setPeak (double sampleRate, double freq, double q, double gainDb) noexcept
     {
         const double A  = std::pow (10.0, gainDb / 40.0);
-        const double w0 = 2.0 * M_PI * freq / sampleRate;
+        const double w0 = 2.0 * kPi * freq / sampleRate;
         const double cs = std::cos (w0), sn = std::sin (w0);
         const double alpha = sn / (2.0 * q);
         const double a0 = 1.0 + alpha / A;
@@ -52,7 +54,7 @@ struct Biquad
     void setLowShelf (double sampleRate, double freq, double q, double gainDb) noexcept
     {
         const double A  = std::pow (10.0, gainDb / 40.0);
-        const double w0 = 2.0 * M_PI * freq / sampleRate;
+        const double w0 = 2.0 * kPi * freq / sampleRate;
         const double cs = std::cos (w0), sn = std::sin (w0);
         const double alpha = sn / (2.0 * q);
         const double sqA2a = 2.0 * std::sqrt (A) * alpha;

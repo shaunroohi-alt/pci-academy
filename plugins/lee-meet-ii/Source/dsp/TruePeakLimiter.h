@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include "Biquad.h"
 #include "IntDelay.h"
 
 namespace lm2::dsp
@@ -157,7 +158,7 @@ private:
         for (int n = 0; n < L; ++n)
         {
             const double t = ((double) n - centre) / (double) oversample;
-            const double sinc = (std::abs (t) < 1.0e-9) ? 1.0 : std::sin (M_PI * t) / (M_PI * t);
+            const double sinc = (std::abs (t) < 1.0e-9) ? 1.0 : std::sin (kPi * t) / (kPi * t);
             const double r = ((double) n - centre) / centre;
             const double w = besselI0 (beta * std::sqrt (std::max (0.0, 1.0 - r * r))) / i0beta;
             h[(size_t) n] = sinc * w;

@@ -103,8 +103,8 @@ float truePeakDb (const juce::AudioBuffer<float>& b)
                 for (int k = -half; k < half; ++k)
                 {
                     const double u = (double) k - t;
-                    const double s = std::abs (u) < 1e-9 ? 1.0 : std::sin (M_PI * u) / (M_PI * u);
-                    const double w = 0.5 + 0.5 * std::cos (M_PI * u / half);
+                    const double s = std::abs (u) < 1e-9 ? 1.0 : std::sin (lm2::dsp::kPi * u) / (lm2::dsp::kPi * u);
+                    const double w = 0.5 + 0.5 * std::cos (lm2::dsp::kPi * u / half);
                     acc += x[i + k] * s * w;
                 }
                 peak = juce::jmax (peak, (float) std::abs (acc));

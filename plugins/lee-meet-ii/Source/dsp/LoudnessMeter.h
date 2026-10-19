@@ -80,7 +80,7 @@ public:
     {
         // High-shelf "pre-filter" of the K-weighting curve (BS.1770-4), sample-rate agnostic design.
         const double f0 = 1681.974450955533, G = 3.999843853973347, Q = 0.7071752369554196;
-        const double K  = std::tan (M_PI * f0 / sampleRate);
+        const double K  = std::tan (kPi * f0 / sampleRate);
         const double Vh = std::pow (10.0, G / 20.0);
         const double Vb = std::pow (Vh, 0.4996667741545416);
         const double a0 = 1.0 + K / Q + K * K;
@@ -97,7 +97,7 @@ public:
     {
         // RLB high-pass stage of the K-weighting curve.
         const double f0 = 38.13547087602444, Q = 0.5003270373238773;
-        const double K  = std::tan (M_PI * f0 / sampleRate);
+        const double K  = std::tan (kPi * f0 / sampleRate);
         const double a0 = 1.0 + K / Q + K * K;
         Biquad b;
         b.b0 = 1.0; b.b1 = -2.0; b.b2 = 1.0;
