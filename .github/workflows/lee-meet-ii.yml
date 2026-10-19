@@ -36,6 +36,9 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    env:
+      # secrets are not readable from a step-level `if`, so mirror their presence here
+      HAS_MACOS_SIGNING: ${{ secrets.MACOS_CERTIFICATE_P12 != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -108,7 +111,7 @@ jobs:
           exit 1
 
       - name: Developer ID sign and notarize (only when signing secrets are configured)
-        if: runner.os == 'macOS' && secrets.MACOS_CERTIFICATE_P12 != ''
+        if: runner.os == 'macOS' && env.HAS_MACOS_SIGNING == 'true'
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
