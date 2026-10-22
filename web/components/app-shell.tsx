@@ -10,10 +10,10 @@ import { CANONICAL_PIPELINE } from '@/lib/pci/canon'
 import { useApp } from '@/lib/app/context'
 import { cn } from '@/lib/utils'
 
-// MP Audio is a separate deployed app at this same-origin path. A document
+// MP Audio and Mellow-Dee are separate apps at these same-origin paths. A document
 // navigation lets its Worker answer instead of Next's old exported RSC page.
 function Link(props: React.ComponentProps<typeof NextLink>) {
-  if (typeof props.href === 'string' && props.href.startsWith('/mp-audio')) {
+  if (typeof props.href === 'string' && (props.href.startsWith('/mp-audio') || props.href.startsWith('/mellow-dee-app'))) {
     return <a href={props.href} className={props.className} aria-current={props['aria-current']} aria-label={props['aria-label']} onClick={props.onClick}>{props.children}</a>
   }
   return <NextLink {...props} />
@@ -44,6 +44,7 @@ const MORE = [
   { href: '/services/', label: 'Services', note: 'Consultation and booking' },
   { href: '/production/', label: 'Production', note: 'Coaching, engineering, beats and production' },
   { href: '/mp-audio/', label: 'MP Audio', note: 'Virtual instruments and mixing plugins' },
+  { href: '/mellow-dee-app', label: 'Mellow-Dee', note: 'Loop, sample and create with MP-AUDIO' },
   { href: '/search/', label: 'Search', note: 'PCI content and your own material' },
   { href: '/account/', label: 'Account', note: 'Privacy, export, deletion, appearance' },
   { href: '/admin/', label: 'Admin', note: 'PCI Academy content management' },
@@ -52,7 +53,7 @@ const MORE = [
 const FOOTER = [
   { title: 'Practice', links: [{ href: '/today/', label: 'Today' }, { href: '/reflection/', label: 'Reflection' }, { href: '/ledger/', label: 'Ledger' }, { href: '/contrary/', label: 'On the Contrary' }, { href: '/relate/', label: 'Relate' }] },
   { title: 'Learn', links: [{ href: '/library/', label: 'Library' }, { href: '/academy/', label: 'Academy' }, { href: '/media/', label: 'Media' }, { href: '/library/glossary/', label: 'Glossary' }] },
-  { title: 'Connect', links: [{ href: '/community/', label: 'Community' }, { href: '/services/', label: 'Services' }, { href: '/production/', label: 'Production' }, { href: '/mp-audio/', label: 'MP Audio' }, { href: '/search/', label: 'Search' }, { href: '/account/', label: 'Account' }] },
+  { title: 'Connect', links: [{ href: '/community/', label: 'Community' }, { href: '/services/', label: 'Services' }, { href: '/production/', label: 'Production' }, { href: '/mp-audio/', label: 'MP Audio' }, { href: '/mellow-dee-app', label: 'Mellow-Dee' }, { href: '/search/', label: 'Search' }, { href: '/account/', label: 'Account' }] },
 ]
 
 const MOBILE = [
