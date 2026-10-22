@@ -18,7 +18,7 @@
     "binding": "ASSETS",
     "not_found_handling": "404-page",
     "html_handling": "auto-trailing-slash",
-    "run_worker_first": ["/api/*", "/mp-audio", "/mp-audio/*", "/mp-audio.html", "/mp-audio.txt", "/mellow-dee-app", "/mellow-dee-app/*", "/mellow-dee-app.html", "/mellow-dee-app.txt"]
+    "run_worker_first": ["/api/*", "/revision-devision", "/revision-devision/*", "/revision-devision.html", "/revision-devision.txt", "/mp-audio", "/mp-audio/*", "/mp-audio.html", "/mp-audio.txt", "/mellow-dee-app", "/mellow-dee-app/*", "/mellow-dee-app.html", "/mellow-dee-app.txt"]
   },
   // Per-visitor cap on the paid writer endpoint.
   "ratelimits": [
