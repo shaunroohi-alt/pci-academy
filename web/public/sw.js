@@ -31,6 +31,9 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return
+  // The store has authenticated downloads and its own deployment lifecycle.
+  // Never serve its old placeholder or account responses from PCI's cache.
+  if (url.pathname === BASE + '/mp-audio' || url.pathname.startsWith(BASE + '/mp-audio/')) return
 
   if (req.mode === 'navigate') {
     // Network first for pages, so a deploy is picked up; the cached page
