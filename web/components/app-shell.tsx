@@ -1,7 +1,7 @@
 'use client'
 
 import { Archive, AudioWaveform, BookOpen, CircleUser, Cloud, CloudOff, Ellipsis, GraduationCap, House, NotebookPen, Search, SlidersHorizontal, X } from 'lucide-react'
-import Link from 'next/link'
+import NextLink from 'next/link'
 import { usePathname } from 'next/navigation'
 import * as React from 'react'
 import { BrandBackdrop, Diamond, PIPELINE_GLYPHS } from '@/components/brand/glyphs'
@@ -9,6 +9,15 @@ import { PciMark, PciSeal } from '@/components/brand/pci-mark'
 import { CANONICAL_PIPELINE } from '@/lib/pci/canon'
 import { useApp } from '@/lib/app/context'
 import { cn } from '@/lib/utils'
+
+// MP Audio is a separate deployed app at this same-origin path. A document
+// navigation lets its Worker answer instead of Next's old exported RSC page.
+function Link(props: React.ComponentProps<typeof NextLink>) {
+  if (typeof props.href === 'string' && props.href.startsWith('/mp-audio')) {
+    return <a href={props.href} className={props.className} aria-current={props['aria-current']} aria-label={props['aria-label']} onClick={props.onClick}>{props.children}</a>
+  }
+  return <NextLink {...props} />
+}
 
 const PRIMARY = [
   { href: '/today/', label: 'Today' },

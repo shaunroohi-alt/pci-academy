@@ -1,10 +1,11 @@
 // Cloudflare Worker for pci.academy. Static assets (web/out) are served as
-// before; only /api/* reaches this script (run_worker_first in
+// before; /api/* and /mp-audio* reach this script (run_worker_first in
 // wrangler.jsonc). The Anthropic key is a Worker secret and never reaches
 // the browser bundle.
 import Anthropic from '@anthropic-ai/sdk'
 import { hasMaterial, parseWriteRequest, writeContrary, type Generate } from './contrary.ts'
 import { parseReflectRequest, writeReflection } from './reflect.ts'
+import { isMpAudio, mpAudio } from './mp-audio.ts'
 
 interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>
@@ -150,6 +151,7 @@ async function reflect(request: Request, env: Env): Promise<Response> {
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url)
+    if (isMpAudio(pathname)) return mpAudio(request)
     if (pathname === '/api/contrary' || pathname === '/api/contrary/') return contrary(request, env)
     if (pathname === '/api/reflect' || pathname === '/api/reflect/') return reflect(request, env)
     if (pathname.startsWith('/api/')) return json({ error: 'Not found.' }, 404)

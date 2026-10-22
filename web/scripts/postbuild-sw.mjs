@@ -17,6 +17,7 @@ function walk(dir) {
 const files = walk(out)
   .map((p) => '/' + relative(out, p).split('\\').join('/'))
   .filter((p) => p !== '/sw.js' && !p.endsWith('.txt') && !p.endsWith('.map') && !p.startsWith('/icons/maskable') && p !== '/404.html')
+  .filter((p) => !p.startsWith('/mp-audio/') && p !== '/mp-audio.html')
   // Pages are cached by directory URL; everything else by file path.
   .map((p) => (p.endsWith('/index.html') ? p.slice(0, -'index.html'.length) : p))
   .sort()
