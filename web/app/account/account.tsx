@@ -10,7 +10,7 @@ import { voices } from '@/lib/audio/speech'
 import { IndexedDBStore } from '@/lib/db/local'
 import type { Appearance, ClientError } from '@/lib/db/types'
 import { flagsForPlan } from '@/lib/entitlements'
-import { backendConfigured, env } from '@/lib/env'
+import { authConfigured, backendConfigured, env } from '@/lib/env'
 import { CANON_VERSION, ENGINE_VERSION, ENTITLEMENT_FLAGS } from '@/lib/pci/canon'
 import { supabase } from '@/lib/supabase/client'
 import { download, formatDateTime } from '@/lib/utils'
@@ -80,8 +80,8 @@ export function Account() {
     <div className="max-w-3xl">
       <PageHeader eyebrow="Account" title={mode === 'account' ? (session?.user.email ?? 'Account') : 'This device'}>
         {mode === 'account'
-          ? 'Your material is stored in your account, isolated by row-level security, and mirrored on this device so it works offline.'
-          : 'There is no account in this edition. Everything you write is stored in this browser on this device, and nowhere else.'}
+          ? (backendConfigured ? 'Your material is stored in your account, isolated by row-level security, and mirrored on this device so it works offline.' : 'You are signed in to your PCI account. Your writing stays on this device; cloud synchronisation is not enabled yet.')
+          : 'Sign in to your PCI account. Until you sign in, your writing stays in this browser on this device.'}
       </PageHeader>
 
       {notice ? (
@@ -90,20 +90,20 @@ export function Account() {
         </Notice>
       ) : null}
 
-      {backendConfigured ? (
+      {authConfigured ? (
         <Section title={mode === 'account' ? 'Signed in' : 'Sign in'} eyebrow="Account">
           {mode === 'account' ? (
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => supabase()?.auth.signOut()}>
                 Sign out
               </Button>
-              <Button variant="outline" onClick={adoptDevice}>
+              {syncEngine ? <Button variant="outline" onClick={adoptDevice}>
                 Add this device’s material to my account
-              </Button>
+              </Button> : null}
             </div>
           ) : (
             <>
-              <p className="mb-4 text-[14px] text-ink-2">Sign in to keep your material in your account and on every device you use. Until then, material stays on this device.</p>
+              <p className="mb-4 text-[14px] text-ink-2">One PCI account for connected services. Writing stays on this device while cloud synchronisation is being prepared.</p>
               <AuthPanel />
             </>
           )}
@@ -251,14 +251,14 @@ export function Account() {
         <div className="mt-8 rounded-[4px] border border-danger p-5">
           <p className="font-medium text-danger">Delete</p>
           <p className="mt-1 text-[13px] text-ink-2">
-            Deletes every observation, analysis, journal entry, ledger entry, session, note, bookmark and preference{mode === 'account' ? ' — on this device and in your account' : ' on this device'}. It cannot be undone. Type DELETE to confirm.
+            Deletes every observation, analysis, journal entry, ledger entry, session, note, bookmark and preference{mode === 'account' && backendConfigured ? ' — on this device and in your account' : ' on this device'}. It cannot be undone. Type DELETE to confirm.
           </p>
           <input aria-label="Type DELETE to confirm" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} className="mt-3 h-9 w-40 rounded-[3px] border border-line-strong bg-transparent px-2 text-[13px]" />
           <div className="mt-3 flex flex-wrap gap-2">
             <Button variant="danger" size="sm" disabled={confirmText !== 'DELETE'} onClick={deleteAll}>
               Delete all my material
             </Button>
-            {mode === 'account' ? (
+            {mode === 'account' && backendConfigured ? (
               <Button variant="danger" size="sm" disabled={confirmText !== 'DELETE'} onClick={deleteAccount}>
                 Delete my account
               </Button>
@@ -285,7 +285,7 @@ export function Account() {
           <dt className="text-muted">Engine</dt>
           <dd>{ENGINE_VERSION}</dd>
           <dt className="text-muted">Storage</dt>
-          <dd>{mode === 'account' ? 'Account (Supabase) + device copy' : 'This device (IndexedDB)'}</dd>
+          <dd>{mode === 'account' && backendConfigured ? 'Account (Supabase) + device copy' : 'This device (IndexedDB)'}</dd>
           <dt className="text-muted">Base path</dt>
           <dd>{env.basePath || '/'}</dd>
           <dt className="text-muted">Errors recorded</dt>

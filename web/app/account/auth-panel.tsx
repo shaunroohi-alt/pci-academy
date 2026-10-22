@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase/client'
 export function AuthPanel() {
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
-  const [mode, setMode] = React.useState<'link' | 'password' | 'signup'>('link')
+  const [mode, setMode] = React.useState<'link' | 'password' | 'signup'>('password')
   const [message, setMessage] = React.useState<{ tone: 'neutral' | 'danger'; text: string } | null>(null)
   const [busy, setBusy] = React.useState(false)
 

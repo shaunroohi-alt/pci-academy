@@ -15,7 +15,7 @@ import { IndexedDBStore } from '@/lib/db/local'
 import { Repository } from '@/lib/db/repository'
 import { SyncEngine, type SyncStatus } from '@/lib/db/sync'
 import { DEFAULT_PREFERENCES, type ClientError, type Preferences } from '@/lib/db/types'
-import { backendConfigured } from '@/lib/env'
+import { authConfigured, backendConfigured } from '@/lib/env'
 import { fetchRemoteContent } from '@/lib/content/remote'
 import { supabase } from '@/lib/supabase/client'
 
@@ -63,7 +63,7 @@ function applyAppearance(p: Preferences) {
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = React.useState<Session | null>(null)
-  const [authChecked, setAuthChecked] = React.useState(!backendConfigured)
+  const [authChecked, setAuthChecked] = React.useState(!authConfigured)
   const [repo, setRepo] = React.useState<Repository | null>(null)
   const [prefs, setPrefsState] = React.useState<Preferences>(DEFAULT_PREFERENCES)
   const [sync, setSync] = React.useState<SyncStatus | null>(null)
@@ -83,8 +83,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!sb) return
     sb.auth.getSession().then(({ data }) => {
       setSession(data.session)
-      setAuthChecked(true)
-    })
+    }).catch(() => setSession(null)).finally(() => setAuthChecked(true))
     const { data } = sb.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => data.subscription.unsubscribe()
   }, [])
@@ -106,7 +105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let engine: SyncEngine | null = null
     let unsubSync: (() => void) | undefined
     const sb = supabase()
-    if (userId && sb) {
+    if (userId && sb && backendConfigured) {
       engine = new SyncEngine(store, sb)
       engine.attach(r)
       unsubSync = engine.subscribe(setSync)
@@ -170,7 +169,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const err: ClientError = { id: crypto.randomUUID(), at: new Date().toISOString(), message: message.slice(0, 300), route: location.pathname.slice(0, 200) }
       void repo.raw.put('client_errors', err)
       const sb = supabase()
-      if (sb && userId) void sb.from('client_errors').insert({ message: err.message, route: err.route })
+      if (sb && userId && backendConfigured) void sb.from('client_errors').insert({ message: err.message, route: err.route })
     }
     const onError = (e: ErrorEvent) => record(e.message || 'Unknown error')
     const onRejection = (e: PromiseRejectionEvent) => record(e.reason instanceof Error ? e.reason.message : 'Unhandled rejection')

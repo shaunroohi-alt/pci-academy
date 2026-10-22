@@ -8,6 +8,7 @@ const PublicEnv = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional().or(z.literal('')),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
   NEXT_PUBLIC_BASE_PATH: z.string().optional(),
+  NEXT_PUBLIC_PCI_SYNC_ENABLED: z.enum(['true', 'false']).optional(),
 })
 
 const parsed = PublicEnv.safeParse({
@@ -15,6 +16,7 @@ const parsed = PublicEnv.safeParse({
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
+  NEXT_PUBLIC_PCI_SYNC_ENABLED: process.env.NEXT_PUBLIC_PCI_SYNC_ENABLED,
 })
 
 if (!parsed.success) {
@@ -30,12 +32,14 @@ for (const key of Object.keys(process.env)) {
 
 export const env = {
   appUrl: parsed.data.NEXT_PUBLIC_APP_URL || '',
-  supabaseUrl: parsed.data.NEXT_PUBLIC_SUPABASE_URL || '',
-  supabaseAnonKey: parsed.data.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  supabaseUrl: parsed.data.NEXT_PUBLIC_SUPABASE_URL || 'https://npjxjnhkevcccrafulic.supabase.co',
+  supabaseAnonKey: parsed.data.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_E011IGLRYLResCUFzVEAMw_2uzRWt7l',
   basePath: parsed.data.NEXT_PUBLIC_BASE_PATH || '',
 }
 
-export const backendConfigured = Boolean(env.supabaseUrl && env.supabaseAnonKey)
+// Authentication is independent of the legacy document-sync schema.
+export const authConfigured = Boolean(env.supabaseUrl && env.supabaseAnonKey)
+export const backendConfigured = authConfigured && parsed.data.NEXT_PUBLIC_PCI_SYNC_ENABLED === 'true'
 
 /** Prefix a public asset path with the deployment base path. */
 export function asset(path: string): string {
