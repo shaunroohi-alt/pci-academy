@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { hasMaterial, parseWriteRequest, writeContrary, type Generate } from './contrary.ts'
 import { parseReflectRequest, writeReflection } from './reflect.ts'
 import { isMpAudio, mpAudio } from './mp-audio.ts'
+import { isMellowDee, mellowDee } from './mellow-dee.ts'
 
 interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>
@@ -152,6 +153,7 @@ const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url)
     if (isMpAudio(pathname)) return mpAudio(request)
+    if (isMellowDee(pathname)) return mellowDee(request)
     if (pathname === '/api/contrary' || pathname === '/api/contrary/') return contrary(request, env)
     if (pathname === '/api/reflect' || pathname === '/api/reflect/') return reflect(request, env)
     if (pathname.startsWith('/api/')) return json({ error: 'Not found.' }, 404)
