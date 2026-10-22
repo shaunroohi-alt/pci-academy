@@ -46,6 +46,8 @@ if (aggregate.digest('hex') !== pinnedModelHash || total !== manifest.bytes) thr
 
 const files = walk(output).sort()
 const hash = createHash('sha256')
+// Cache lifecycle changes must also create a distinct shell version.
+hash.update(brainStormWorkerSource.toString())
 for (const path of files) {
   if (statSync(path).size > 25 * 1024 * 1024) throw new Error(`Cloudflare's asset size limit is exceeded: ${relative(output, path)}`)
   const name = relative(output, path).split('\\').join('/')

@@ -13,6 +13,12 @@ const BASE = new URL(self.registration.scope).pathname
 const SHELL_CACHE = 'brain-storm-shell-' + VERSION
 const MODEL_CACHE = 'brain-storm-model-' + MODEL_HASH
 
+// Clean-URL hosts redirect index.html to the directory URL. Navigation requests
+// cannot consume a cached response carrying that redirect history while offline.
+function navigationShell(response) {
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers: response.headers })
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(SHELL_CACHE)
@@ -23,7 +29,7 @@ self.addEventListener('install', (event) => {
       fresh.searchParams.set('__brainstorm_build', VERSION)
       const response = await fetch(fresh, { cache: 'reload' })
       if (!response.ok) throw new Error('Could not cache the Brain Storm shell')
-      await cache.put(canonical, response)
+      await cache.put(canonical, file === 'index.html' ? navigationShell(response) : response)
     }
     await self.skipWaiting()
   })())
@@ -46,10 +52,11 @@ self.addEventListener('fetch', (event) => {
       const cache = await caches.open(SHELL_CACHE)
       try {
         const response = await fetch(request)
-        if (response.ok) event.waitUntil(cache.put(new URL('index.html', self.registration.scope), response.clone()).catch(() => {}))
+        if (response.ok) event.waitUntil(cache.put(new URL('index.html', self.registration.scope), navigationShell(response.clone())).catch(() => {}))
         return response
       } catch {
-        return (await cache.match(new URL('index.html', self.registration.scope))) || Response.error()
+        const cached = await cache.match(new URL('index.html', self.registration.scope))
+        return cached ? navigationShell(cached) : Response.error()
       }
     })())
     return

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { createContext, runInContext } from 'node:vm'
 import { brainStormWorkerSource, shouldPciPrecache } from '../../scripts/brain-storm-assets.mjs'
 
@@ -11,10 +13,11 @@ type FetchEvent = {
 }
 const keyOf = (input: Input) => typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
 
-function worker(source: string, scope: string) {
+function worker(source: string, scope: string, network?: (input: Input) => Promise<Response>) {
   const handlers = new Map<string, (event: FetchEvent) => void>()
   const stores = new Map<string, Map<string, Response>>()
   const fetched: string[] = []
+  let served: Response | undefined
   const context = createContext({
     URL, Response,
     self: {
@@ -30,26 +33,26 @@ function worker(source: string, scope: string) {
         if (!stores.has(name)) stores.set(name, new Map())
         const store = stores.get(name)!
         return {
-          put: async (input: Input, response: Response) => { store.set(keyOf(input), response) },
-          match: async (input: Input) => store.get(keyOf(input)),
+          put: async (input: Input, response: Response) => { store.set(keyOf(input), response.clone()) },
+          match: async (input: Input) => store.get(keyOf(input))?.clone(),
         }
       },
     },
-    fetch: async (input: Input) => { fetched.push(keyOf(input)); return new Response('verified asset') },
+    fetch: async (input: Input) => { fetched.push(keyOf(input)); return network ? network(input) : new Response('verified asset') },
   })
   runInContext(source, context)
-  const dispatch = async (name: string, path = scope) => {
+  const dispatch = async (name: string, path = scope, mode = 'cors') => {
     const pending: Promise<unknown>[] = []
     let response: Promise<Response> | undefined
     handlers.get(name)?.({
-      request: { url: path, method: 'GET', mode: 'cors', headers: new Headers() },
+      request: { url: path, method: 'GET', mode, headers: new Headers() },
       respondWith(value) { response = value }, waitUntil(value) { pending.push(value) },
     })
-    if (response) await response
+    served = response ? await response : undefined
     await Promise.all(pending)
     return response !== undefined
   }
-  return { stores, fetched, dispatch }
+  return { stores, fetched, dispatch, get response() { return served } }
 }
 
 describe('Brain Storm asset lifecycle', () => {
@@ -95,5 +98,50 @@ describe('Brain Storm asset lifecycle', () => {
     app.stores.set('brain-storm-model-old-model', new Map())
     await app.dispatch('activate')
     expect([...app.stores.keys()].sort()).toEqual(['brain-storm-model-same-model', 'brain-storm-shell-new-build', 'pci-current'])
+  })
+
+  it('serves offline navigation after a clean-URL host redirects the cached HTML', async () => {
+    const html = '<!doctype html><title>Brain Storm offline</title>'
+    const server = createServer((request, response) => {
+      if (request.url?.startsWith('/brain-storm/index.html')) {
+        response.writeHead(302, { location: '/brain-storm/' }).end()
+      } else {
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'x-shell': 'verified' }).end(html)
+      }
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const scope = `http://127.0.0.1:${(server.address() as AddressInfo).port}/brain-storm/`
+      const redirected = await fetch(scope + 'index.html')
+      expect(redirected.redirected).toBe(true)
+      let offline = false
+      const app = worker(brainStormWorkerSource('redirect-build', ['index.html'], 'model'), scope, async () => {
+        if (offline) throw new TypeError('Network unavailable')
+        return redirected.clone()
+      })
+      const key = scope + 'index.html'
+      await app.dispatch('install')
+      const shell = app.stores.get('brain-storm-shell-redirect-build')!
+      expect(shell.get(key)?.redirected).toBe(false)
+
+      // A later online navigation must not reintroduce redirect history.
+      await app.dispatch('fetch', key, 'navigate')
+      expect(shell.get(key)?.redirected).toBe(false)
+      offline = true
+      await app.dispatch('fetch', scope, 'navigate')
+      expect(app.response?.redirected).toBe(false)
+      expect(app.response?.status).toBe(200)
+      expect(app.response?.headers.get('x-shell')).toBe('verified')
+      expect(await app.response?.text()).toBe(html)
+
+      // Also recover an existing cache written by the previous worker version.
+      shell.set(key, redirected.clone())
+      await app.dispatch('fetch', scope, 'navigate')
+      expect(app.response?.redirected).toBe(false)
+      expect(await app.response?.text()).toBe(html)
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+    }
   })
 })
