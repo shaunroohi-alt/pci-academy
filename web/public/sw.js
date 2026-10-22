@@ -36,6 +36,9 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname === BASE + '/mp-audio' || url.pathname.startsWith(BASE + '/mp-audio/')) return
   if (url.pathname === BASE + '/mellow-dee-app' || url.pathname.startsWith(BASE + '/mellow-dee-app/')) return
 
+  // Brain Storm owns its scoped worker and downloads its neural model lazily.
+  if (url.pathname === BASE + '/brain-storm' || url.pathname.startsWith(BASE + '/brain-storm/')) return
+
   if (req.mode === 'navigate') {
     // Network first for pages, so a deploy is picked up; the cached page
     // (ignoring ?query) when offline.

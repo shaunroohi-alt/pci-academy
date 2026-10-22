@@ -5,7 +5,7 @@ const config = [
   ...nextVitals,
   ...nextTs,
   {
-    ignores: ['.next/**', 'out/**', 'node_modules/**', 'next-env.d.ts', 'playwright-report/**', 'test-results/**', 'supabase/functions/**'],
+    ignores: ['.next/**', 'out/**', 'node_modules/**', 'next-env.d.ts', 'playwright-report/**', 'test-results/**', 'supabase/functions/**', 'public/brain-storm/**', '.cache/**'],
   },
   {
     rules: {

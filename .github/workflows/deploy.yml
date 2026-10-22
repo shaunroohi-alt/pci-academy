@@ -40,7 +40,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Release gate
         run: pnpm lint && pnpm typecheck && pnpm test && pnpm edge:check
-      - name: Build
+      - name: Build PCI and test/build Brain Storm
         run: pnpm build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/

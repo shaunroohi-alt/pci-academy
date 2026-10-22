@@ -4,10 +4,10 @@ name: Web CI
 # lint · typecheck · unit + SQL/RLS tests · migrations · edge function · build · end-to-end.
 on:
   pull_request:
-    paths: ['web/**', '.github/workflows/web-ci.yml']
+    paths: ['web/**', 'brain-storm/**', '.github/workflows/web-ci.yml']
   push:
     branches: [main]
-    paths: ['web/**', '.github/workflows/web-ci.yml']
+    paths: ['web/**', 'brain-storm/**', '.github/workflows/web-ci.yml']
 
 concurrency:
   group: web-ci-${{ github.ref }}
@@ -56,7 +56,7 @@ jobs:
         run: |
           deno check --config pci-analyze/deno.json pci-analyze/index.ts
           deno test --config pci-analyze/deno.json --allow-env _shared/analyze.test.ts
-      - name: Build (GitHub Pages base path)
+      - name: Build PCI and test/build Brain Storm (GitHub Pages base path)
         run: pnpm build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/

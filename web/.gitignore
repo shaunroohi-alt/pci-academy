@@ -8,3 +8,7 @@ next-env.d.ts
 playwright-report/
 test-results/
 coverage/
+
+# Generated sampler bundle; source and lockfile live in ../brain-storm/.
+/public/brain-storm/
+.cache/

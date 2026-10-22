@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build && node scripts/postbuild-sw.mjs",
+    "build": "node scripts/build-brain-storm.mjs && next build && node scripts/postbuild-sw.mjs",
     "start": "node scripts/serve-static.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

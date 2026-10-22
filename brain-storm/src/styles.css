@@ -1,0 +1,3508 @@
+.brain-storm {
+  --chassis: #d6cbb5;
+  --panel: #c5bba5;
+  --ink: #34382e;
+  --muted: #6d6d5b;
+  --lcd: #aab780;
+  --lcd-ink: #293c28;
+  --graphite: #30372f;
+  --amber: #d59a47;
+  --line: #a39c86;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100dvh;
+  min-height: 740px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  grid-template-rows: 42px minmax(0, 1fr) 88px;
+  gap: 12px 18px;
+  background: var(--chassis);
+  color: var(--ink);
+  font:
+    11px Arial,
+    Helvetica,
+    sans-serif;
+  position: relative;
+  border: 4px ridge #bdb59e;
+  overflow: hidden;
+  isolation: isolate;
+}
+.brain-storm * {
+  box-sizing: border-box;
+}
+.brain-storm button,
+.brain-storm input,
+.brain-storm select {
+  font: inherit;
+}
+.brain-storm button,
+.brain-storm select,
+.brain-storm [role="slider"] {
+  touch-action: manipulation;
+}
+.brain-storm button {
+  color: inherit;
+}
+.brain-storm button:focus-visible,
+.brain-storm a:focus-visible,
+.brain-storm select:focus-visible,
+.brain-storm input:focus-visible,
+.brain-storm [role="slider"]:focus-visible {
+  outline: 2px solid #8b5621;
+  outline-offset: 3px;
+}
+.brain-storm button:disabled,
+.brain-storm input:disabled,
+.brain-storm select:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.brain-storm a {
+  color: inherit;
+}
+.brain-storm h1,
+.brain-storm h2,
+.brain-storm p {
+  margin: 0;
+}
+.brain-storm svg {
+  vertical-align: middle;
+}
+.brain-storm .key {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  position: relative;
+  padding: 5px 11px;
+  border: 1px solid #858274;
+  border-radius: 3px;
+  background: linear-gradient(#e4ddca, #c5bda8);
+  box-shadow:
+    inset 0 1px #f4eeda,
+    inset 0 -3px #aaa38f,
+    0 2px 1px #797868;
+  letter-spacing: 0.015em;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.brain-storm .key:hover:not(:disabled) {
+  filter: brightness(1.045);
+}
+.brain-storm .key:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 3px #8c8775,
+    0 1px #66685c;
+}
+.brain-storm .key.is-active {
+  background: linear-gradient(#e0aa5b, #c58b38);
+  color: #342e22;
+  box-shadow:
+    inset 0 1px #f8ca7c,
+    inset 0 -3px #a77230,
+    0 2px 1px #777360;
+}
+.brain-storm .key-dark {
+  padding-left: 16px;
+  color: #dbd3bd;
+  border-color: #252c26;
+  background: linear-gradient(#50594e, #353d34);
+  box-shadow:
+    inset 0 1px #747c6c,
+    inset 0 -3px #242c24,
+    0 2px 1px #787866;
+}
+.brain-storm .key-dark > i {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 5px;
+  height: 12px;
+  transform: translateY(-50%);
+  border-radius: 1px;
+  background: #252d24;
+  border: 1px solid #151f18;
+  box-shadow: 0 1px #66705d;
+}
+.brain-storm .key-dark.is-active {
+  background: linear-gradient(#50594e, #353d34);
+  color: #e3ac55;
+  box-shadow:
+    inset 0 1px #747c6c,
+    inset 0 -3px #242c24,
+    0 2px 1px #787866;
+}
+.brain-storm .key-dark.is-active > i {
+  background: #e3a94e;
+  box-shadow: 0 0 3px #b08636;
+}
+.brain-storm .key-danger.is-active {
+  color: #f4d3b6;
+  background: linear-gradient(#965f4c, #694032);
+}
+.brain-storm .key-danger.is-active > i {
+  background: #ec7054;
+}
+.brain-storm .key-row {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+.brain-storm .key-row > .key {
+  flex: 1;
+}
+.brain-storm .panel {
+  min-width: 0;
+  min-height: 0;
+  background: linear-gradient(110deg, #d8cfb9, #c6bca5);
+  border: 2px solid #aaa38d;
+  border-radius: 3px;
+  box-shadow:
+    inset 1px 1px #eee4cc,
+    inset -1px -1px #9b947f;
+  padding: 10px 12px;
+  position: relative;
+}
+.brain-storm .panel-title {
+  height: 19px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+  font:
+    700 10px "Menlo",
+    "Consolas",
+    monospace;
+  white-space: nowrap;
+}
+.brain-storm .panel-title > small {
+  font-size: 8px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brain-storm .panel-title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brain-storm .lcd {
+  color: var(--lcd-ink);
+  background: repeating-linear-gradient(
+    to bottom,
+    #acb982 0px,
+    #acb982 2px,
+    #a8b57e 3px
+  );
+  border: 3px solid #28372a;
+  box-shadow:
+    inset 0 1px 4px #516346,
+    0 1px #eee2c8;
+  font-family: "Menlo", "Consolas", monospace;
+  min-width: 0;
+  border-radius: 2px;
+}
+.brain-storm .field,
+.brain-storm .select-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.brain-storm .field > span,
+.brain-storm .select-field > span {
+  font:
+    8px "Menlo",
+    "Consolas",
+    monospace;
+  white-space: nowrap;
+}
+.brain-storm input[type="number"],
+.brain-storm input[type="text"],
+.brain-storm input:not([type]),
+.brain-storm select {
+  height: 30px;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #737e52;
+  border-radius: 1px;
+  background: var(--lcd);
+  color: var(--lcd-ink);
+  padding: 4px 8px;
+  font:
+    11px "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm select {
+  appearance: auto;
+  border: 2px solid #3a4736;
+  box-shadow: inset 0 1px #d2d9a6;
+  cursor: pointer;
+  padding-right: 2px;
+}
+.brain-storm input[type="range"] {
+  accent-color: #4d5846;
+  cursor: pointer;
+  min-width: 0;
+}
+.brain-storm .text-action {
+  border: 0;
+  background: none;
+  font-size: 10px;
+  text-decoration: underline;
+  padding: 7px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.brain-storm .is-disabled {
+  opacity: 0.43;
+}
+.brain-storm .knob {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  gap: 4px;
+}
+.brain-storm .knob > label {
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+.brain-storm .knob-scale {
+  width: min(100%, 105px);
+  aspect-ratio: 1;
+  position: relative;
+  padding: 8px;
+  background: repeating-conic-gradient(
+    from -137deg at 50% 50%,
+    transparent 0deg 18deg,
+    #9d9e86 19deg 20deg,
+    transparent 21deg 29deg
+  );
+  border-radius: 50%;
+}
+.brain-storm .knob-scale:before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  background: #cec4ae;
+  border-radius: 50%;
+}
+.brain-storm .knob-cap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    #3b4438 0deg 8deg,
+    #535d4c 9deg 11deg,
+    #3b4438 12deg 20deg
+  );
+  border: 1px solid #333c2e;
+  box-shadow:
+    0 2px 3px #7c7a66,
+    inset 0 1px #78816a;
+  touch-action: none;
+  cursor: ns-resize;
+}
+.brain-storm .knob-cap svg {
+  width: 100%;
+  height: 100%;
+  fill: #4c5747;
+}
+.brain-storm .knob-cap circle {
+  stroke: #333e30;
+  stroke-width: 1.5;
+}
+.brain-storm .knob-cap path {
+  stroke: #e7debf;
+  stroke-width: 4;
+  stroke-linecap: square;
+}
+.brain-storm input.knob-value {
+  font-size: 10px;
+  text-align: center;
+  max-width: 90px;
+  height: 21px;
+  padding: 1px 3px;
+  border: 1px solid #7d8757;
+  appearance: textfield;
+}
+.brain-storm .knob-value::-webkit-inner-spin-button,
+.brain-storm .knob-value::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.brain-storm .knob > small {
+  font:
+    8px "Menlo",
+    "Consolas",
+    monospace;
+  white-space: nowrap;
+  min-height: 8px;
+}
+.brain-storm .meter {
+  position: relative;
+  height: 29px;
+  background: repeating-linear-gradient(
+    90deg,
+    #343d2e 0px,
+    #343d2e 3px,
+    #68724e 3px,
+    #68724e 5px
+  );
+  border: 3px solid #414a37;
+  overflow: hidden;
+  min-width: 0;
+}
+.brain-storm .meter > i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    #a3b476 0px,
+    #a3b476 3px,
+    transparent 3px,
+    transparent 5px
+  );
+  min-width: 0;
+  transition: width 60ms;
+}
+.brain-storm .meter.vertical {
+  height: 100%;
+  width: 5px;
+  border: 0;
+  background: #848b69;
+}
+.brain-storm .meter.vertical > i {
+  width: 100%;
+  top: auto;
+  bottom: 0;
+  background: #b5c477;
+  transition: height 60ms;
+}
+.brain-storm .mode-rail {
+  grid-column: 1;
+  grid-row: 1/3;
+  background: linear-gradient(120deg, #30372f, #343b32);
+  border: 2px solid #6c6d5c;
+  box-shadow:
+    inset 0 1px #51594b,
+    1px 1px #ede2ca;
+  border-radius: 3px;
+  padding: 12px;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  color: #dcd3bc;
+}
+.brain-storm .samplify-brand strong {
+  font:
+    bold 24px Arial,
+    sans-serif;
+  letter-spacing: -0.8px;
+  display: block;
+}
+.brain-storm .samplify-brand span {
+  display: block;
+  font:
+    8px "Menlo",
+    "Consolas",
+    monospace;
+  color: #acb776;
+  margin-top: 7px;
+  letter-spacing: 0.6px;
+}
+.brain-storm .rail-vent {
+  height: 22px;
+  margin: 24px 0 16px;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 5px,
+    #707a60 6px,
+    #151f19 7px,
+    transparent 8px,
+    transparent 11px
+  );
+}
+.brain-storm .rail-caption {
+  font:
+    8px "Menlo",
+    "Consolas",
+    monospace;
+  color: #b4af97;
+  display: block;
+  margin-bottom: 12px;
+}
+.brain-storm .mode-rail nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.brain-storm .mode-rail nav .key {
+  height: 50px;
+  justify-content: flex-start;
+  padding-left: 23px;
+}
+.brain-storm .rail-session {
+  margin-top: auto;
+  padding-bottom: 20px;
+}
+.brain-storm .rail-session .key-row {
+  margin-bottom: 14px;
+}
+.brain-storm .rail-session .key {
+  height: 33px;
+  padding-inline: 9px;
+}
+.brain-storm .audio-menu-host > .key {
+  width: 100%;
+}
+.brain-storm .audio-menu-host {
+  position: relative;
+}
+.brain-storm .audio-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: 210px;
+  z-index: 80;
+  border: 2px solid #6f745e;
+  background: var(--panel);
+  padding: 10px;
+  box-shadow: 3px 3px 10px #2226;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.brain-storm .console-masthead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0 7px;
+}
+.brain-storm .console-masthead h1 {
+  font-size: 23px;
+  font-weight: 750;
+  white-space: nowrap;
+  letter-spacing: -0.5px;
+}
+.brain-storm .console-masthead > span {
+  font:
+    8px "Menlo",
+    "Consolas",
+    monospace;
+  text-align: right;
+  color: #60634f;
+  letter-spacing: 0.2px;
+}
+.brain-storm .console-workspace {
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+}
+.brain-storm .transport-dock {
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: 208px 80px 164px max-content 104px minmax(40px, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 10px 13px;
+  background: linear-gradient(#d8cfb9, #c8bfa8);
+  border: 2px solid #ada58f;
+  box-shadow:
+    inset 1px 1px #ede4ce,
+    inset -1px -1px #a49b85;
+  border-radius: 3px;
+}
+.brain-storm .transport-clock {
+  height: 60px;
+  padding: 5px 8px;
+}
+.brain-storm .transport-clock strong {
+  display: block;
+  font:
+    bold 24px "Menlo",
+    "Consolas",
+    monospace;
+  white-space: nowrap;
+  letter-spacing: -1px;
+  line-height: 30px;
+}
+.brain-storm .transport-clock span {
+  font:
+    bold 8px "Menlo",
+    "Consolas",
+    monospace;
+  white-space: nowrap;
+}
+.brain-storm .transport-dock .field,
+.brain-storm .transport-dock .select-field {
+  gap: 10px;
+}
+.brain-storm .transport-dock .field > span,
+.brain-storm .transport-dock .select-field > span,
+.brain-storm .dock-transport > span,
+.brain-storm .dock-history > span,
+.brain-storm .dock-output > span {
+  display: block;
+  text-align: center;
+  font-size: 8px;
+  color: #65654f;
+  height: 10px;
+  white-space: nowrap;
+  margin-bottom: 8px;
+}
+.brain-storm .transport-dock .field input,
+.brain-storm .transport-dock select {
+  height: 34px;
+}
+.brain-storm .dock-transport > div,
+.brain-storm .dock-history > div {
+  display: flex;
+  gap: 8px;
+}
+.brain-storm .dock-transport .key,
+.brain-storm .dock-history .key {
+  height: 36px;
+  min-height: 36px;
+  padding: 6px 10px;
+}
+.brain-storm .dock-transport .key-dark {
+  padding-left: 16px;
+}
+.brain-storm .dock-history .key {
+  font-size: 9px;
+  padding: 6px 8px;
+}
+.brain-storm .dock-output .meter {
+  height: 30px;
+}
+.brain-storm .sample-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 0.46fr) minmax(0, 0.54fr);
+  height: 100%;
+  gap: 18px;
+  padding: 4px 3px;
+  min-height: 0;
+}
+.brain-storm .performance-pads {
+  display: flex;
+  flex-direction: column;
+  padding: 9px 11px 5px;
+}
+.brain-storm .bank-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 40px;
+  min-height: 40px;
+}
+.brain-storm .bank-toolbar > .key {
+  width: 70px;
+  min-width: 50px;
+  height: 26px;
+  min-height: 26px;
+  font-size: 9px;
+}
+.brain-storm .bank-tools {
+  display: flex;
+  margin-left: auto;
+  gap: 6px;
+}
+.brain-storm .bank-tools .key {
+  padding: 4px 7px;
+  height: 26px;
+  min-height: 26px;
+  font-size: 9px;
+}
+.brain-storm .pad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding-top: 4px;
+  padding-bottom: 11px;
+}
+.brain-storm .pad {
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  border-radius: 7px;
+  background: linear-gradient(120deg, #424a3e, #30382f);
+  border: 4px solid #293229;
+  box-shadow:
+    inset 0 1px #65705a,
+    inset 0 -4px #3b4437,
+    0 1px #e2d5b8;
+  color: #d3cbb6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  cursor: pointer;
+  touch-action: none;
+  overflow: hidden;
+  text-align: center;
+  user-select: none;
+}
+.brain-storm .pad.selected {
+  box-shadow:
+    inset 0 0 0 2px #b98434,
+    inset 0 3px #909078,
+    0 1px #ebdfc5;
+}
+.brain-storm .pad.playing {
+  background: linear-gradient(#6a7351, #434d37);
+  box-shadow:
+    inset 0 0 0 3px #e0b05c,
+    0 0 6px #9d854a;
+}
+.brain-storm .pad:disabled {
+  opacity: 0.58;
+}
+.brain-storm .cue-line {
+  position: absolute;
+  left: 9px;
+  top: 10px;
+  width: 21px;
+  height: 3px;
+  background: var(--cue-colour);
+}
+.brain-storm .pad.empty .cue-line {
+  background: #656b57;
+}
+.brain-storm .pad-id {
+  position: absolute;
+  left: 9px;
+  top: 24px;
+  font:
+    8px "Menlo",
+    "Consolas",
+    monospace;
+  color: #b4b39c;
+}
+.brain-storm .pad strong {
+  font:
+    32px "Menlo",
+    "Consolas",
+    monospace;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.brain-storm .pad-caption {
+  position: absolute;
+  left: 9px;
+  right: 22px;
+  bottom: 9px;
+  font:
+    8px "Menlo",
+    "Consolas",
+    monospace;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #b5b69d;
+}
+.brain-storm .pad-key {
+  position: absolute;
+  right: 9px;
+  bottom: 8px;
+  color: #a9af94;
+  font:
+    9px "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm .pad-favorite {
+  position: absolute;
+  right: 8px;
+  top: 9px;
+  color: #ccab59;
+}
+.brain-storm .autoset-controls {
+  display: flex;
+  gap: 6px;
+  min-height: 30px;
+}
+.brain-storm .autoset-controls > .key {
+  flex: 1;
+  height: 28px;
+  font-size: 10px;
+}
+.brain-storm .autoset-controls > .select-field {
+  width: 30px;
+}
+.brain-storm .autoset-controls select {
+  width: 30px;
+  height: 28px;
+  color: transparent;
+  padding: 0;
+}
+.brain-storm .autoset-controls option {
+  color: var(--ink);
+}
+.brain-storm .autoset-domain {
+  display: flex;
+  gap: 8px;
+  margin-top: 5px;
+  align-items: flex-end;
+}
+.brain-storm .autoset-domain > .select-field {
+  flex: 1;
+}
+.brain-storm .performance-options {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 11px;
+  min-height: 42px;
+}
+.brain-storm .performance-options > .key {
+  height: 29px;
+  min-width: 40px;
+  padding: 4px 9px;
+  font-size: 9px;
+}
+.brain-storm .performance-options > span {
+  flex: 1;
+}
+.brain-storm .typing-legend {
+  text-align: center;
+  font:
+    7px "Menlo",
+    "Consolas",
+    monospace;
+  color: #74735d;
+  letter-spacing: 0.8px;
+  padding-top: 7px;
+  line-height: 8px;
+}
+.brain-storm .sampling-deck {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px 3px;
+}
+.brain-storm .sampling-deck > .panel-title {
+  height: 22px;
+  flex-shrink: 0;
+}
+.brain-storm .deck-top-controls {
+  display: flex;
+  gap: 8px;
+  transform: translateY(-4px);
+}
+.brain-storm .deck-top-controls .key {
+  min-height: 22px;
+  height: 22px;
+  padding: 3px 13px;
+  font-size: 9px;
+}
+.brain-storm .source-lcd {
+  height: 54px;
+  min-height: 54px;
+  padding: 5px 7px;
+  position: relative;
+}
+.brain-storm .source-lcd > strong {
+  font:
+    bold 14px Arial,
+    sans-serif;
+  display: block;
+  padding-right: 52px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.brain-storm .source-lcd > .key {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  min-height: 18px;
+  height: 18px;
+  padding: 2px 6px;
+  font-size: 8px;
+}
+.brain-storm .source-lcd > small {
+  display: block;
+  font:
+    9px "Menlo",
+    "Consolas",
+    monospace;
+  margin-top: 5px;
+}
+.brain-storm .source-waveforms {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 12px;
+  flex-shrink: 0;
+}
+.brain-storm .waveform-shell {
+  position: relative;
+  border: 3px solid #36452e;
+  box-shadow:
+    0 1px #e9dfc3,
+    inset 0 1px #53613e;
+  background: var(--lcd);
+  overflow: hidden;
+}
+.brain-storm .waveform-shell svg {
+  display: block;
+  width: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+.brain-storm .waveform-shell.overview {
+  height: 38px;
+}
+.brain-storm .waveform-shell.overview svg {
+  height: 34px;
+}
+.brain-storm .waveform-shell.detail {
+  height: clamp(130px, 21dvh, 180px);
+}
+.brain-storm .waveform-shell.detail svg {
+  height: 100%;
+}
+.brain-storm .wave-tools {
+  position: absolute;
+  right: 5px;
+  bottom: 6px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  opacity: 0.25;
+  transition: opacity 0.15s;
+}
+.brain-storm .waveform-shell:hover .wave-tools,
+.brain-storm .wave-tools:focus-within {
+  opacity: 1;
+}
+.brain-storm .wave-tools .key {
+  height: 21px;
+  min-height: 21px;
+  font-size: 8px;
+  padding: 3px 7px;
+}
+.brain-storm .empty-source {
+  margin-top: 12px;
+  height: clamp(178px, 27dvh, 228px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 11px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.brain-storm .empty-source > strong {
+  font:
+    16px Arial,
+    sans-serif;
+}
+.brain-storm .empty-source > span {
+  font:
+    10px Arial,
+    sans-serif;
+}
+.brain-storm .empty-source > .key {
+  width: 190px;
+  margin-top: 13px;
+}
+.brain-storm .empty-source .text-action {
+  padding: 0;
+  color: var(--lcd-ink);
+  font-size: 9px;
+}
+.brain-storm .module-keys {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  margin: 12px 0 13px;
+  flex-shrink: 0;
+}
+.brain-storm .module-keys > .key {
+  height: 30px;
+  padding: 5px 6px 5px 13px;
+  min-width: 0;
+  font-size: 9px;
+}
+.brain-storm .parameter-deck {
+  border: 2px solid #aaa38d;
+  box-shadow:
+    inset 1px 1px #e4dcc6,
+    inset -1px -1px #99907b;
+  padding: 10px 13px;
+  flex: 1;
+  min-height: 180px;
+  overflow: auto;
+  border-radius: 3px;
+}
+.brain-storm .cue-summary {
+  font:
+    bold 11px "Menlo",
+    "Consolas",
+    monospace;
+  margin-bottom: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.brain-storm .trim-module {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.05fr;
+  gap: 10px;
+  align-items: start;
+}
+.brain-storm .trim-module .knob {
+  max-width: 140px;
+}
+.brain-storm .module-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding-top: 10px;
+}
+.brain-storm .module-switches .key {
+  height: 31px;
+  font-size: 9px;
+}
+.brain-storm .cue-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.brain-storm .cue-options > p {
+  flex-basis: 100%;
+  font:
+    11px "Menlo",
+    "Consolas",
+    monospace;
+  margin-bottom: 8px;
+}
+.brain-storm .cue-options > .select-field {
+  width: 100%;
+}
+.brain-storm .tune-module {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+.brain-storm .tune-module > div {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.brain-storm .tune-module .key-row {
+  gap: 5px;
+}
+.brain-storm .tune-module .key {
+  padding: 4px 6px;
+  font-size: 9px;
+}
+.brain-storm .envelope-module {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.brain-storm .envelope-module .select-field {
+  margin-top: 8px;
+}
+.brain-storm .stem-keys {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.brain-storm .stem-keys .key {
+  width: 100%;
+  height: 68px;
+  flex-direction: column;
+  font-size: 10px;
+}
+.brain-storm .stem-keys .key small {
+  font-size: 8px;
+  margin-top: 4px;
+}
+.brain-storm .stem-keys .text-action {
+  display: block;
+  width: 100%;
+  font-size: 9px;
+}
+.brain-storm .stems-module > p {
+  font:
+    10px "Menlo",
+    "Consolas",
+    monospace;
+  line-height: 1.6;
+  text-align: center;
+  margin: 13px 0;
+}
+.brain-storm .stems-module > .key {
+  display: flex;
+  margin: 0 auto;
+}
+.brain-storm .grid-tempo {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 36px 36px 60px;
+  gap: 7px;
+  align-items: end;
+}
+.brain-storm .grid-tool-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+}
+.brain-storm .grid-tool-row .key {
+  flex: 1;
+  font-size: 8px;
+  padding-inline: 5px;
+}
+.brain-storm .grid-confirm {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.brain-storm .grid-confirm > .key {
+  flex: none;
+  min-width: 90px;
+}
+.brain-storm .deck-status {
+  font:
+    9px Arial,
+    sans-serif;
+  min-height: 19px;
+  height: 19px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #777760;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 3px 0;
+}
+.brain-storm .deck-status progress {
+  width: 60px;
+  accent-color: #728044;
+}
+.brain-storm .deck-status > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brain-storm .deck-status .key {
+  min-height: 16px;
+  height: 16px;
+  font-size: 7px;
+  margin-left: auto;
+}
+.brain-storm .menu-backdrop,
+.brain-storm .modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: #252b201f;
+}
+.brain-storm .cue-menu,
+.brain-storm .hardware-dialog {
+  background: linear-gradient(#d8cfb8, #c4b89c);
+  border: 2px solid #6a715c;
+  box-shadow: 2px 4px 18px #18231970;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 3px;
+  color: var(--ink);
+}
+.brain-storm .cue-menu {
+  position: absolute;
+  width: 265px;
+}
+.brain-storm .cue-menu > strong {
+  font:
+    11px "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm .modal-backdrop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #252b2070;
+  padding: 20px;
+}
+.brain-storm .hardware-dialog {
+  width: 370px;
+  max-width: 100%;
+  gap: 20px;
+}
+.brain-storm .hardware-dialog h2 {
+  font-size: 17px;
+}
+.brain-storm .effects-workspace {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 6px;
+}
+.brain-storm .effects-patch {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 14px 22px;
+  flex-shrink: 0;
+}
+.brain-storm .effects-patch > .panel-title {
+  grid-column: 1/-1;
+  height: 12px;
+}
+.brain-storm .effects-patch .select-field > span {
+  display: none;
+}
+.brain-storm .effect-cartridges {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 2px;
+}
+.brain-storm .effect-cartridges .panel {
+  padding: 8px 7px;
+  overflow: visible;
+}
+.brain-storm .effect-cartridges .panel-title {
+  height: 20px;
+}
+.brain-storm .effect-cartridges .key {
+  height: 43px;
+  display: flex;
+  width: 100%;
+  font-size: 11px;
+}
+.brain-storm .signal-arrow {
+  position: absolute;
+  right: -9px;
+  top: 39px;
+  z-index: 1;
+  font-size: 20px;
+}
+.brain-storm .processor-control {
+  flex: 1;
+  min-height: 225px;
+}
+.brain-storm .processor-control > .panel-title {
+  display: none;
+}
+.brain-storm .effect-lcd {
+  height: 35px;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.brain-storm .effect-lcd > strong {
+  font:
+    bold 21px "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm .effect-lcd > span {
+  font:
+    9px "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm .effect-model {
+  display: flex;
+  gap: 14px;
+  align-items: end;
+  margin-top: 11px;
+}
+.brain-storm .effect-model > .select-field {
+  width: 250px;
+  flex-shrink: 0;
+  position: relative;
+  padding-bottom: 12px;
+}
+.brain-storm .effect-model > .select-field > span {
+  position: absolute;
+  bottom: 0;
+  font-size: 7px;
+}
+.brain-storm .effect-model > .key {
+  margin-bottom: 12px;
+  min-width: 115px;
+}
+.brain-storm .effect-model > p {
+  font:
+    10px "Menlo",
+    "Consolas",
+    monospace;
+  line-height: 1.5;
+  margin: auto 8px 15px;
+  color: #666951;
+}
+.brain-storm .effect-parameters {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 11px;
+  align-items: start;
+}
+.brain-storm .effect-parameters .knob:last-child {
+  grid-column: 7;
+}
+.brain-storm .effect-parameters .knob-scale {
+  width: min(100%, 100px);
+}
+.brain-storm .native-plugin-bay {
+  min-height: 105px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding-top: 29px;
+}
+.brain-storm .native-plugin-bay > .panel-title {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 9px;
+}
+.brain-storm .native-plugin-bay strong {
+  font:
+    700 13px "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm .native-plugin-bay p {
+  font:
+    10px "Menlo",
+    "Consolas",
+    monospace;
+  line-height: 1.6;
+  margin-top: 7px;
+  max-width: 700px;
+}
+.brain-storm .native-plugin-bay > a {
+  height: 34px;
+  min-width: 180px;
+}
+.brain-storm .perform-workspace {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px;
+}
+.brain-storm .performance-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 58px;
+  flex-shrink: 0;
+  padding-top: 8px;
+}
+.brain-storm .performance-toolbar > .panel-title {
+  display: none;
+}
+.brain-storm .performance-toolbar .select-field > span {
+  display: none;
+}
+.brain-storm .performance-toolbar > .select-field:first-of-type {
+  width: 155px;
+}
+.brain-storm .performance-toolbar > .select-field:nth-of-type(2) {
+  min-width: 160px;
+  max-width: 340px;
+  flex: 1;
+}
+.brain-storm .performance-toolbar > small {
+  font:
+    8px "Menlo",
+    "Consolas",
+    monospace;
+  line-height: 1.5;
+  max-width: 245px;
+  color: #676952;
+}
+.brain-storm .mixer-console {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+.brain-storm .channel-strips {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  min-width: 0;
+  gap: 5px;
+  min-height: 0;
+}
+.brain-storm .channel-strip {
+  min-height: 0;
+  min-width: 0;
+  background: linear-gradient(110deg, #d6ccb6, #c6bca4);
+  border: 2px solid #a69e88;
+  box-shadow: inset 1px 1px #ece1c9;
+  border-radius: 3px;
+  padding: 8px 5px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  gap: 8px;
+}
+.brain-storm .channel-strip:before {
+  content: "";
+  height: 3px;
+  position: absolute;
+  top: -2px;
+  left: 3px;
+  right: 3px;
+  background: var(--track-colour);
+}
+.brain-storm .channel-name {
+  font-size: 9px;
+  height: 26px;
+  min-height: 26px;
+  padding: 3px 5px;
+}
+.brain-storm .channel-launches {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 4px 0 3px;
+}
+.brain-storm .launch-cell {
+  position: relative;
+  height: 38px;
+  min-height: 28px;
+  padding: 6px 4px 6px 11px;
+  font:
+    bold 8px "Menlo",
+    "Consolas",
+    monospace;
+  text-align: left;
+  border: 2px solid #4d5542;
+  background: #aba58e;
+  box-shadow:
+    inset 1px 1px #e4d9bb,
+    0 1px #ede2c6;
+  border-radius: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  color: #353c2e;
+}
+.brain-storm .launch-cell > i {
+  width: 3px;
+  position: absolute;
+  left: 3px;
+  top: 4px;
+  bottom: 4px;
+  background: #727a5d;
+}
+.brain-storm .launch-cell.is-playing {
+  background: #aaba77;
+}
+.brain-storm .launch-cell.is-playing > i {
+  background: #e2b556;
+}
+.brain-storm .launch-cell.is-pending {
+  animation: launch-pulse 0.6s steps(2, end) infinite;
+}
+.brain-storm .launch-cell.is-empty {
+  font-weight: 400;
+  opacity: 0.75;
+}
+.brain-storm .mute-solo {
+  display: flex;
+  gap: 6px;
+}
+.brain-storm .mute-solo .key {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  height: 24px;
+  padding: 3px;
+  font-size: 9px;
+}
+.brain-storm .channel-mix-controls {
+  flex: 1;
+  min-height: 140px;
+  display: flex;
+  gap: 5px;
+}
+.brain-storm .channel-fader {
+  width: 40%;
+  min-width: 22px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 12px 4px 7px;
+}
+.brain-storm .channel-fader > input {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 18px;
+  height: 100%;
+  margin: 0;
+  accent-color: #3e4a37;
+  appearance: none;
+}
+.brain-storm .channel-fader > .meter {
+  position: absolute;
+  right: 0;
+  top: 12px;
+  bottom: 7px;
+  height: auto;
+}
+.brain-storm .channel-knobs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 5px;
+}
+.brain-storm .channel-knobs .knob {
+  gap: 0;
+}
+.brain-storm .channel-knobs .knob > label {
+  font-size: 7px;
+  line-height: 10px;
+}
+.brain-storm .channel-knobs .knob-scale {
+  padding: 3px;
+  width: min(100%, 48px);
+}
+.brain-storm .channel-knobs .knob-scale:before {
+  inset: 2px;
+}
+.brain-storm .channel-knobs .knob-value {
+  max-width: 46px;
+  height: 15px;
+  font-size: 7px;
+  margin-top: 1px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.brain-storm .channel-db {
+  text-align: center;
+  font:
+    8px "Menlo",
+    "Consolas",
+    monospace;
+  line-height: 10px;
+}
+.brain-storm .channel-strip > .select-field select {
+  height: 23px;
+  padding: 1px 2px;
+  font-size: 8px;
+}
+.brain-storm .channel-stop {
+  height: 23px;
+  min-height: 23px !important;
+  padding: 3px;
+  font-size: 9px;
+}
+.brain-storm .scene-master {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 11px;
+  min-width: 0;
+}
+.brain-storm .scene-master > .panel-title {
+  height: 38px;
+}
+.brain-storm .scene-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.brain-storm .scene-keys > .key {
+  height: 38px;
+}
+.brain-storm .master-mixer {
+  margin-top: auto;
+  padding: 22px 6px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  align-items: stretch;
+}
+.brain-storm .master-mixer > .knob {
+  margin-bottom: 3px;
+}
+.brain-storm .master-mixer > .meter {
+  height: 16px;
+}
+.brain-storm .master-mixer > small {
+  font:
+    7px "Menlo",
+    "Consolas",
+    monospace;
+  margin-top: -5px;
+}
+.brain-storm .crossfader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.brain-storm .crossfader > span {
+  display: flex;
+  justify-content: space-between;
+  font:
+    9px "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm .crossfader b {
+  font-weight: 400;
+  font-size: 7px;
+}
+.brain-storm .crossfader > input {
+  width: 100%;
+  margin: 0;
+}
+.brain-storm .editor-layout {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 158px minmax(0, 1fr) 190px;
+  gap: 12px;
+  padding: 6px;
+}
+.brain-storm .library {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.brain-storm .library h2,
+.brain-storm .editor-panel > h2,
+.brain-storm .inspector > h2,
+.brain-storm .print-panel > h2,
+.brain-storm .clip-cartridge > h2 {
+  font:
+    700 10px "Menlo",
+    "Consolas",
+    monospace;
+  margin-bottom: 17px;
+  flex-shrink: 0;
+}
+.brain-storm .pattern-cartridges {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-height: 0;
+}
+.brain-storm .pattern-cartridges > .key {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 6px;
+  justify-content: flex-start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+.brain-storm .editor-main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.brain-storm .editor-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.brain-storm .editor-panel > h2 {
+  margin-bottom: 9px;
+}
+.brain-storm .editor-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+  min-width: 0;
+}
+.brain-storm .editor-toolbar .field,
+.brain-storm .editor-toolbar .select-field {
+  min-width: 90px;
+  max-width: 180px;
+  flex: 1;
+}
+.brain-storm .editor-toolbar .field > span,
+.brain-storm .editor-toolbar .select-field > span {
+  font-size: 8px;
+}
+.brain-storm .timeline-scroll {
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  overflow: auto;
+  background: var(--lcd);
+  border: 3px solid #35452e;
+  box-shadow: 0 1px #e3d8bc;
+  scrollbar-width: thin;
+  scrollbar-color: #686d56 #303a2b;
+  position: relative;
+}
+.brain-storm .timeline-scroll svg {
+  display: block;
+  max-width: none;
+  touch-action: none;
+  user-select: none;
+  font:
+    9px "Menlo",
+    "Consolas",
+    monospace;
+  min-width: 100%;
+}
+.brain-storm .timeline-scroll svg text {
+  pointer-events: none;
+}
+.brain-storm .inspector {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 14px;
+}
+.brain-storm .inspector > h2 {
+  margin-bottom: 0;
+}
+.brain-storm .inspector > .knob {
+  flex-shrink: 0;
+  max-width: 150px;
+  margin-inline: auto;
+}
+.brain-storm .inspector .knob-scale {
+  width: 95px;
+}
+.brain-storm .inspector .parameter-control {
+  margin-top: 10px;
+}
+.brain-storm .inspector > .key {
+  min-height: 30px;
+  flex-shrink: 0;
+}
+.brain-storm .inspector small,
+.brain-storm .inspector p {
+  font:
+    8px/1.8 "Menlo",
+    "Consolas",
+    monospace;
+  color: #555d46;
+}
+.brain-storm .inspector .editor-hint {
+  margin-top: auto;
+  padding-top: 15px;
+}
+.brain-storm .print-panel {
+  height: 78px;
+  min-height: 78px;
+  flex-shrink: 0;
+  padding: 9px 12px;
+}
+.brain-storm .print-panel > h2 {
+  margin-bottom: 8px;
+}
+.brain-storm .print-actions {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+.brain-storm .print-actions > .key {
+  height: 28px;
+  min-width: 145px;
+}
+.brain-storm .print-actions p,
+.brain-storm .print-actions small {
+  font:
+    8px/1.4 "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm .clip-cartridge {
+  height: 88px;
+  min-height: 88px;
+  padding: 10px 12px;
+  flex-shrink: 0;
+}
+.brain-storm .clip-cartridge > h2 {
+  margin-bottom: 13px;
+}
+.brain-storm .clip-cartridge .editor-toolbar {
+  margin: 0;
+}
+.brain-storm .clip-cartridge .select-field {
+  max-width: none;
+}
+.brain-storm .song-tools {
+  height: 110px;
+  min-height: 110px;
+  padding: 11px 12px;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.brain-storm .song-tools .editor-toolbar {
+  margin-bottom: 10px;
+  gap: 11px;
+  align-items: flex-end;
+}
+.brain-storm .song-tools .editor-toolbar > .key {
+  min-width: 90px;
+  font-size: 9px;
+}
+.brain-storm .song-tools .editor-toolbar > .field {
+  max-width: 90px;
+  min-width: 70px;
+}
+.brain-storm .asset-actions {
+  position: relative;
+}
+.brain-storm .asset-actions-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: 250px;
+  z-index: 60;
+  border: 2px solid #69725a;
+  border-radius: 2px;
+  background: #d8cdb3;
+  box-shadow: 2px 4px 14px #25302055;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.brain-storm .asset-actions-menu p {
+  font:
+    10px/1.5 "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm .editor-scroll-controls {
+  display: none;
+}
+.brain-storm .parameter-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.brain-storm .parameter-control input {
+  width: 100%;
+}
+.brain-storm .native-note {
+  font:
+    9px/1.5 "Menlo",
+    "Consolas",
+    monospace;
+  color: #626950;
+}
+.brain-storm .empty-editor-hint {
+  font:
+    12px "Menlo",
+    "Consolas",
+    monospace;
+  fill: #586544;
+}
+.brain-storm .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+}
+.brain-storm .checkbox-row input {
+  accent-color: #858950;
+}
+.brain-storm .editor-selection-label {
+  font:
+    9px "Menlo",
+    "Consolas",
+    monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@keyframes launch-pulse {
+  50% {
+    background: #cfbd74;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brain-storm * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (min-width: 1600px) {
+  .brain-storm .sample-workspace {
+    grid-template-columns: minmax(0, 0.44fr) minmax(0, 0.56fr);
+  }
+  .brain-storm .pad-grid {
+    max-width: 640px;
+    max-height: 640px;
+    margin-inline: auto;
+    width: 100%;
+  }
+  .brain-storm .performance-pads {
+    justify-content: space-between;
+  }
+  .brain-storm .effect-parameters .knob-scale {
+    width: 120px;
+  }
+}
+@media (max-width: 1279px) {
+  .brain-storm {
+    grid-template-columns: 146px minmax(0, 1fr);
+    column-gap: 12px;
+  }
+  .brain-storm .samplify-brand strong {
+    font-size: 22px;
+  }
+  .brain-storm .mode-rail {
+    padding: 10px;
+  }
+  .brain-storm .transport-dock {
+    grid-template-columns: 195px 75px 130px max-content 95px minmax(35px, 1fr);
+    gap: 10px;
+    padding-inline: 10px;
+  }
+  .brain-storm .transport-clock strong {
+    font-size: 22px;
+  }
+  .brain-storm .dock-transport .key {
+    font-size: 9px;
+    padding: 5px 7px 5px 13px;
+  }
+  .brain-storm .dock-history .key {
+    padding-inline: 6px;
+  }
+  .brain-storm .sample-workspace {
+    gap: 12px;
+    grid-template-columns: minmax(0, 0.46fr) minmax(0, 0.54fr);
+  }
+  .brain-storm .pad-grid {
+    gap: 10px;
+  }
+  .brain-storm .pad strong {
+    font-size: 28px;
+  }
+  .brain-storm .bank-toolbar > .key {
+    width: 61px;
+    padding-inline: 5px;
+    font-size: 8px;
+  }
+  .brain-storm .bank-tools {
+    gap: 5px;
+  }
+  .brain-storm .bank-tools .key {
+    padding-inline: 5px;
+    font-size: 8px;
+  }
+  .brain-storm .performance-options {
+    gap: 5px;
+  }
+  .brain-storm .performance-options > .key {
+    font-size: 8px;
+    padding: 4px 7px;
+  }
+  .brain-storm .cue-summary {
+    font-size: 10px;
+  }
+  .brain-storm .trim-module {
+    gap: 7px;
+  }
+  .brain-storm .module-switches .key {
+    font-size: 8px;
+    padding-inline: 5px;
+  }
+  .brain-storm .effect-parameters {
+    gap: 8px;
+  }
+  .brain-storm .effects-patch {
+    grid-template-columns: 195px 1fr;
+  }
+  .brain-storm .performance-toolbar > small {
+    display: none;
+  }
+  .brain-storm .mixer-console {
+    grid-template-columns: minmax(0, 1fr) 151px;
+  }
+  .brain-storm .channel-strip {
+    padding-inline: 4px;
+    gap: 7px;
+  }
+  .brain-storm .channel-name {
+    font-size: 8px;
+  }
+  .brain-storm .launch-cell {
+    font-size: 7px;
+    padding-left: 9px;
+  }
+  .brain-storm .channel-knobs .knob-scale {
+    max-width: 42px;
+  }
+  .brain-storm .editor-layout {
+    grid-template-columns: 145px minmax(0, 1fr) 170px;
+    gap: 10px;
+  }
+  .brain-storm .library {
+    padding-inline: 9px;
+  }
+  .brain-storm .pattern-cartridges > .key {
+    font-size: 9px;
+  }
+  .brain-storm .editor-toolbar {
+    gap: 7px;
+  }
+  .brain-storm .editor-toolbar .select-field,
+  .brain-storm .editor-toolbar .field {
+    min-width: 75px;
+  }
+  .brain-storm .song-tools .editor-toolbar {
+    gap: 7px;
+  }
+  .brain-storm .song-tools .editor-toolbar > .key {
+    min-width: 72px;
+    font-size: 8px;
+  }
+  .brain-storm .print-actions {
+    gap: 10px;
+  }
+}
+@media (max-height: 849px) and (min-width: 901px) {
+  .brain-storm {
+    min-height: 740px;
+    grid-template-rows: 38px minmax(0, 1fr) 82px;
+    row-gap: 10px;
+  }
+  .brain-storm .rail-vent {
+    margin: 18px 0 14px;
+  }
+  .brain-storm .mode-rail nav {
+    gap: 10px;
+  }
+  .brain-storm .mode-rail nav .key {
+    height: 44px;
+  }
+  .brain-storm .rail-session {
+    padding-bottom: 13px;
+  }
+  .brain-storm .pad-grid {
+    gap: 9px;
+  }
+  .brain-storm .pad strong {
+    font-size: 25px;
+  }
+  .brain-storm .pad-id {
+    top: 19px;
+    font-size: 7px;
+  }
+  .brain-storm .cue-line {
+    top: 8px;
+  }
+  .brain-storm .pad-caption {
+    bottom: 7px;
+    font-size: 7px;
+  }
+  .brain-storm .source-waveforms {
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .brain-storm .waveform-shell.detail {
+    height: 142px;
+  }
+  .brain-storm .module-keys {
+    margin-block: 10px;
+  }
+  .brain-storm .cue-summary {
+    margin-bottom: 13px;
+  }
+  .brain-storm .parameter-deck {
+    min-height: 170px;
+    padding: 9px 10px;
+  }
+  .brain-storm .knob-scale {
+    max-width: 88px;
+  }
+  .brain-storm .envelope-module .knob-scale {
+    max-width: 77px;
+  }
+  .brain-storm .tune-module {
+    gap: 10px;
+  }
+  .brain-storm .tune-module > div {
+    gap: 8px;
+  }
+  .brain-storm .tune-module .field > span {
+    font-size: 7px;
+  }
+  .brain-storm .tune-module .field > input {
+    height: 26px;
+  }
+  .brain-storm .stems-module > p {
+    margin-block: 10px;
+    font-size: 9px;
+  }
+  .brain-storm .stem-keys .key {
+    height: 55px;
+    font-size: 9px;
+  }
+  .brain-storm .grid-tool-row {
+    margin-top: 11px;
+    gap: 5px;
+  }
+  .brain-storm .grid-tool-row .key {
+    font-size: 7px;
+  }
+  .brain-storm .grid-confirm {
+    margin-top: 11px;
+  }
+  .brain-storm .effects-workspace {
+    gap: 12px;
+  }
+  .brain-storm .processor-control {
+    min-height: 218px;
+  }
+  .brain-storm .effect-model > p {
+    display: none;
+  }
+  .brain-storm .effect-parameters .knob-scale {
+    max-width: 78px;
+  }
+  .brain-storm .native-plugin-bay {
+    min-height: 90px;
+  }
+  .brain-storm .perform-workspace {
+    gap: 10px;
+  }
+  .brain-storm .channel-launches {
+    gap: 5px;
+  }
+  .brain-storm .launch-cell,
+  .brain-storm .scene-keys > .key {
+    height: 31px;
+  }
+  .brain-storm .scene-keys {
+    gap: 5px;
+  }
+  .brain-storm .channel-knobs .knob-scale {
+    max-width: 37px;
+  }
+  .brain-storm .channel-knobs .knob-value {
+    height: 12px;
+    font-size: 6px;
+  }
+  .brain-storm .channel-mix-controls {
+    min-height: 130px;
+  }
+  .brain-storm .master-mixer {
+    gap: 8px;
+    padding-top: 12px;
+  }
+  .brain-storm .master-mixer > .knob .knob-scale {
+    max-width: 76px;
+  }
+  .brain-storm .pattern-cartridges {
+    gap: 5px;
+  }
+  .brain-storm .pattern-cartridges > .key {
+    font-size: 8px;
+  }
+  .brain-storm .inspector {
+    gap: 9px;
+  }
+  .brain-storm .inspector .knob-scale {
+    width: 75px;
+  }
+  .brain-storm .inspector .knob > label {
+    font-size: 9px;
+  }
+  .brain-storm .inspector .knob > small {
+    font-size: 7px;
+  }
+  .brain-storm .print-panel {
+    height: 72px;
+    min-height: 72px;
+  }
+  .brain-storm .song-tools {
+    height: 104px;
+    min-height: 104px;
+  }
+}
+@media (max-width: 1050px) and (min-width: 901px) {
+  .brain-storm {
+    grid-template-columns: 130px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .brain-storm .mode-rail {
+    padding: 9px;
+  }
+  .brain-storm .samplify-brand strong {
+    font-size: 19px;
+  }
+  .brain-storm .samplify-brand span {
+    font-size: 7px;
+  }
+  .brain-storm .console-masthead h1 {
+    font-size: 20px;
+  }
+  .brain-storm .console-masthead > span {
+    font-size: 7px;
+  }
+  .brain-storm .transport-dock {
+    grid-template-columns: 178px 70px 113px max-content 86px minmax(25px, 1fr);
+    gap: 8px;
+  }
+  .brain-storm .transport-clock {
+    padding-inline: 6px;
+  }
+  .brain-storm .transport-clock strong {
+    font-size: 20px;
+  }
+  .brain-storm .dock-transport > div {
+    gap: 5px;
+  }
+  .brain-storm .dock-transport .key {
+    font-size: 8px;
+    padding-left: 12px;
+    padding-right: 5px;
+  }
+  .brain-storm .dock-history > div {
+    gap: 4px;
+  }
+  .brain-storm .dock-history .key {
+    font-size: 8px;
+    padding-inline: 5px;
+  }
+  .brain-storm .bank-toolbar {
+    gap: 4px;
+  }
+  .brain-storm .bank-toolbar > .key {
+    width: 55px;
+    font-size: 7px;
+  }
+  .brain-storm .bank-tools {
+    gap: 3px;
+  }
+  .brain-storm .bank-tools .key {
+    padding: 3px;
+    font-size: 7px;
+  }
+  .brain-storm .bank-tools .key svg {
+    width: 12px;
+  }
+  .brain-storm .performance-options > .key {
+    min-width: 32px;
+    padding-inline: 4px;
+  }
+  .brain-storm .module-keys {
+    gap: 4px;
+  }
+  .brain-storm .module-keys > .key {
+    font-size: 8px;
+    padding-left: 11px;
+    padding-right: 2px;
+  }
+  .brain-storm .sampling-deck {
+    padding-inline: 9px;
+  }
+  .brain-storm .effect-cartridges .panel-title {
+    font-size: 8px;
+  }
+  .brain-storm .effect-cartridges .key {
+    font-size: 9px;
+  }
+  .brain-storm .editor-layout {
+    grid-template-columns: 128px minmax(0, 1fr) 150px;
+    gap: 8px;
+  }
+  .brain-storm .editor-toolbar .select-field {
+    min-width: 60px;
+  }
+  .brain-storm .editor-toolbar .select-field select {
+    font-size: 9px;
+  }
+  .brain-storm .song-tools .editor-toolbar > .key {
+    min-width: 60px;
+  }
+  .brain-storm .song-tools .editor-toolbar > .field {
+    min-width: 55px;
+  }
+  .brain-storm .print-actions small {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .brain-storm {
+    height: auto;
+    min-height: 100dvh;
+    padding: 8px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    gap: 10px;
+    overflow: visible;
+    border-width: 3px;
+  }
+  .brain-storm .mode-rail {
+    grid-column: 1;
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: 144px 1fr auto;
+    gap: 10px;
+    padding: 9px;
+    min-width: 0;
+    align-items: center;
+  }
+  .brain-storm .samplify-brand strong {
+    font-size: 21px;
+  }
+  .brain-storm .samplify-brand span {
+    font-size: 7px;
+    margin-top: 5px;
+  }
+  .brain-storm .rail-vent,
+  .brain-storm .rail-caption {
+    display: none;
+  }
+  .brain-storm .mode-rail nav {
+    flex-direction: row;
+    gap: 6px;
+    min-width: 0;
+    overflow: auto;
+    padding: 1px 2px 3px;
+  }
+  .brain-storm .mode-rail nav .key {
+    height: 38px;
+    flex-shrink: 0;
+    justify-content: center;
+    padding: 5px 10px 5px 17px;
+    font-size: 9px;
+  }
+  .brain-storm .rail-session {
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 8px;
+  }
+  .brain-storm .rail-session .key-row {
+    margin: 0;
+  }
+  .brain-storm .rail-session .key-row .key {
+    min-width: 48px;
+  }
+  .brain-storm .rail-session .key {
+    font-size: 8px;
+    padding: 4px 7px;
+    height: 31px;
+  }
+  .brain-storm .audio-menu-host > .key {
+    min-width: 69px;
+  }
+  .brain-storm .audio-menu {
+    top: calc(100% + 8px);
+    bottom: auto;
+    left: auto;
+    right: 0;
+  }
+  .brain-storm .console-masthead {
+    grid-column: 1;
+    grid-row: 2;
+    height: 36px;
+    padding-inline: 4px;
+  }
+  .brain-storm .console-masthead h1 {
+    font-size: 21px;
+  }
+  .brain-storm .console-masthead > span {
+    font-size: 7px;
+    max-width: 320px;
+  }
+  .brain-storm .console-workspace {
+    grid-column: 1;
+    grid-row: 3;
+    min-width: 0;
+    min-height: 600px;
+  }
+  .brain-storm .transport-dock {
+    grid-column: 1;
+    grid-row: 4;
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    grid-template-columns: 170px 75px minmax(120px, 1fr) 90px;
+    gap: 10px;
+    padding: 10px;
+  }
+  .brain-storm .transport-clock {
+    grid-column: 1;
+    grid-row: 1/3;
+    height: 63px;
+  }
+  .brain-storm .transport-clock strong {
+    font-size: 20px;
+    line-height: 28px;
+  }
+  .brain-storm .transport-dock > .field {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .brain-storm .transport-dock > .select-field {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .brain-storm .dock-history {
+    grid-column: 4;
+    grid-row: 1;
+  }
+  .brain-storm .dock-transport {
+    grid-column: 2/5;
+    grid-row: 2;
+  }
+  .brain-storm .dock-transport > span,
+  .brain-storm .dock-output {
+    display: none;
+  }
+  .brain-storm .dock-transport > div {
+    gap: 8px;
+  }
+  .brain-storm .dock-transport .key {
+    flex: 1;
+    height: 30px;
+    min-height: 30px;
+    font-size: 9px;
+  }
+  .brain-storm .dock-history > span,
+  .brain-storm .transport-dock .field > span,
+  .brain-storm .transport-dock .select-field > span {
+    margin-bottom: 0;
+    height: auto;
+    font-size: 7px;
+  }
+  .brain-storm .transport-dock .field,
+  .brain-storm .transport-dock .select-field {
+    gap: 4px;
+  }
+  .brain-storm .transport-dock .field input,
+  .brain-storm .transport-dock select {
+    height: 26px;
+  }
+  .brain-storm .dock-history > div {
+    gap: 5px;
+  }
+  .brain-storm .dock-history .key {
+    height: 26px;
+    min-height: 26px;
+    font-size: 8px;
+    padding: 4px 5px;
+    flex: 1;
+  }
+  .brain-storm .sample-workspace {
+    padding: 0;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    height: auto;
+    min-height: 650px;
+  }
+  .brain-storm .performance-pads {
+    min-height: 650px;
+  }
+  .brain-storm .bank-toolbar {
+    flex-wrap: wrap;
+    height: 68px;
+    min-height: 68px;
+    align-content: center;
+    row-gap: 6px;
+  }
+  .brain-storm .bank-tools {
+    margin-left: auto;
+  }
+  .brain-storm .pad-grid {
+    gap: 8px;
+    max-height: 440px;
+  }
+  .brain-storm .pad strong {
+    font-size: 25px;
+  }
+  .brain-storm .pad-id {
+    top: 19px;
+    font-size: 7px;
+  }
+  .brain-storm .cue-line {
+    top: 8px;
+    width: 15px;
+  }
+  .brain-storm .pad-caption {
+    font-size: 7px;
+    left: 6px;
+  }
+  .brain-storm .pad-key {
+    right: 6px;
+    font-size: 8px;
+  }
+  .brain-storm .module-keys {
+    gap: 4px;
+  }
+  .brain-storm .module-keys > .key {
+    font-size: 8px;
+    padding: 5px 3px 5px 12px;
+  }
+  .brain-storm .sampling-deck {
+    padding-inline: 9px;
+    min-height: 650px;
+  }
+  .brain-storm .source-lcd > strong {
+    font-size: 12px;
+  }
+  .brain-storm .source-lcd > small {
+    font-size: 8px;
+  }
+  .brain-storm .deck-top-controls {
+    gap: 5px;
+  }
+  .brain-storm .deck-top-controls > .key {
+    font-size: 8px;
+    padding-inline: 7px;
+  }
+  .brain-storm .waveform-shell.detail {
+    height: 150px;
+  }
+  .brain-storm .source-waveforms {
+    margin-top: 10px;
+    gap: 8px;
+  }
+  .brain-storm .parameter-deck {
+    min-height: 205px;
+    padding: 10px;
+  }
+  .brain-storm .cue-summary {
+    font-size: 9px;
+    margin-bottom: 14px;
+  }
+  .brain-storm .trim-module {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .brain-storm .module-switches {
+    grid-column: 1/-1;
+    flex-direction: row;
+    padding-top: 0;
+    gap: 7px;
+  }
+  .brain-storm .module-switches > .key {
+    font-size: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .brain-storm .knob-scale {
+    max-width: 86px;
+  }
+  .brain-storm .stem-keys {
+    gap: 5px;
+  }
+  .brain-storm .stem-keys .key {
+    font-size: 8px;
+    padding-left: 10px;
+  }
+  .brain-storm .stems-module > p {
+    font-size: 8px;
+  }
+  .brain-storm .grid-tool-row {
+    gap: 5px;
+  }
+  .brain-storm .grid-tool-row > .key {
+    font-size: 7px;
+    padding-inline: 3px;
+  }
+  .brain-storm .grid-tempo {
+    grid-template-columns: minmax(70px, 1fr) 30px 30px 45px;
+    gap: 5px;
+  }
+  .brain-storm .grid-tempo .key {
+    padding-inline: 3px;
+    font-size: 9px;
+  }
+  .brain-storm .field > span {
+    font-size: 7px;
+  }
+  .brain-storm .effects-workspace {
+    height: auto;
+    min-height: 600px;
+    padding: 0;
+    gap: 12px;
+  }
+  .brain-storm .effects-patch {
+    grid-template-columns: 180px 1fr;
+    gap: 9px 14px;
+  }
+  .brain-storm .effect-cartridges {
+    gap: 6px;
+    margin: 0;
+  }
+  .brain-storm .effect-cartridges > .panel {
+    padding: 7px 5px;
+  }
+  .brain-storm .effect-cartridges .panel-title {
+    font-size: 8px;
+    height: 20px;
+  }
+  .brain-storm .effect-cartridges .key {
+    font-size: 9px;
+    padding-inline: 10px;
+  }
+  .brain-storm .effect-model > p {
+    display: none;
+  }
+  .brain-storm .effect-parameters {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px 12px;
+  }
+  .brain-storm .effect-parameters .knob:last-child {
+    grid-column: auto;
+  }
+  .brain-storm .processor-control {
+    min-height: 390px;
+  }
+  .brain-storm .native-plugin-bay {
+    min-height: 130px;
+  }
+  .brain-storm .native-plugin-bay > a {
+    min-width: 145px;
+    font-size: 9px;
+    padding-inline: 13px;
+  }
+  .brain-storm .native-plugin-bay p {
+    font-size: 9px;
+  }
+  .brain-storm .perform-workspace {
+    height: auto;
+    min-height: 660px;
+    padding: 0;
+  }
+  .brain-storm .performance-toolbar {
+    flex-wrap: wrap;
+    gap: 9px;
+    padding: 11px;
+  }
+  .brain-storm .performance-toolbar > .select-field {
+    flex: 1 !important;
+    min-width: 130px !important;
+    max-width: none !important;
+    width: auto !important;
+  }
+  .brain-storm .performance-toolbar > .key {
+    min-width: 110px;
+  }
+  .brain-storm .mixer-console {
+    display: flex;
+    overflow-x: auto;
+    gap: 10px;
+    min-height: 610px;
+    padding-bottom: 6px;
+  }
+  .brain-storm .channel-strips {
+    flex: 0 0 760px;
+    min-height: 600px;
+  }
+  .brain-storm .scene-master {
+    flex: 0 0 160px;
+    min-height: 600px;
+  }
+  .brain-storm .channel-launches {
+    gap: 7px;
+  }
+  .brain-storm .launch-cell {
+    height: 38px;
+  }
+  .brain-storm .master-mixer .knob-scale {
+    max-width: 95px;
+  }
+  .brain-storm .editor-layout {
+    height: auto;
+    min-height: 680px;
+    grid-template-columns: 135px minmax(0, 1fr) 160px;
+    gap: 10px;
+    padding: 0;
+  }
+  .brain-storm .pattern-cartridges {
+    gap: 7px;
+  }
+  .brain-storm .pattern-cartridges > .key {
+    font-size: 8px;
+  }
+  .brain-storm .editor-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .brain-storm .editor-toolbar > .field,
+  .brain-storm .editor-toolbar > .select-field {
+    min-width: 100px;
+    max-width: none;
+    flex: 1;
+  }
+  .brain-storm .editor-scroll-controls {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    justify-content: center;
+  }
+  .brain-storm .editor-scroll-controls .key {
+    min-width: 44px;
+    min-height: 27px;
+    padding: 4px 7px;
+    font-size: 8px;
+  }
+  .brain-storm .print-panel {
+    height: auto;
+    min-height: 91px;
+  }
+  .brain-storm .print-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .brain-storm .print-actions small {
+    font-size: 7px;
+  }
+  .brain-storm .clip-cartridge {
+    height: auto;
+    min-height: 110px;
+  }
+  .brain-storm .song-tools {
+    height: auto;
+    min-height: 136px;
+  }
+  .brain-storm .song-tools .editor-toolbar {
+    flex-wrap: wrap;
+  }
+  .brain-storm .song-tools .editor-toolbar > .key {
+    min-width: 76px;
+  }
+  .brain-storm .song-tools .editor-toolbar > .field {
+    min-width: 74px;
+  }
+  .brain-storm .song-tools .editor-toolbar > .select-field {
+    min-width: 130px;
+  }
+  .brain-storm .inspector .knob-scale {
+    width: 84px;
+  }
+}
+@media (max-width: 650px) {
+  .brain-storm {
+    padding: 6px;
+    gap: 8px;
+    border-width: 2px;
+    min-width: 300px;
+  }
+  .brain-storm .mode-rail {
+    grid-template-columns: 1fr auto;
+    padding: 9px;
+    gap: 9px;
+  }
+  .brain-storm .samplify-brand strong {
+    font-size: 21px;
+  }
+  .brain-storm .samplify-brand span {
+    font-size: 7px;
+  }
+  .brain-storm .rail-session {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 6px;
+  }
+  .brain-storm .rail-session .key-row {
+    gap: 5px;
+  }
+  .brain-storm .rail-session .key-row > .key {
+    min-width: 42px;
+    font-size: 7px;
+    padding: 4px;
+  }
+  .brain-storm .audio-menu-host > .key {
+    min-width: 58px;
+    font-size: 7px;
+    padding-inline: 5px;
+  }
+  .brain-storm .mode-rail nav {
+    grid-column: 1/-1;
+    grid-row: 2;
+    gap: 5px;
+    width: 100%;
+    overflow: visible;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 0;
+  }
+  .brain-storm .mode-rail nav .key {
+    min-width: 0;
+    height: 34px;
+    padding: 5px 3px 5px 10px;
+    font-size: 7px;
+  }
+  .brain-storm .key-dark > i {
+    width: 4px;
+    height: 10px;
+    left: 4px;
+  }
+  .brain-storm .console-masthead {
+    height: 30px;
+  }
+  .brain-storm .console-masthead h1 {
+    font-size: 18px;
+  }
+  .brain-storm .console-masthead > span {
+    font-size: 6px;
+    max-width: 170px;
+    line-height: 1.5;
+  }
+  .brain-storm .console-workspace {
+    min-height: 0;
+  }
+  .brain-storm .sample-workspace {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 12px;
+  }
+  .brain-storm .performance-pads {
+    min-height: 0;
+    padding: 9px 10px 7px;
+  }
+  .brain-storm .panel-title {
+    font-size: 9px;
+  }
+  .brain-storm .panel-title > small {
+    font-size: 7px;
+  }
+  .brain-storm .bank-toolbar {
+    height: 39px;
+    min-height: 39px;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .brain-storm .bank-toolbar > .key {
+    width: 58px;
+    min-width: 48px;
+    height: 25px;
+    min-height: 25px;
+    font-size: 8px;
+  }
+  .brain-storm .bank-tools {
+    gap: 4px;
+  }
+  .brain-storm .bank-tools > .key {
+    padding: 3px 5px;
+    height: 25px;
+    min-height: 25px;
+    font-size: 7px;
+  }
+  .brain-storm .bank-tools > .key svg {
+    width: 12px;
+    height: 12px;
+  }
+  .brain-storm .pad-grid {
+    height: auto;
+    max-height: none;
+    aspect-ratio: 1;
+    flex: none;
+    width: 100%;
+    padding-top: 2px;
+    padding-bottom: 0;
+    margin-bottom: 11px;
+    gap: 8px;
+  }
+  .brain-storm .pad {
+    border-width: 3px;
+    padding: 6px;
+    border-radius: 5px;
+  }
+  .brain-storm .pad strong {
+    font-size: 26px;
+  }
+  .brain-storm .pad-id {
+    top: 17px;
+    font-size: 7px;
+    left: 6px;
+  }
+  .brain-storm .cue-line {
+    left: 6px;
+    top: 7px;
+    height: 2px;
+    width: 17px;
+  }
+  .brain-storm .pad-caption {
+    font-size: 6px;
+    bottom: 5px;
+    left: 6px;
+    right: 15px;
+  }
+  .brain-storm .pad-key {
+    bottom: 5px;
+    right: 5px;
+    font-size: 7px;
+  }
+  .brain-storm .pad-favorite {
+    width: 10px;
+    height: 10px;
+    top: 6px;
+    right: 5px;
+  }
+  .brain-storm .performance-options {
+    padding-top: 9px;
+    gap: 7px;
+    min-height: 36px;
+  }
+  .brain-storm .performance-options > .key {
+    font-size: 8px;
+    padding-inline: 7px;
+    height: 27px;
+  }
+  .brain-storm .typing-legend {
+    font-size: 6px;
+    padding-top: 7px;
+    letter-spacing: 0.6px;
+  }
+  .brain-storm .autoset-controls > .key {
+    font-size: 9px;
+  }
+  .brain-storm .sampling-deck {
+    min-height: 690px;
+    padding: 9px 10px 4px;
+  }
+  .brain-storm .sampling-deck > .panel-title {
+    height: 22px;
+  }
+  .brain-storm .source-lcd {
+    height: 56px;
+    min-height: 56px;
+  }
+  .brain-storm .source-lcd > strong {
+    font-size: 13px;
+  }
+  .brain-storm .source-lcd > small {
+    font-size: 8px;
+  }
+  .brain-storm .waveform-shell.detail {
+    height: 172px;
+  }
+  .brain-storm .wave-tools {
+    opacity: 1;
+  }
+  .brain-storm .module-keys {
+    gap: 5px;
+    margin-block: 11px;
+  }
+  .brain-storm .module-keys > .key {
+    height: 32px;
+    font-size: 8px;
+    padding-left: 11px;
+  }
+  .brain-storm .parameter-deck {
+    min-height: 240px;
+    padding: 11px;
+  }
+  .brain-storm .cue-summary {
+    font-size: 10px;
+    margin-bottom: 19px;
+  }
+  .brain-storm .trim-module {
+    gap: 14px;
+  }
+  .brain-storm .trim-module .knob {
+    max-width: none;
+  }
+  .brain-storm .trim-module .knob-scale {
+    max-width: 105px;
+  }
+  .brain-storm .module-switches {
+    gap: 8px;
+    padding-top: 6px;
+  }
+  .brain-storm .module-switches > .key {
+    height: 32px;
+    font-size: 8px;
+  }
+  .brain-storm .tune-module {
+    gap: 10px;
+  }
+  .brain-storm .tune-module .field > span {
+    font-size: 7px;
+  }
+  .brain-storm .tune-module > div {
+    gap: 12px;
+  }
+  .brain-storm .tune-module .key {
+    font-size: 8px;
+  }
+  .brain-storm .envelope-module {
+    gap: 10px;
+  }
+  .brain-storm .envelope-module .knob-scale {
+    max-width: 88px;
+  }
+  .brain-storm .stem-keys {
+    gap: 6px;
+  }
+  .brain-storm .stem-keys .key {
+    height: 68px;
+    font-size: 8px;
+  }
+  .brain-storm .stems-module > p {
+    font-size: 9px;
+    margin: 17px 0;
+  }
+  .brain-storm .grid-tool-row {
+    margin-top: 17px;
+    gap: 7px;
+  }
+  .brain-storm .grid-tool-row .key {
+    font-size: 7px;
+    min-height: 30px;
+  }
+  .brain-storm .grid-tempo {
+    grid-template-columns: minmax(110px, 1fr) 35px 35px 53px;
+    gap: 6px;
+  }
+  .brain-storm .grid-confirm {
+    margin-top: 21px;
+  }
+  .brain-storm .transport-dock {
+    grid-template-columns: 120px 65px minmax(90px, 1fr);
+    grid-template-rows: auto auto;
+    gap: 9px;
+    padding: 8px;
+    bottom: 0;
+  }
+  .brain-storm .transport-clock {
+    height: 57px;
+    grid-column: 1;
+    grid-row: 1/3;
+    padding: 4px 5px;
+  }
+  .brain-storm .transport-clock strong {
+    font-size: 15px;
+    letter-spacing: -0.8px;
+    line-height: 28px;
+  }
+  .brain-storm .transport-clock span {
+    font-size: 6px;
+  }
+  .brain-storm .transport-dock > .field {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .brain-storm .transport-dock > .select-field {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .brain-storm .dock-history {
+    display: none;
+  }
+  .brain-storm .dock-transport {
+    grid-column: 2/4;
+    grid-row: 2;
+  }
+  .brain-storm .dock-transport > div {
+    gap: 5px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .brain-storm .dock-transport .key {
+    height: 29px;
+    min-height: 29px;
+    font-size: 6px;
+    padding: 4px 3px 4px 9px;
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+  }
+  .brain-storm .dock-transport .key-dark > i {
+    left: 3px;
+    width: 3px;
+    height: 9px;
+  }
+  .brain-storm .transport-dock .field input,
+  .brain-storm .transport-dock select {
+    font-size: 9px;
+    height: 24px;
+    padding: 2px 4px;
+  }
+  .brain-storm .transport-dock .field > span,
+  .brain-storm .transport-dock .select-field > span {
+    font-size: 6px;
+  }
+  .brain-storm .transport-dock .field,
+  .brain-storm .transport-dock .select-field {
+    gap: 3px;
+  }
+  .brain-storm .effects-workspace {
+    min-height: 0;
+    gap: 12px;
+  }
+  .brain-storm .effects-patch {
+    grid-template-columns: 1fr;
+    gap: 9px;
+    padding: 9px 10px;
+  }
+  .brain-storm .effects-patch > .panel-title {
+    height: 13px;
+  }
+  .brain-storm .effects-patch .select-field:first-of-type {
+    width: 100%;
+  }
+  .brain-storm .effect-cartridges {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .brain-storm .effect-cartridges > .panel {
+    padding: 7px 8px;
+  }
+  .brain-storm .effect-cartridges .panel-title {
+    font-size: 9px;
+  }
+  .brain-storm .effect-cartridges .key {
+    height: 41px;
+    font-size: 10px;
+  }
+  .brain-storm .signal-arrow {
+    display: none;
+  }
+  .brain-storm .processor-control {
+    min-height: 470px;
+    padding: 10px;
+  }
+  .brain-storm .effect-lcd {
+    height: 38px;
+    gap: 8px;
+    padding-inline: 6px;
+  }
+  .brain-storm .effect-lcd > strong {
+    font-size: 16px;
+  }
+  .brain-storm .effect-lcd > span {
+    font-size: 7px;
+    max-width: 100px;
+    text-align: right;
+    line-height: 1.4;
+  }
+  .brain-storm .effect-model {
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .brain-storm .effect-model > .select-field {
+    min-width: 0;
+    flex: 1;
+    width: auto;
+  }
+  .brain-storm .effect-model > .key {
+    min-width: 93px;
+    font-size: 8px;
+  }
+  .brain-storm .effect-parameters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 21px 13px;
+  }
+  .brain-storm .effect-parameters .knob-scale {
+    max-width: 85px;
+  }
+  .brain-storm .effect-parameters .knob > label {
+    font-size: 9px;
+  }
+  .brain-storm .effect-parameters .knob-value {
+    max-width: 76px;
+  }
+  .brain-storm .native-plugin-bay {
+    min-height: 180px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 35px 12px 14px;
+  }
+  .brain-storm .native-plugin-bay p {
+    font-size: 9px;
+    line-height: 1.6;
+  }
+  .brain-storm .native-plugin-bay > a {
+    font-size: 9px;
+    min-height: 32px;
+  }
+  .brain-storm .performance-toolbar {
+    gap: 8px;
+    padding: 9px;
+  }
+  .brain-storm .performance-toolbar > .select-field:first-of-type {
+    flex-basis: calc(50% - 5px) !important;
+    min-width: 0 !important;
+  }
+  .brain-storm .performance-toolbar > .key {
+    flex-basis: calc(50% - 5px);
+    min-width: 0;
+    font-size: 9px;
+  }
+  .brain-storm .performance-toolbar > .select-field:nth-of-type(2) {
+    flex-basis: 100% !important;
+    min-width: 0 !important;
+  }
+  .brain-storm .mixer-console {
+    min-height: 620px;
+  }
+  .brain-storm .channel-strips {
+    flex-basis: 784px;
+    min-height: 610px;
+    gap: 5px;
+  }
+  .brain-storm .scene-master {
+    min-height: 610px;
+  }
+  .brain-storm .channel-name {
+    font-size: 9px;
+  }
+  .brain-storm .launch-cell {
+    font-size: 8px;
+  }
+  .brain-storm .editor-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 12px;
+  }
+  .brain-storm .library {
+    padding: 9px 10px;
+    min-height: 110px;
+    flex-shrink: 0;
+  }
+  .brain-storm .library h2 {
+    margin-bottom: 10px;
+  }
+  .brain-storm .pattern-cartridges {
+    display: grid;
+    grid-template-columns: repeat(8, 110px);
+    grid-template-rows: repeat(2, 30px);
+    gap: 7px;
+    overflow-x: auto;
+    min-height: 67px;
+    flex: none;
+    padding-bottom: 4px;
+  }
+  .brain-storm .pattern-cartridges > .key {
+    font-size: 8px;
+    min-height: 28px;
+  }
+  .brain-storm .editor-main {
+    min-height: 510px;
+    gap: 12px;
+  }
+  .brain-storm .editor-panel {
+    min-height: 405px;
+    padding: 10px;
+  }
+  .brain-storm .editor-toolbar {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .brain-storm .editor-toolbar > .select-field,
+  .brain-storm .editor-toolbar > .field {
+    min-width: 85px;
+    max-width: none;
+  }
+  .brain-storm .editor-toolbar select {
+    font-size: 10px;
+  }
+  .brain-storm .timeline-scroll {
+    height: 325px;
+    min-height: 280px;
+    flex: 1;
+  }
+  .brain-storm .inspector {
+    min-height: 240px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 9px;
+    overflow: visible;
+    padding: 10px;
+  }
+  .brain-storm .inspector > h2,
+  .brain-storm .inspector > .editor-selection-label,
+  .brain-storm .inspector > .editor-hint,
+  .brain-storm .inspector > small,
+  .brain-storm .inspector > p {
+    grid-column: 1/-1;
+  }
+  .brain-storm .inspector > .knob {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+  .brain-storm .inspector .knob-scale {
+    max-width: 90px;
+  }
+  .brain-storm .inspector > .key {
+    grid-column: auto;
+    white-space: normal;
+    font-size: 8px;
+  }
+  .brain-storm .inspector .editor-hint {
+    margin: 0;
+    padding-top: 5px;
+  }
+  .brain-storm .print-panel {
+    padding: 10px;
+    min-height: 87px;
+  }
+  .brain-storm .print-actions {
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+  .brain-storm .print-actions > .key {
+    font-size: 9px;
+    min-width: 135px;
+  }
+  .brain-storm .print-actions small {
+    font-size: 7px;
+  }
+  .brain-storm .clip-cartridge {
+    min-height: 94px;
+    padding: 10px;
+  }
+  .brain-storm .clip-cartridge > h2 {
+    margin-bottom: 11px;
+  }
+  .brain-storm .clip-cartridge .editor-toolbar {
+    flex-wrap: nowrap;
+  }
+  .brain-storm .clip-cartridge .editor-toolbar > .key {
+    font-size: 8px;
+    min-width: 98px;
+    padding-inline: 7px;
+  }
+  .brain-storm .song-tools {
+    min-height: 138px;
+    padding: 11px;
+  }
+  .brain-storm .song-tools .editor-toolbar {
+    gap: 8px;
+  }
+  .brain-storm .song-tools .editor-toolbar > .select-field {
+    min-width: 110px;
+    flex: 1;
+  }
+  .brain-storm .song-tools .editor-toolbar > .key {
+    font-size: 8px;
+    min-width: 82px;
+  }
+  .brain-storm .song-tools .editor-toolbar > .field {
+    min-width: 73px;
+    flex: 1;
+  }
+  .brain-storm .asset-actions-menu {
+    left: auto;
+    right: 0;
+    max-width: calc(100vw - 44px);
+  }
+  .brain-storm .inspector .parameter-control {
+    grid-column: auto;
+  }
+  .brain-storm .inspector input[type="range"] {
+    max-width: 100%;
+  }
+}
+
+.brain-storm .channel-fader > input::-webkit-slider-runnable-track {
+  width: 3px;
+  background: #2c3829;
+  border-radius: 1px;
+}
+.brain-storm .channel-fader > input::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 23px;
+  height: 12px;
+  border: 1px solid #8e9780;
+  border-radius: 2px;
+  background: linear-gradient(
+    #4b5747 0%,
+    #3e4b3a 38%,
+    #c4c4a8 41%,
+    #c4c4a8 53%,
+    #34432f 56%,
+    #34432f 100%
+  );
+  box-shadow: 1px 2px 1px #4b5140;
+  margin-left: -10px;
+}
+.brain-storm .channel-fader > input::-moz-range-track {
+  width: 3px;
+  background: #2c3829;
+}
+.brain-storm .channel-fader > input::-moz-range-thumb {
+  width: 23px;
+  height: 12px;
+  border: 1px solid #8e9780;
+  border-radius: 2px;
+  background: linear-gradient(#52604b, #33412e);
+  box-shadow: 1px 2px #525c45;
+}
+.brain-storm .crossfader > input {
+  appearance: none;
+  background: transparent;
+  height: 22px;
+}
+.brain-storm .crossfader > input::-webkit-slider-runnable-track {
+  height: 4px;
+  background: #35422d;
+}
+.brain-storm .crossfader > input::-webkit-slider-thumb {
+  appearance: none;
+  width: 15px;
+  height: 24px;
+  border-radius: 2px;
+  border: 1px solid #8b977a;
+  background: linear-gradient(
+    90deg,
+    #43513a 0%,
+    #43513a 37%,
+    #d4d3ad 41%,
+    #d4d3ad 55%,
+    #35442f 60%
+  );
+  margin-top: -10px;
+  box-shadow: 1px 2px #5b654a;
+}
+
+.brain-storm .key {
+  color: var(--ink);
+}
+.brain-storm .key-dark {
+  color: #dbd3bd;
+}
+.brain-storm .key-dark.is-active {
+  color: #e3ac55;
+}
+.brain-storm .key-danger.is-active {
+  color: #f4d3b6;
+}
+.brain-storm .channel-fader > input {
+  background: transparent;
+  border: 0;
+  -webkit-appearance: none;
+  box-shadow: none;
+}
+.brain-storm .channel-fader > input::-webkit-slider-runnable-track {
+  background: #2c3829;
+  width: 3px;
+}
+.brain-storm .knob input.knob-value {
+  font-size: 9px;
+}
+@media (max-width: 650px) {
+  .brain-storm .transport-dock {
+    position: relative;
+    bottom: auto;
+  }
+  .brain-storm .channel-knobs .knob input.knob-value {
+    font-size: 7px;
+  }
+}
+
+.brain-storm .autoset-controls .select-field {
+  position: relative;
+}
+.brain-storm .autoset-controls select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4 3 3 3-3' fill='none' stroke='%23343c30' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px;
+}
+
+/* Keep operation feedback in the existing header on every studio surface. */
+.brain-storm .console-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  max-width: 66%;
+  padding: 4px 7px;
+  color: var(--lcd-ink);
+  background: #acb982;
+  border: 1px solid #818b61;
+  font:
+    10px/1.3 "Menlo",
+    "Consolas",
+    monospace;
+}
+.brain-storm .console-status > span {
+  min-width: 0;
+  max-height: 26px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.brain-storm .console-status progress {
+  flex: 0 0 65px;
+  width: 65px;
+  accent-color: #516539;
+}
+.brain-storm .console-status .key {
+  flex-shrink: 0;
+  min-height: 22px;
+  height: 22px;
+  padding: 3px 9px;
+  font-size: 8px;
+}
+@media (max-width: 650px) {
+  .brain-storm .console-masthead.has-status {
+    height: auto;
+    min-height: 58px;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .brain-storm .console-status {
+    width: 100%;
+    max-width: none;
+    justify-content: flex-start;
+    font-size: 9px;
+  }
+  .brain-storm .console-status > span {
+    flex: 1;
+    max-height: 36px;
+  }
+}

@@ -1,0 +1,86 @@
+SoundTouchJS browser audio processing notices
+===========================================
+
+The following unmodified packages are used by the browser pitch/time engine.
+All are licensed under the Mozilla Public License, version 2.0. The complete
+license is included in MPL-2.0.txt in this directory.
+
+Upstream source: https://github.com/cutterbl/SoundTouchJS
+
+
+@soundtouchjs/audio-worklet 2.1.1
+---------------------------------
+License: MPL-2.0
+Package source: https://registry.npmjs.org/@soundtouchjs/audio-worklet/-/audio-worklet-2.1.1.tgz
+Upstream directory: packages/audio-worklet
+
+/*
+ * SoundTouch JS audio processing library
+ * Copyright (c) Olli Parviainen
+ * Copyright (c) Ryan Berdeen
+ * Copyright (c) Jakub Fiala
+ * Copyright (c) Steve 'Cutter' Blades
+ *
+ * Licensed under the Mozilla Public License, v. 2.0.
+ * You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
+Mozilla Public License Version 2.0
+
+This package is licensed under the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+Full license text: https://www.mozilla.org/en-US/MPL/2.0/
+
+
+@soundtouchjs/core 2.1.1
+------------------------
+License: MPL-2.0
+Package source: https://registry.npmjs.org/@soundtouchjs/core/-/core-2.1.1.tgz
+Upstream directory: packages/core
+
+/*
+ * SoundTouch JS audio processing library
+ * Copyright (c) Olli Parviainen
+ * Copyright (c) Ryan Berdeen
+ * Copyright (c) Jakub Fiala
+ * Copyright (c) Steve 'Cutter' Blades
+ *
+ * Licensed under the Mozilla Public License, v. 2.0.
+ * You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
+Mozilla Public License Version 2.0
+
+This package is licensed under the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+Full license text: https://www.mozilla.org/en-US/MPL/2.0/
+
+
+@soundtouchjs/interpolation-strategy-lanczos 2.1.1
+--------------------------------------------------
+License: MPL-2.0
+Package source: https://registry.npmjs.org/@soundtouchjs/interpolation-strategy-lanczos/-/interpolation-strategy-lanczos-2.1.1.tgz
+Upstream directory: packages/interpolation-strategy-lanczos
+
+
+
+Mozilla Public License Version 2.0
+
+This package is licensed under the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+Full license text: https://www.mozilla.org/en-US/MPL/2.0/
+
+
+@soundtouchjs/worklet-base 2.1.1
+--------------------------------
+License: MPL-2.0
+Package source: https://registry.npmjs.org/@soundtouchjs/worklet-base/-/worklet-base-2.1.1.tgz
+Upstream directory: packages/worklet-base
+
+
+
+Mozilla Public License Version 2.0
+
+This package is licensed under the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+Full license text: https://www.mozilla.org/en-US/MPL/2.0/

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "sampleRate": 44100,
+  "model": "HTDemucs 4-source (Meta)",
+  "sha256": "72b17c42d308982ddb5069bc3bf48b81a5aac4cb6516e4366c0fa7cef6df0064",
+  "bytes": 83994361,
+  "parts": [
+    {
+      "file": "htdemucs-4s-f16.part-00.bin",
+      "bytes": 16777216,
+      "sha256": "398467fdfe3a03de2b5d77543c72a94b75e10fa01824d954e457d443d2d6a3c8"
+    },
+    {
+      "file": "htdemucs-4s-f16.part-01.bin",
+      "bytes": 16777216,
+      "sha256": "81a9346bd1ed413dfe7b777b89d650dad6ff9615dab61c7b06f0f871f51188d6"
+    },
+    {
+      "file": "htdemucs-4s-f16.part-02.bin",
+      "bytes": 16777216,
+      "sha256": "6d6de4e9cbf10d2430484514e36263e8d65809c0c642b11ca2154ace31e8f9cf"
+    },
+    {
+      "file": "htdemucs-4s-f16.part-03.bin",
+      "bytes": 16777216,
+      "sha256": "ec1e93c2d311df1c623f545fe63fa866d0f24868f837fdbdbca6c912d03eec12"
+    },
+    {
+      "file": "htdemucs-4s-f16.part-04.bin",
+      "bytes": 16777216,
+      "sha256": "58e5d5f41f387364639b162e0ab89b747e3b423e20cd22697416936fb01552f6"
+    },
+    {
+      "file": "htdemucs-4s-f16.part-05.bin",
+      "bytes": 108281,
+      "sha256": "c7f2eef7b319af344fc18e6cb947ad189251e2cf935a0d0ed348b63f7425b4c7"
+    }
+  ],
+  "sourceCommit": "f1206e9adeea103aef4a636b9e62297cf1f8e34e",
+  "nativeOrder": [
+    "drums",
+    "bass",
+    "other",
+    "vocals"
+  ]
+}
