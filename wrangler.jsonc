@@ -9,6 +9,7 @@
   "name": "pci-academy",
   "main": "./web/worker/index.ts",
   "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["global_fetch_strictly_public"],
   "build": {
     "command": "cd web && corepack enable && pnpm install --frozen-lockfile && pnpm build"
   },
