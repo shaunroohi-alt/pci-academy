@@ -34,6 +34,7 @@ self.addEventListener('fetch', (event) => {
   // The store has authenticated downloads and its own deployment lifecycle.
   // Never serve its old placeholder or account responses from PCI's cache.
   if (url.pathname === BASE + '/mp-audio' || url.pathname.startsWith(BASE + '/mp-audio/')) return
+  if (url.pathname === BASE + '/mellow-dee-app' || url.pathname.startsWith(BASE + '/mellow-dee-app/')) return
 
   if (req.mode === 'navigate') {
     // Network first for pages, so a deploy is picked up; the cached page
