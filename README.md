@@ -8,6 +8,7 @@ Software for PCI Academy and the PCI Engine (Psycho-Creative Intelligence), an o
 | [`brain-storm/`](brain-storm/README.md) | **Samplify Brain Storm**, the browser sampling workstation at `/brain-storm/`: pads, neural stems, patterns, arrangement, built-in effects and live performance recording. `web` builds and tests this separate bundle before static export. |
 | [`app/`](app/) | The earlier Vite web app, wrapped as the native iOS app with Capacitor. See [`IOS_SUBMISSION.md`](IOS_SUBMISSION.md). |
 | `project/`, `chats/` | The Claude Design handoff bundle (HTML prototypes and the design conversation) that `app/` was built from. Kept for reference. |
+| [`plugins/lee-meet-ii/`](plugins/lee-meet-ii/README.md) | **Lee-Meet II by MP Audio**, a mastering limiter / maximizer audio plug-in (AU for Logic Pro, VST3, standalone) built with JUCE. Built, validated and released by `lee-meet-ii.yml`. |
 
 ## Start here
 
@@ -22,3 +23,4 @@ Software for PCI Academy and the PCI Engine (Psycho-Creative Intelligence), an o
 | `web-ci.yml` | Pull requests and pushes touching `web/` or `brain-storm/` | Lint, typecheck, unit + SQL/RLS tests, migrations, seed drift check, Edge Function check and tests, sampler build/tests, end-to-end tests |
 | `deploy.yml` | Push to `main` | Release gate, then deploys `web/out` to GitHub Pages |
 | `supabase-deploy.yml` | Manual | Applies migrations and seed, sets Edge Function secrets, deploys `pci-analyze` |
+| `lee-meet-ii.yml` | Pull requests and pushes touching `plugins/lee-meet-ii/`, tags `lee-meet-ii-v*` | Builds the plug-in on macOS / Windows / Linux, runs DSP tests, `auval` and `pluginval`; on a tag publishes a GitHub Release with the AU/VST3 zips |
