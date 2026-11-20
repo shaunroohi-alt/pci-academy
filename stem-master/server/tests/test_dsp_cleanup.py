@@ -298,3 +298,14 @@ def test_cleanup_stems_cleans_and_inplace_matches():
         assert out[k] is work[k]
         assert np.max(np.abs(out[k] - cleaned[k])) < 1e-6
     assert np.max(np.abs(out_removed - removed)) < 1e-6
+
+
+@pytest.mark.parametrize("sr", [8000, 48000])
+@pytest.mark.parametrize("n", [1, 100, 5000])
+def test_cleanup_handles_very_short_inputs(sr, n):
+    rng = np.random.default_rng(n)
+    x = (rng.standard_normal((2, n)) * 0.1).astype(np.float32)
+    stems = {"lead_vocals": x, "kick": 0.5 * x, "hihat": 0.1 * x}
+    cleaned, removed = cleanup_stems(stems, 1.6 * x, sr, "strong")
+    assert all(v.shape == x.shape for v in cleaned.values())
+    np.testing.assert_allclose(sum(cleaned.values()) + removed, 1.6 * x, atol=1e-5)

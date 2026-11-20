@@ -106,12 +106,10 @@ enum APIError: Error, LocalizedError, Equatable, Sendable {
     static func from(_ error: Error) -> APIError {
         if let apiError = error as? APIError { return apiError }
         if error is CancellationError { return .cancelled }
+        // NSErrors in NSURLErrorDomain bridge to URLError here.
         if let urlError = error as? URLError { return from(urlError: urlError) }
         if let decodingError = error as? DecodingError { return .decoding(describe(decodingError)) }
         let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            return from(urlError: URLError(URLError.Code(rawValue: nsError.code)))
-        }
         if nsError.domain == NSCocoaErrorDomain {
             return .file(nsError.localizedDescription)
         }

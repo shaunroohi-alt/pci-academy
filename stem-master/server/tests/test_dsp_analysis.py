@@ -284,3 +284,12 @@ def test_stem_stats_active_ratio_ignores_low_level_bleed():
     x = (rng.standard_normal((1, SR * 4)) * 10 ** (-70 / 20)).astype(np.float32)  # -70 dBFS bleed
     x[0, :SR] += 0.5 * np.sin(2 * np.pi * 440 * np.arange(SR) / SR)               # 1 s of content
     assert stem_stats(x, SR)["active_ratio"] == pytest.approx(0.25, abs=0.02)
+
+
+@pytest.mark.parametrize("n", [1, 100, 4000])
+def test_analyze_tiny_inputs_do_not_fail(n):
+    x = (np.random.default_rng(n).standard_normal((2, n)) * 0.1).astype(np.float32)
+    res = analyze(x, SR)
+    assert set(res) == ANALYSIS_KEYS
+    assert res["loudness_lufs"] is None or n >= int(0.4 * SR)
+    assert 0.0 <= res["artifact_level"] <= 1.0

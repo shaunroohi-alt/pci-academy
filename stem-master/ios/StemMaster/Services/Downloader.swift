@@ -38,7 +38,7 @@ final class Downloader: @unchecked Sendable {
     /// Fetches every item that isn't already on disk, `maxConcurrent` at a time. `onFinished` is
     /// called with each stem id as its file lands. Keeps going when one file fails and throws the
     /// first failure at the end, so a flaky connection still leaves most previews in place.
-    func downloadAll(_ items: [Item], maxConcurrent: Int = 4, onFinished: (String) -> Void) async throws {
+    func downloadAll(_ items: [Item], maxConcurrent: Int = 4, onFinished: @escaping @Sendable (String) -> Void) async throws {
         let pending = items.filter { !Self.isComplete($0.destination, expectedBytes: $0.expectedBytes) }
         for item in items where !pending.contains(item) {
             onFinished(item.stemID)

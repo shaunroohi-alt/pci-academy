@@ -32,7 +32,6 @@ final class APIClient: @unchecked Sendable {
         configuration.timeoutIntervalForResource = 120
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.urlCache = nil
-        configuration.waitsForConnectivity = false
         return configuration
     }
 

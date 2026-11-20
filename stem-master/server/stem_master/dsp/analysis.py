@@ -317,9 +317,11 @@ def _fold_bpm(bpm: float, lo: float = 70.0, hi: float = 180.0) -> float:
 def _estimate_tempo(y: np.ndarray, sr: int) -> Tuple[Optional[float], float]:
     """BPM (folded into 70..180, 0.1 resolution) and a 0..1 confidence.
 
-    librosa's dynamic-programming beat tracker runs on a fine-hop onset
-    envelope; the tempo is then refined by a least-squares fit of beat
-    position against beat number (sub-frame accurate). Confidence =
+    Log-mel spectral-flux onset envelope at a 256-sample hop (11.6 ms);
+    librosa's tempo estimator (log-normal prior around 120 BPM) on the
+    time-averaged tempogram, then librosa's dynamic-programming beat tracker
+    at that tempo; the tempo is finally refined by a least-squares fit of
+    beat position against beat number (sub-frame accurate). Confidence =
     0.65 * pulse clarity (normalised onset autocorrelation at the beat period,
     saturating at 0.5) + 0.35 * beat regularity (1 - residual spread / 15 %).
     """
@@ -345,11 +347,9 @@ def _estimate_tempo(y: np.ndarray, sr: int) -> Tuple[Optional[float], float]:
     if refined is not None:
         period, spread = refined
         bpm = 60.0 * fps / period
-    elif tempo > 0:
+    else:
         period, spread = 60.0 * fps / tempo, 1.0
         bpm = tempo
-    else:
-        return None, 0.0
     if not math.isfinite(bpm) or bpm <= 0:
         return None, 0.0
     pulse = max(_autocorr_at(env, period), _autocorr_at(env, 2.0 * period))

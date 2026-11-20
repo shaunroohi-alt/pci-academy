@@ -250,19 +250,21 @@ final class AppModel {
         let sourceURL = store.sourceURL(for: session)
         let filename = session.originalFilename
         let api = self.api
+        let hooks = self.hooks
+        // Keep uploading for a while if the user leaves the app mid-upload.
         let token = hooks.beginBackgroundActivity("Uploading \(session.title)")
-        uploadTasks[sessionID] = Task { [weak self] in
+        uploadTasks[sessionID] = Task {
+            defer { hooks.endBackgroundActivity(token) }
             do {
                 let job = try await api.createJob(sourceURL: sourceURL, filename: filename, options: options) { fraction in
                     Task { @MainActor [weak self] in
                         self?.setUploadProgress(fraction, for: sessionID)
                     }
                 }
-                self?.uploadFinished(job, sessionID: sessionID)
+                self.uploadFinished(job, sessionID: sessionID)
             } catch {
-                self?.uploadFailed(error, sessionID: sessionID)
+                self.uploadFailed(error, sessionID: sessionID)
             }
-            self?.hooks.endBackgroundActivity(token)
         }
     }
 
@@ -437,7 +439,7 @@ final class AppModel {
         previewErrors[sessionID] = nil
         previewProgress[sessionID] = BatchProgress(done: items.count - missing.count, total: items.count)
         let downloader = self.downloader
-        let task = Task<Void, Error> { [weak self] in
+        let task = Task<Void, Error> {
             try await downloader.downloadAll(missing, maxConcurrent: 4) { _ in
                 Task { @MainActor [weak self] in
                     self?.previewProgress[sessionID]?.done += 1
@@ -525,7 +527,7 @@ final class AppModel {
         if let running = fileTasks[key] { return try await running.value }
         transferProgress[key] = 0
         let downloader = self.downloader
-        let task = Task<URL, Error> { [weak self] in
+        let task = Task<URL, Error> {
             try await downloader.download(path, to: destination, expectedBytes: expectedBytes) { fraction in
                 Task { @MainActor [weak self] in
                     guard let self, self.fileTasks[key] != nil else { return }
