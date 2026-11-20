@@ -131,6 +131,47 @@ def test_decode_errors(tmp_path):
     assert issubclass(AudioDecodeError, ValueError)
 
 
+@pytest.mark.parametrize("name, playlist", [
+    ("input.m3u8", "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:1.0,\nsecret.wav\n#EXT-X-ENDLIST\n"),
+    ("input.ffconcat", "ffconcat version 1.0\nfile secret.wav\n"),
+])
+def test_decode_refuses_playlists_that_read_other_files(tmp_path, name, playlist):
+    """An upload is stored as ``input.<its extension>``; with a playlist
+    extension, an unguarded ffmpeg follows the playlist and decodes whatever
+    it names (other local files, or URLs for HLS). decode_audio must apply
+    the same demuxer / protocol whitelist as probe_audio."""
+    write_wav(tmp_path / "secret.wav", _test_signal(2), 44100, "wav32f")
+    upload = tmp_path / name
+    upload.write_text(playlist)
+    with pytest.raises(AudioDecodeError):
+        decode_audio(upload)
+
+
+def test_decode_temp_file_goes_to_tmp_dir_not_next_to_the_source(tmp_path, monkeypatch):
+    import stem_master.dsp.audio_io as audio_io_module
+
+    source_dir = tmp_path / "music"
+    source_dir.mkdir()
+    src = source_dir / "song.wav"
+    write_wav(src, _test_signal(2), 44100, "wav32f")
+    seen = []
+    original = audio_io_module.tempfile.mkstemp
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("dir"))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(audio_io_module.tempfile, "mkstemp", spy)
+    decode_audio(src)
+    assert seen and seen[-1] != str(source_dir) and seen[-1] is None, "default: the system temp dir"
+    work = tmp_path / "work"
+    work.mkdir()
+    decoded = decode_audio(src, tmp_dir=work)
+    assert seen[-1] == str(work) and decoded.num_frames == 44100
+    assert sorted(p.name for p in source_dir.iterdir()) == ["song.wav"]
+    assert list(work.iterdir()) == []
+
+
 def test_resample_round_trip_48k_44k1_48k():
     sr = 48000
     t = np.arange(sr * 2) / sr

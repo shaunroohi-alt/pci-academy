@@ -23,6 +23,8 @@ import numpy as np
 import soundfile as sf
 import soxr
 
+from ..probe import FFMPEG_INPUT_GUARD
+
 log = logging.getLogger(__name__)
 
 WAV_SUBTYPES = {"wav24": "PCM_24", "wav32f": "FLOAT", "wav16": "PCM_16"}
@@ -78,7 +80,7 @@ def _tail(text: str, limit: int = 600) -> str:
 
 def _probe(path: str, timeout: float) -> dict:
     cmd = [
-        "ffprobe", "-v", "error",
+        "ffprobe", "-v", "error", *FFMPEG_INPUT_GUARD,
         "-select_streams", "a:0",
         "-show_entries", "stream=codec_name,sample_rate,channels,duration:format=duration",
         "-of", "json", path,
@@ -119,8 +121,14 @@ def _probe(path: str, timeout: float) -> dict:
 
 
 # --------------------------------------------------------------------- decode
-def decode_audio(path: str, timeout: Optional[float] = _DEFAULT_TIMEOUT_S) -> DecodedAudio:
+def decode_audio(path: str, timeout: Optional[float] = _DEFAULT_TIMEOUT_S,
+                 tmp_dir: Optional[str] = None) -> DecodedAudio:
     """Decode the first audio stream of ``path`` to float32 at its source rate.
+
+    ffprobe/ffmpeg open ``path`` with :data:`~stem_master.probe.FFMPEG_INPUT_GUARD`
+    (plain local file, audio demuxers only), so a playlist posing as audio
+    cannot make ffmpeg read other files or URLs. The decoded PCM is spooled
+    to a temporary file in ``tmp_dir`` (default: the system temp directory).
 
     Raises :class:`AudioDecodeError` if the file is not decodable, has no audio
     stream or decodes to zero samples.
@@ -133,15 +141,13 @@ def decode_audio(path: str, timeout: Optional[float] = _DEFAULT_TIMEOUT_S) -> De
     sr = info["sample_rate"]
     channels = 1 if info["channels"] == 1 else 2
 
-    tmp_dir = os.path.dirname(os.path.abspath(path))
-    if not os.access(tmp_dir, os.W_OK):
-        tmp_dir = None
-    fd, raw_path = tempfile.mkstemp(prefix=".decode-", suffix=".f32", dir=tmp_dir)
+    fd, raw_path = tempfile.mkstemp(prefix=".decode-", suffix=".f32",
+                                    dir=None if tmp_dir is None else os.fspath(tmp_dir))
     os.close(fd)
     try:
         cmd = [
             "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-            "-i", path, "-map", "0:a:0", "-vn", "-sn", "-dn",
+            *FFMPEG_INPUT_GUARD, "-i", path, "-map", "0:a:0", "-vn", "-sn", "-dn",
             "-ac", str(channels), "-ar", str(sr),
             "-f", "f32le", "-acodec", "pcm_f32le", raw_path,
         ]

@@ -25,8 +25,10 @@
     cleanup      (cleanup) bleed mask on all primary stems with ownership judged
                  per catalogue group (vocals / drums / bass / instruments), then
                  activity gate + range filter per stem; removed -> removed_bleed
-    denoise      (denoise) neural denoise of the vocal primaries, then DSP
-                 denoise of every primary stem; removed -> removed_noise
+    denoise      (denoise) neural denoise of the vocal primaries that need it
+                 (a measured noise floor, or a moderate/high mix artifact
+                 level), then DSP denoise of every primary stem;
+                 removed -> removed_noise
     finalize     buses = sums of their final primary children; every stem is
                  resampled to the source rate, trimmed to the source length and
                  converted to the source channel count; one common gain keeps
@@ -64,7 +66,7 @@ from .catalog import CATALOG_ORDER, DRUM_PARTS, spec_for
 from .dsp import audio_io
 from .dsp.analysis import analyze, stem_stats
 from .dsp.cleanup import bleed_mask, cleanup_stems, stem_groups
-from .dsp.denoise import denoise_dsp
+from .dsp.denoise import denoise_dsp, measure_artifacts
 from .engines import EngineError, SeparationEngine, get_engine
 from .jobs import PipelineCancelled, PipelineContext, PipelineError, PipelineResult
 from .probe import ProbeError, probe_audio
@@ -145,7 +147,15 @@ DEREVERB_OUTPUT = "noreverb"
 DENOISE_OUTPUT = "dry"
 
 NEURAL_DENOISE_STEMS: Tuple[str, ...] = ("vocals", "lead_vocals", "backing_vocals", "vocals_dry")
-"""Vocal primaries that get the neural denoise model before DSP denoise."""
+"""Vocal primaries that can get the neural denoise model before DSP denoise."""
+
+NEURAL_DENOISE_MIN_ARTIFACT_LEVEL = 0.33
+"""Mix ``artifact_level`` ("moderate" and up) at which every vocal primary
+gets the neural denoise model. Below it, a vocal primary gets the model only
+when :func:`~stem_master.dsp.denoise.measure_artifacts` finds a stationary
+noise floor on it. On clean vocals the model removes nothing measurable from
+Udio vocals and takes >= 25 % of the energy of ~1 % of the 50 ms frames of
+clean MUSDB18 vocals (breaths and tails, SPEC 2.2): a gate, not a denoiser."""
 
 
 DEBLEED_STRENGTHS: frozenset = frozenset()
@@ -456,7 +466,7 @@ class _Run:
         except ProbeError as exc:
             raise PipelineError(f"Unsupported or unreadable audio file: {exc}") from None
         try:
-            decoded = audio_io.decode_audio(str(path))
+            decoded = audio_io.decode_audio(str(path), tmp_dir=str(self.ctx.job_dir))
         except audio_io.AudioDecodeError as exc:
             logger.info("Decoding %s failed: %s", path, exc)
             raise PipelineError("The file could not be decoded as audio") from None
@@ -583,12 +593,25 @@ class _Run:
             self.progress.report(0.5 + 0.5 * (index + 1) / len(ids))
         return removed
 
-    def denoise(self, primary: Dict[str, np.ndarray]) -> np.ndarray:
-        """SPEC 2.2: neural denoise of the vocal primaries, then DSP denoise of
-        every primary stem; returns what was removed."""
+    def _needs_neural_denoise(self, stem_id: str, audio: np.ndarray, artifact_level: float) -> bool:
+        """Whether the vocal primary ``stem_id`` gets the neural denoise model
+        (see :data:`NEURAL_DENOISE_MIN_ARTIFACT_LEVEL`)."""
+        if artifact_level >= NEURAL_DENOISE_MIN_ARTIFACT_LEVEL:
+            return True
+        noise_db = measure_artifacts(audio, WORK_SAMPLE_RATE)["noise_db"]
+        if noise_db is None:
+            logger.info("Job %s: no noise floor on %s (artifact level %.2f); neural denoise skipped",
+                        self.ctx.job_id, stem_id, artifact_level)
+            return False
+        return True
+
+    def denoise(self, primary: Dict[str, np.ndarray], artifact_level: float) -> np.ndarray:
+        """SPEC 2.2: neural denoise of the vocal primaries that need it, then
+        DSP denoise of every primary stem; returns what was removed."""
         strength = self.options.denoise_strength
         self.progress.start("denoise")
-        neural = [sid for sid in primary if sid in NEURAL_DENOISE_STEMS]
+        neural = [sid for sid in primary if sid in NEURAL_DENOISE_STEMS
+                  and self._needs_neural_denoise(sid, primary[sid], artifact_level)]
         dsp_weight = DSP_WEIGHTS["denoise_dsp"]
         total = MODEL_RUN_WEIGHT * len(neural) + dsp_weight
         removed = np.zeros_like(next(iter(primary.values())))
@@ -739,7 +762,7 @@ class _Run:
             removed["removed_bleed"] = self.cleanup(primary, mix)
         del mix
         if opts.denoise:
-            removed["removed_noise"] = self.denoise(primary)
+            removed["removed_noise"] = self.denoise(primary, analysis.artifact_level)
         if opts.cleanup or opts.denoise:
             # cleanup/denoise can leave a residual stem near-silent: never deliver that
             refolded = fold_negligible(primary, mix_rms)

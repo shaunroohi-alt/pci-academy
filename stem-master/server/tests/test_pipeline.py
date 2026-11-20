@@ -503,6 +503,86 @@ def test_fold_negligible_unit():
     assert fold_negligible(silent, 0.0) == ["vocal_ambience", "drum_room"]
 
 
+DENOISE_MODEL = MODEL_PLAN["vocal_denoise"].models[0]
+
+
+def note_mix(seconds: float = 3.0, noise: float = 0.0, sr: int = SR) -> np.ndarray:
+    """Clean melody (0.4 s notes, 0.2 s gaps, 440-990 Hz) over an 80 Hz tone,
+    optionally plus stationary white noise of RMS ``noise``."""
+    n = int(round(seconds * sr))
+    t = np.arange(n) / sr
+    sig = 0.2 * np.sin(2 * np.pi * 80.0 * t)
+    for k in range(int(seconds / 0.6)):
+        s, e = int(k * 0.6 * sr), int(k * 0.6 * sr) + int(0.4 * sr)
+        freq = (440.0, 550.0, 660.0, 880.0, 990.0)[k % 5]
+        sig[s:e] += 0.4 * np.hanning(e - s) * np.sin(2 * np.pi * freq * t[s:e])
+    if noise:
+        sig = sig + noise * np.random.default_rng(3).standard_normal(n)
+    return np.stack([sig, 0.95 * sig]).astype(np.float32)
+
+
+def _neural_denoise_runs(run: Run) -> int:
+    return sum(1 for call in run.engine.calls if call[0] == (DENOISE_MODEL,))
+
+
+DENOISE_ONLY = dict(quality="fast", drum_split=False, vocal_split=False, cleanup=False, denoise=True)
+
+
+def test_neural_vocal_denoise_is_skipped_on_clean_vocals(make_run):
+    # On clean vocals the model only gates breaths and tails (SPEC 2.2), so
+    # it runs only where the DSP measurement finds a noise floor or the mix
+    # artifact level is moderate or high.
+    run = make_run(note_mix(), **DENOISE_ONLY)
+    result = execute(run)
+    assert result.analysis.artifact_level < 0.33
+    assert _neural_denoise_runs(run) == 0
+    assert {s.id: s.role for s in result.stems}["removed_noise"] == "removed"
+    check_invariants(run, result, sr=SR, channels=2, frames=3 * SR)
+
+
+def test_neural_vocal_denoise_runs_where_a_noise_floor_is_measured(make_run):
+    run = make_run(note_mix(noise=3e-4), **DENOISE_ONLY)       # ~ -50 dB re the vocal
+    result = execute(run)
+    assert result.analysis.artifact_level < 0.33, "the noise-floor path, not the artifact-level path"
+    assert _neural_denoise_runs(run) == 1
+    check_invariants(run, result, sr=SR, channels=2, frames=3 * SR)
+
+
+@pytest.mark.parametrize("level, runs", [(0.32, 0), (0.33, 2), (0.9, 2)])
+def test_neural_vocal_denoise_follows_the_mix_artifact_level(make_run, monkeypatch, level, runs):
+    import stem_master.pipeline as pipeline_module
+
+    real = pipeline_module.analyze
+
+    def with_level(x, sr):
+        stats = real(x, sr)
+        stats["artifact_level"] = level
+        return stats
+
+    monkeypatch.setattr(pipeline_module, "analyze", with_level)
+    run = make_run(note_mix(), quality="fast", drum_split=False, vocal_split=True, cleanup=True, denoise=True)
+    result = execute(run)
+    assert result.analysis.artifact_level == level
+    assert _neural_denoise_runs(run) == runs                     # lead + backing, or neither
+    check_invariants(run, result, sr=SR, channels=2, frames=3 * SR)
+
+
+def test_source_is_decoded_into_the_job_dir(make_run, monkeypatch):
+    import stem_master.dsp.audio_io as audio_io_module
+
+    seen = []
+    original = audio_io_module.tempfile.mkstemp
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("dir"))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(audio_io_module.tempfile, "mkstemp", spy)
+    run = make_run(**COMBOS["fast"])
+    execute(run)
+    assert seen == [str(run.ctx.job_dir)]
+
+
 def test_silent_input_completes(make_run):
     run = make_run(np.zeros((2, SR), np.float32), **COMBOS["all_on"])
     result = execute(run)
