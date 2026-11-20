@@ -476,8 +476,87 @@ def _spectral_flatness(power: np.ndarray) -> np.ndarray:
     return np.exp(np.mean(np.log(p), axis=-1)) / np.mean(p, axis=-1)
 
 
+HF_TEXTURE_SR = 44100
+HF_TEXTURE_FFT = 4096                 # ~93 ms at 44.1 kHz
+HF_TEXTURE_NEIGHBOURHOOD = 21         # bins (~226 Hz)
+HF_TEXTURE_BAND_HZ = (4000.0, 16000.0)
+HF_TEXTURE_RANGE = (0.58, 0.64)       # local flatness -> s_hfnoise 0..1
+HF_TEXTURE_WHITE_NOISE = 0.60         # what Gaussian white noise measures (reference)
+_HF_MIN_SHARE = 1e-4                  # frame's 4-16 kHz energy >= -40 dB re its total
+_HF_BIN_RANGE = 1e-6                  # bins within 60 dB of the frame's strongest HF bin
+
+
+def hf_texture(mono: np.ndarray, sr: int, f_top: float = 16000.0,
+               max_sampled_frames: int = 3000) -> Optional[float]:
+    """Median local spectral flatness of the 4 kHz..``f_top`` band (``None`` if no such content).
+
+    The signal is resampled to 44.1 kHz so the measurement does not depend on
+    the source rate. On a Hann STFT (4096 / hop 1024, ~93 ms) every bin's
+    *local flatness* is ``exp(mean log P) / mean P`` over its 21-bin
+    (~226 Hz) neighbourhood. Gaussian noise measures 0.60 whatever its level
+    or colour; tonal / modal fine structure (partials, cymbal modes) pulls it
+    down, temporally compact energy pushes it up. Only frames at or above the
+    median frame energy whose 4-16 kHz share is >= -40 dB count, and in each
+    only bins within 60 dB of the frame's strongest high-band bin.
+    """
+    y = np.asarray(mono, dtype=np.float32)
+    if sr != HF_TEXTURE_SR:
+        y = resample(y[np.newaxis, :], sr, HF_TEXTURE_SR, quality="HQ")[0]
+    n_fft = HF_TEXTURE_FFT
+    grid = FrameGrid(y.shape[0], n_fft, n_fft // 4, window=hann(n_fft))
+    if grid.n_frames < 4:
+        return None
+    freqs = grid.bin_frequencies(HF_TEXTURE_SR)
+    f_top = min(float(f_top), HF_TEXTURE_BAND_HZ[1], 0.9 * HF_TEXTURE_SR / 2.0)
+    band = (freqs >= HF_TEXTURE_BAND_HZ[0]) & (freqs < f_top)
+    if np.count_nonzero(band) < 2 * HF_TEXTURE_NEIGHBOURHOOD:
+        return None
+    idx = np.arange(grid.n_frames)
+    if idx.size > max_sampled_frames:
+        idx = np.linspace(0, grid.n_frames - 1, max_sampled_frames).round().astype(np.int64)
+    values: List[np.ndarray] = []
+    energies: List[np.ndarray] = []
+    rows: List[np.ndarray] = []
+    for start in range(0, idx.size, 512):
+        sel = idx[start:start + 512]
+        spec = grid.analyze_indices(y, sel)
+        power = spec.real.astype(np.float64) ** 2 + spec.imag.astype(np.float64) ** 2
+        total = power.sum(axis=1)
+        hf_power = power[:, band]
+        ok = (total > 1e-12) & (hf_power.sum(axis=1) >= _HF_MIN_SHARE * total)
+        energies.append(total)
+        if not np.any(ok):
+            rows.append(np.zeros(0, dtype=np.int64))
+            continue
+        hp = hf_power[ok] + 1e-30
+        log_mean = uniform_filter1d(np.log(hp), HF_TEXTURE_NEIGHBOURHOOD, axis=1, mode="nearest")
+        mean = uniform_filter1d(hp, HF_TEXTURE_NEIGHBOURHOOD, axis=1, mode="nearest")
+        flat = np.exp(log_mean) / mean
+        keep = mean >= _HF_BIN_RANGE * mean.max(axis=1, keepdims=True)
+        flat[~keep] = np.nan
+        values.append(flat)
+        rows.append(np.flatnonzero(ok) + start)
+    total = np.concatenate(energies)
+    active = total > 1e-12
+    if not np.any(active):
+        return None
+    loud_threshold = float(np.median(total[active]))
+    picked = []
+    for flat, row in zip(values, [r for r in rows if r.size]):
+        loud = total[row] >= loud_threshold
+        if np.any(loud):
+            picked.append(flat[loud].ravel())
+    if not picked:
+        return None
+    allv = np.concatenate(picked)
+    allv = allv[np.isfinite(allv)]
+    if allv.size < 100:
+        return None
+    return float(np.median(allv))
+
+
 def artifact_features(mono: np.ndarray, sr: int, max_sampled_frames: int = 3000) -> Dict[str, Optional[float]]:
-    """Sub-scores behind ``artifact_level`` (see module docstring)."""
+    """Measurements and sub-scores behind ``artifact_level`` (see the module docstring)."""
     n_fft = scaled_fft_size(1024, sr)
     hop = n_fft // 4
     grid = FrameGrid(mono.shape[0], n_fft, hop, window=hann(n_fft))
@@ -523,8 +602,8 @@ def artifact_features(mono: np.ndarray, sr: int, max_sampled_frames: int = 3000)
         done = blk.m1
 
     out: Dict[str, Optional[float]] = {
-        "flicker_db": None, "noise_floor_db": None, "program_db": None, "floor_flatness": None,
-        "cutoff_hz": None, "s_flicker": 0.0, "s_noise": 0.0, "s_cutoff": 0.0,
+        "hf_flatness": None, "flicker_db": None, "noise_floor_db": None, "program_db": None,
+        "floor_flatness": None, "cutoff_hz": None, "s_hfnoise": 0.0, "s_flicker": 0.0, "s_noise": 0.0,
     }
     if ltas_count == 0:
         return out
@@ -535,7 +614,15 @@ def artifact_features(mono: np.ndarray, sr: int, max_sampled_frames: int = 3000)
     if cutoff is not None:
         f_hi = min(f_hi, cutoff - 500.0)
 
-    # (b) static noise floor: level of the quietest frames, how far it sits
+    # (a) high-band texture: how noise-like the 4-16 kHz fine structure is
+    hf_flat = hf_texture(mono, sr, f_top=f_hi, max_sampled_frames=max_sampled_frames)
+    s_hfnoise = 0.0
+    if hf_flat is not None:
+        out["hf_flatness"] = round(hf_flat, 4)
+        lo, hi = HF_TEXTURE_RANGE
+        s_hfnoise = min(1.0, max(0.0, (hf_flat - lo) / (hi - lo)))
+
+    # (c) static noise floor: level of the quietest frames, how far it sits
     # below the programme and whether those quiet frames are noise-like.
     level_db = np.maximum(10.0 * np.log10(np.maximum(frame_ms, 1e-12)), SILENCE_FLOOR_DB)
     floor_db = float(np.percentile(level_db, 5))
@@ -555,7 +642,7 @@ def artifact_features(mono: np.ndarray, sr: int, max_sampled_frames: int = 3000)
                * min(1.0, max(0.0, (program_db - floor_db - 12.0) / 12.0))
                * min(1.0, max(0.0, (flatness - 0.15) / 0.25)))
 
-    # (a) high-band flicker relative to the mid band (frames one window apart)
+    # (b) high-band flicker relative to the mid band (frames one window apart)
     hi_sel = (band_lo_hz >= 7000.0) & (band_hi_hz <= f_hi + 1e-6)
     mid_sel = (band_lo_hz >= 1000.0) & (band_hi_hz <= 4000.0 + 1e-6)
     s_flicker = 0.0
@@ -571,15 +658,20 @@ def artifact_features(mono: np.ndarray, sr: int, max_sampled_frames: int = 3000)
             out["flicker_db"] = round(flicker, 3)
             s_flicker = min(1.0, max(0.0, (flicker - 1.5) / 2.5))
 
-    # (c) hard cut-off
-    s_cutoff = 0.0 if cutoff is None else min(1.0, max(0.0, (19500.0 - cutoff) / 5500.0))
-    out.update(s_flicker=round(s_flicker, 4), s_noise=round(s_noise, 4), s_cutoff=round(s_cutoff, 4))
+    out.update(s_hfnoise=round(s_hfnoise, 4), s_flicker=round(s_flicker, 4), s_noise=round(s_noise, 4))
     return out
 
 
-def _combine_artifacts(s_flicker: float, s_noise: float, s_cutoff: float) -> float:
-    level = 1.0 - (1.0 - 0.85 * s_flicker) * (1.0 - 0.60 * s_noise) * (1.0 - 0.30 * s_cutoff)
-    return float(min(1.0, max(0.0, level)))
+ARTIFACT_WEIGHTS = {"s_hfnoise": 1.0, "s_flicker": 0.85, "s_noise": 0.60}
+
+
+def artifact_level_from_features(feats: Dict[str, Optional[float]]) -> float:
+    """``1 - prod(1 - w_k * s_k)`` over the sub-scores in :data:`ARTIFACT_WEIGHTS` (0..1)."""
+    keep = 1.0
+    for key, weight in ARTIFACT_WEIGHTS.items():
+        value = feats.get(key) or 0.0
+        keep *= 1.0 - weight * min(1.0, max(0.0, float(value)))
+    return float(min(1.0, max(0.0, 1.0 - keep)))
 
 
 def artifact_label(level: float) -> str:
@@ -642,9 +734,7 @@ def analyze(x: np.ndarray, sr: int) -> dict:
             log.exception("key estimation failed")
     try:
         feats = artifact_features(mono, sr)
-        level = _combine_artifacts(feats["s_flicker"] or 0.0, feats["s_noise"] or 0.0,
-                                   feats["s_cutoff"] or 0.0)
-        result["artifact_level"] = round(level, 3)
+        result["artifact_level"] = round(artifact_level_from_features(feats), 3)
         result["artifact_label"] = artifact_label(result["artifact_level"])
         result["spectral_cutoff_hz"] = feats["cutoff_hz"]
     except Exception:  # noqa: BLE001
@@ -702,6 +792,7 @@ def stem_stats(x: np.ndarray, sr: int) -> dict:
 
 
 __all__: List[str] = [
-    "analyze", "stem_stats", "artifact_features", "artifact_label",
+    "analyze", "stem_stats", "artifact_features", "artifact_label", "artifact_level_from_features",
+    "hf_texture",
     "camelot_code", "key_name", "KEY_TO_CAMELOT",
 ]

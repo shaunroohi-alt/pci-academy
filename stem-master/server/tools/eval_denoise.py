@@ -46,6 +46,7 @@ import soundfile as sf
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
+from stem_master.dsp.analysis import artifact_features, artifact_level_from_features  # noqa: E402
 from stem_master.dsp.audio_io import resample  # noqa: E402
 
 MUSDB_STREAMS = {"mixture": 0, "drums": 1, "bass": 2, "other": 3, "vocals": 4}
@@ -204,7 +205,7 @@ def _features_cached(work: Path, key: str, x: np.ndarray, sr: int) -> dict:
     if path.exists():
         return json.loads(path.read_text())
     mono = x.mean(axis=0) if x.shape[0] > 1 else x[0]
-    feats = artifact_features(mono.astype(np.float32), sr, stereo=x if x.shape[0] == 2 else None)
+    feats = artifact_features(mono.astype(np.float32), sr)
     path.write_text(json.dumps(feats))
     return feats
 
