@@ -238,6 +238,24 @@ def to_channels(x: np.ndarray, channels: int) -> np.ndarray:
 
 
 # ------------------------------------------------------------------- writing
+def _quantize(block: np.ndarray, subtype: str) -> np.ndarray:
+    """Round float samples in [-1, 1] to the integer grid that libsndfile reads
+    back as ``k / 2**(bits-1)``.
+
+    libsndfile's own float -> PCM conversion truncates toward -inf (0.6 LSB is
+    written as 0, -0.4 LSB as -1), a -0.5 LSB DC bias per file that adds up
+    when stems are summed; rounding here makes the error zero-mean.
+    """
+    if subtype == "PCM_16":
+        q = np.rint(block * np.float32(32768.0))
+        np.clip(q, -32768.0, 32767.0, out=q)
+        return q.astype(np.int16)
+    # PCM_24, written as int32 whose low byte libsndfile drops (exactly)
+    q = np.rint(block.astype(np.float64) * 8388608.0)
+    np.clip(q, -8388608.0, 8388607.0, out=q)
+    return q.astype(np.int32) << 8
+
+
 def write_wav(path: str, x: np.ndarray, sr: int, fmt: str) -> None:
     """Write ``(c, n)`` audio as WAV.
 
@@ -262,7 +280,9 @@ def write_wav(path: str, x: np.ndarray, sr: int, fmt: str) -> None:
                 np.nan_to_num(block, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
                 if clip:
                     np.clip(block, -1.0, 1.0, out=block)
-                handle.write(block)
+                    handle.write(_quantize(block, subtype))
+                else:
+                    handle.write(block)
         os.replace(tmp, path)
     except BaseException:
         try:
