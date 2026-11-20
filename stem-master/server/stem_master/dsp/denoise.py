@@ -15,15 +15,19 @@
    decision-directed a-priori SNR
    ``xi_t = a * G_{t-1}^2 * gamma_{t-1} + (1 - a) * max(gamma_t - 1, 0)``,
    ``gamma = |X|^2 / N^2`` (with no smoothing ``1/(1+xi) = N^2/|X|^2``).
-3. **High-band flicker** (>= 7 kHz) — each bin is clamped to ``k`` times its
-   7-frame temporal median when it exceeds it, except on frames near a
+3. **High-band flicker** (>= 7 kHz) — on a shorter STFT (~23 ms window,
+   ~5.8 ms hop, so that frame-rate "shimmer" is resolved and the 7-frame
+   median spans ~35 ms) every bin is clamped to ``k`` times its 7-frame
+   temporal median when it exceeds it. The level compared is the bin's
+   neighbourhood (power-averaged over 5 bins, ~215 Hz), so the clamp follows
+   the band envelope rather than per-bin noise texture. Frames near a
    broadband onset (mean positive spectral flux over 300 Hz..7 kHz above
-   3 dB; protection covers one frame before to three frames after), so
-   transients survive.
+   3 dB, bins within 60 dB of the frame's peak) are left alone from one frame
+   before to three frames after, so transients survive.
 
-Steps 2 and 3 are one multiplicative gain per bin, applied once. What was
-taken out is returned as ``removed = x - clean`` (time domain), so
-``clean + removed == x`` exactly.
+Each stage applies a gain in a tight-frame STFT with exact overlap-add
+reconstruction (see :mod:`._stft`); what was taken out is returned as
+``removed = x - clean`` (time domain), so ``clean + removed == x`` exactly.
 
 Strengths:
 
@@ -35,9 +39,8 @@ standard     1.5     -14 dB   +4.5 dB         0.95
 strong       2.0     -20 dB   +3.0 dB         0.93
 ============ ======= ======== =============== =====
 
-Processing is block-wise in time with exact overlap-add (see :mod:`._stft`),
-all channels at once; memory is bounded by a few MB per block plus the
-output arrays.
+Processing is block-wise in time, all channels at once; memory is a few MB
+per block plus three stem-sized arrays.
 """
 
 from __future__ import annotations
@@ -72,17 +75,20 @@ DENOISE_PARAMS: Dict[str, DenoiseParams] = {
 
 HPF_HZ = 20.0
 HPF_ORDER = 4
+NR_FFT_44K = 2048
+DEFLICKER_FFT_44K = 1024
 DEFLICKER_HZ = 7000.0
 DEFLICKER_FRAMES = 7
-DEFLICKER_SMOOTH_BINS = 9
+DEFLICKER_SMOOTH_BINS = 5
 ONSET_BAND_HZ = (300.0, 7000.0)
 ONSET_FLUX_DB = 3.0
+ONSET_RANGE_DB = 60.0
 ONSET_PROTECT_BEFORE = 1
 ONSET_PROTECT_AFTER = 3
 STATIONARY_RATIO = 0.6
 _RAYLEIGH_P10 = math.sqrt(-math.log(0.9))
 _MAX_FLOOR_FRAMES = 3000
-_CONTEXT = 4  # frames: 3 for the 7-frame median, +1 for the flux of the first protected frame
+_DEFLICKER_CONTEXT = 4  # frames: 3 for the 7-frame median, +1 for the flux of the first protected frame
 
 
 def _params(strength: str) -> DenoiseParams:
@@ -101,6 +107,7 @@ def _as_2d(x: np.ndarray) -> np.ndarray:
     return arr
 
 
+# ------------------------------------------------------------ noise floor
 def _frame_energy(x: np.ndarray, grid: FrameGrid) -> np.ndarray:
     """Approximate mean square of every STFT frame (unwindowed, from hop energies)."""
     n = x.shape[0]
@@ -137,6 +144,42 @@ def estimate_noise_floor(x: np.ndarray, grid: FrameGrid) -> Optional[np.ndarray]
     return noise.astype(np.float64)
 
 
+def _noise_reduction(x: np.ndarray, grid: FrameGrid, floor: np.ndarray, params: DenoiseParams) -> np.ndarray:
+    """Decision-directed soft Wiener gain against ``floor`` (c, bins); returns a new array."""
+    n_ch, _ = x.shape
+    # bins without a noise estimate get a negligible one: gamma becomes huge, G -> 1
+    inv_noise = 1.0 / np.maximum(floor ** 2, 1e-24)
+    alpha = params.alpha
+    a = params.dd_smoothing
+    g_min = 10.0 ** (params.gmin_db / 20.0)
+    out = np.empty_like(x)
+    state = np.zeros((n_ch, grid.n_bins), dtype=np.float64)  # G^2 * gamma of the previous frame
+    saved_state = state
+    for blk in grid.blocks(512):
+        spec = np.empty((n_ch, blk.m1 - blk.m0, grid.n_bins), dtype=np.complex64)
+        for ch in range(n_ch):
+            spec[ch] = grid.analyze(x[ch], blk.m0, blk.m1)
+        power = spec.real.astype(np.float64) ** 2 + spec.imag.astype(np.float64) ** 2
+        gain = np.empty(spec.shape, dtype=np.float32)
+        # consecutive blocks share overlap frames; restart from the state after
+        # the frame preceding this block's first frame so shared frames match
+        state = saved_state
+        next_m0 = blk.s1 // grid.hop
+        for t in range(spec.shape[1]):
+            gamma = power[:, t] * inv_noise
+            xi = a * state + (1.0 - a) * np.maximum(gamma - 1.0, 0.0)
+            g = np.maximum(1.0 - alpha / (1.0 + xi), g_min)
+            state = g * g * gamma
+            gain[:, t] = g
+            if blk.m0 + t == next_m0 - 1:
+                saved_state = state
+        spec *= gain
+        for ch in range(n_ch):
+            out[ch, blk.s0:blk.s1] = grid.synthesize(spec[ch], blk.m0, blk.s0, blk.s1)
+    return out
+
+
+# --------------------------------------------------------------- de-flicker
 def _temporal_median(mag: np.ndarray, width: int) -> np.ndarray:
     """Running median over ``width`` frames along axis 1 (edges replicated)."""
     half = width // 2
@@ -145,12 +188,11 @@ def _temporal_median(mag: np.ndarray, width: int) -> np.ndarray:
     return np.partition(windows, half, axis=-1)[..., half]
 
 
-def _onset_protection(mag: np.ndarray, band: slice, floor: np.ndarray, first_is_signal_start: bool) -> np.ndarray:
+def _onset_protection(mag: np.ndarray, band: slice, first_is_signal_start: bool) -> np.ndarray:
     """Protected-frame mask (c, F) from broadband positive spectral flux."""
-    # ignore bins at the noise floor or more than 60 dB below the frame's strongest bin
     band_mag = mag[:, :, band]
-    frame_peak = band_mag.max(axis=2, keepdims=True)
-    ref = np.maximum(np.maximum(floor[:, None, band], frame_peak * 1e-3), 1e-9)
+    # ignore bins more than ONSET_RANGE_DB below the frame's strongest bin
+    ref = np.maximum(band_mag.max(axis=2, keepdims=True) * 10.0 ** (-ONSET_RANGE_DB / 20.0), 1e-9)
     level = 20.0 * np.log10(np.maximum(band_mag, ref))
     flux = np.zeros(mag.shape[:2], dtype=np.float64)
     if mag.shape[1] > 1:
@@ -169,6 +211,37 @@ def _onset_protection(mag: np.ndarray, band: slice, floor: np.ndarray, first_is_
     return protected
 
 
+def _deflicker(x: np.ndarray, grid: FrameGrid, sr: int, params: DenoiseParams) -> np.ndarray:
+    """Clamp high-band bins to ``k`` x their 7-frame median; returns a new array."""
+    n_ch, _ = x.shape
+    freqs = grid.bin_frequencies(sr)
+    hf = np.flatnonzero(freqs >= DEFLICKER_HZ)
+    lo_bin = int(np.searchsorted(freqs, ONSET_BAND_HZ[0]))
+    hi_bin = int(np.searchsorted(freqs, min(ONSET_BAND_HZ[1], 0.95 * sr / 2.0)))
+    onset_band = slice(lo_bin, max(hi_bin, lo_bin + 1))
+    k_lin = np.float32(10.0 ** (params.deflicker_db / 20.0))
+    out = np.empty_like(x)
+    for blk in grid.blocks(1024, context=_DEFLICKER_CONTEXT):
+        spec = np.empty((n_ch, blk.fb - blk.fa, grid.n_bins), dtype=np.complex64)
+        for ch in range(n_ch):
+            spec[ch] = grid.analyze(x[ch], blk.fa, blk.fb)
+        mag = np.abs(spec)
+        lo, hi = blk.m0 - blk.fa, blk.m1 - blk.fa
+        protected = _onset_protection(mag, onset_band, first_is_signal_start=(blk.fa == 0))
+        level = mag[:, :, hf]
+        if DEFLICKER_SMOOTH_BINS > 1:
+            level = np.sqrt(uniform_filter1d(level * level, size=DEFLICKER_SMOOTH_BINS, axis=2, mode="nearest"))
+        limit = k_lin * _temporal_median(level, DEFLICKER_FRAMES)
+        clamp = np.where(level > limit, limit / np.maximum(level, np.float32(1e-30)), np.float32(1.0))
+        clamp[protected] = 1.0
+        out_spec = spec[:, lo:hi]
+        out_spec[:, :, hf] *= clamp[:, lo:hi]
+        for ch in range(n_ch):
+            out[ch, blk.s0:blk.s1] = grid.synthesize(out_spec[ch], blk.m0, blk.s0, blk.s1)
+    return out
+
+
+# ------------------------------------------------------------------ public
 def denoise_dsp(x: np.ndarray, sr: int, strength: str) -> Tuple[np.ndarray, np.ndarray]:
     """Remove DC/rumble, a static noise floor and high-band flicker from ``x``.
 
@@ -183,89 +256,30 @@ def denoise_dsp(x: np.ndarray, sr: int, strength: str) -> Tuple[np.ndarray, np.n
         return arr.copy(), np.zeros_like(arr)
 
     # 1. DC removal + 20 Hz zero-phase high-pass
-    hp = np.empty_like(arr)
+    clean = np.empty_like(arr)
     sos = butter_highpass(HPF_HZ, sr, order=HPF_ORDER) if HPF_HZ < 0.45 * sr else None
     for ch in range(n_ch):
         centred = arr[ch] - np.float32(np.mean(arr[ch], dtype=np.float64))
         if sos is not None:
-            zero_phase_sos(sos, centred, out=hp[ch])
+            zero_phase_sos(sos, centred, out=clean[ch])
         else:
-            hp[ch] = centred
+            clean[ch] = centred
 
-    # 2./3. spectral noise-floor reduction + high-band de-flicker
-    n_fft = scaled_fft_size(2048, sr, minimum=512)
+    # 2. spectral noise-floor reduction
+    n_fft = scaled_fft_size(NR_FFT_44K, sr, minimum=512)
     grid = FrameGrid(n, n_fft, n_fft // 4)
-    floors = [estimate_noise_floor(hp[ch], grid) for ch in range(n_ch)]
-    if all(f is None for f in floors):
-        clean = hp
-    else:
+    floors = [estimate_noise_floor(clean[ch], grid) for ch in range(n_ch)]
+    if any(f is not None for f in floors):
         floor = np.stack([f if f is not None else np.zeros(grid.n_bins) for f in floors])
-        clean = _spectral_stage(hp, grid, floor, sr, params)
+        clean = _noise_reduction(clean, grid, floor, params)
+
+    # 3. high-band de-flicker
+    if sr / 2.0 > DEFLICKER_HZ + 1000.0 and float(np.max(np.abs(clean))) > 0.0:
+        n_fft = scaled_fft_size(DEFLICKER_FFT_44K, sr, minimum=256)
+        clean = _deflicker(clean, FrameGrid(n, n_fft, n_fft // 4), sr, params)
+
     removed = arr - clean
     return clean, removed
-
-
-def _spectral_stage(hp: np.ndarray, grid: FrameGrid, floor: np.ndarray, sr: int,
-                    params: DenoiseParams) -> np.ndarray:
-    n_ch, n = hp.shape
-    freqs = grid.bin_frequencies(sr)
-    # bins without a noise estimate get a negligible one: gamma becomes huge, G -> 1
-    inv_noise = 1.0 / np.maximum(floor ** 2, 1e-24)        # (c, bins)
-    alpha = params.alpha
-    a = params.dd_smoothing
-    g_min = 10.0 ** (params.gmin_db / 20.0)
-    k_lin = np.float32(10.0 ** (params.deflicker_db / 20.0))
-    hf = np.flatnonzero(freqs >= DEFLICKER_HZ)
-    lo_bin = int(np.searchsorted(freqs, ONSET_BAND_HZ[0]))
-    hi_bin = int(np.searchsorted(freqs, min(ONSET_BAND_HZ[1], 0.95 * sr / 2.0)))
-    onset_band = slice(lo_bin, max(hi_bin, lo_bin + 1))
-
-    clean = np.empty_like(hp)
-    state = np.zeros((n_ch, grid.n_bins), dtype=np.float64)  # G^2 * gamma of the previous frame
-    saved_state = state
-    for blk in grid.blocks(512, context=_CONTEXT):
-        spec = np.empty((n_ch, blk.fb - blk.fa, grid.n_bins), dtype=np.complex64)
-        for ch in range(n_ch):
-            spec[ch] = grid.analyze(hp[ch], blk.fa, blk.fb)
-        mag = np.abs(spec)
-        lo, hi = blk.m0 - blk.fa, blk.m1 - blk.fa
-
-        # high-band de-flicker gain (from the unprocessed magnitudes)
-        gain = np.ones((n_ch, hi - lo, grid.n_bins), dtype=np.float32)
-        if hf.size:
-            protected = _onset_protection(mag, onset_band, floor, first_is_signal_start=(blk.fa == 0))
-            # level of each bin's neighbourhood (power-averaged across frequency), so the
-            # clamp follows the band envelope rather than per-bin noise texture
-            hf_mag = mag[:, :, hf]
-            if DEFLICKER_SMOOTH_BINS > 1:
-                hf_mag = np.sqrt(uniform_filter1d(hf_mag * hf_mag, size=DEFLICKER_SMOOTH_BINS,
-                                                  axis=2, mode="nearest"))
-            med = _temporal_median(hf_mag, DEFLICKER_FRAMES)
-            limit = k_lin * med
-            with np.errstate(divide="ignore", invalid="ignore"):
-                clamp = np.where(hf_mag > limit, limit / np.maximum(hf_mag, 1e-30), 1.0)
-            clamp[protected] = 1.0
-            gain[:, :, hf] = clamp[:, lo:hi]
-
-        # decision-directed Wiener gain, frame by frame (state carried across blocks)
-        state = saved_state
-        next_m0 = blk.s1 // grid.hop  # first frame of the next block
-        power = (mag[:, lo:hi].astype(np.float64)) ** 2
-        for t in range(hi - lo):
-            gamma = power[:, t] * inv_noise
-            xi = a * state + (1.0 - a) * np.maximum(gamma - 1.0, 0.0)
-            g = np.maximum(1.0 - alpha / (1.0 + xi), g_min)
-            state = g * g * gamma
-            gain[:, t] *= g.astype(np.float32)
-            if blk.m0 + t == next_m0 - 1:
-                saved_state = state
-        if blk.s1 >= n:
-            saved_state = state
-
-        out_spec = spec[:, lo:hi] * gain
-        for ch in range(n_ch):
-            clean[ch, blk.s0:blk.s1] = grid.synthesize(out_spec[ch], blk.m0, blk.s0, blk.s1)
-    return clean
 
 
 __all__ = ["DENOISE_PARAMS", "DenoiseParams", "STRENGTHS", "denoise_dsp", "estimate_noise_floor"]
