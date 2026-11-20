@@ -196,8 +196,8 @@ def _spectral_stage(hp: np.ndarray, grid: FrameGrid, floor: np.ndarray, sr: int,
                     params: DenoiseParams) -> np.ndarray:
     n_ch, n = hp.shape
     freqs = grid.bin_frequencies(sr)
-    noise_psd = floor ** 2                                  # (c, bins)
-    inv_noise = np.where(noise_psd > 0, 1.0 / np.maximum(noise_psd, 1e-300), np.inf)
+    # bins without a noise estimate get a negligible one: gamma becomes huge, G -> 1
+    inv_noise = 1.0 / np.maximum(floor ** 2, 1e-24)        # (c, bins)
     alpha = params.alpha
     a = params.dd_smoothing
     g_min = 10.0 ** (params.gmin_db / 20.0)
@@ -235,13 +235,9 @@ def _spectral_stage(hp: np.ndarray, grid: FrameGrid, floor: np.ndarray, sr: int,
         power = (mag[:, lo:hi].astype(np.float64)) ** 2
         for t in range(hi - lo):
             gamma = power[:, t] * inv_noise
-            gamma = np.where(np.isnan(gamma), 0.0, gamma)
             xi = a * state + (1.0 - a) * np.maximum(gamma - 1.0, 0.0)
-            with np.errstate(invalid="ignore"):
-                g = np.maximum(1.0 - alpha / (1.0 + xi), g_min)
-            g = np.where(np.isnan(g), 1.0, g)
+            g = np.maximum(1.0 - alpha / (1.0 + xi), g_min)
             state = g * g * gamma
-            state = np.where(np.isnan(state), 0.0, state)
             gain[:, t] *= g.astype(np.float32)
             if blk.m0 + t == next_m0 - 1:
                 saved_state = state
