@@ -16,14 +16,17 @@
    ``xi_t = a * G_{t-1}^2 * gamma_{t-1} + (1 - a) * max(gamma_t - 1, 0)``,
    ``gamma = |X|^2 / N^2`` (with no smoothing ``1/(1+xi) = N^2/|X|^2``).
 3. **High-band flicker** (>= 7 kHz) — on a shorter STFT (~23 ms window,
-   ~5.8 ms hop, so that frame-rate "shimmer" is resolved and the 7-frame
-   median spans ~35 ms) every bin is clamped to ``k`` times its 7-frame
-   temporal median when it exceeds it. The level compared is the bin's
-   neighbourhood (power-averaged over 5 bins, ~215 Hz), so the clamp follows
-   the band envelope rather than per-bin noise texture. Frames near a
-   broadband onset (mean positive spectral flux over 300 Hz..7 kHz above
-   3 dB, bins within 60 dB of the frame's peak) are left alone from one frame
-   before to three frames after, so transients survive.
+   ~5.8 ms hop, so that frame-rate "shimmer" is resolved) every bin is
+   clamped to ``k`` times its 7-frame temporal median when it exceeds it.
+   The 7 frames are taken one window length apart (``t``, ``t +- 4``,
+   ``t +- 8``, ``t +- 12`` hops, ~140 ms in all): overlapping frames all
+   contain the same burst, so a median over adjacent frames could never
+   single one out. The level compared is the bin's neighbourhood
+   (power-averaged over 5 bins, ~215 Hz), so the clamp follows the band
+   envelope rather than per-bin noise texture. Frames near a broadband onset
+   (mean positive spectral flux over 300 Hz..7 kHz above 3 dB, bins within
+   40 dB of the frame's peak) are left alone from one frame before to 60 ms
+   after, so transients and their early decay survive.
 
 Each stage applies a gain in a tight-frame STFT with exact overlap-add
 reconstruction (see :mod:`._stft`); what was taken out is returned as
@@ -82,13 +85,12 @@ DEFLICKER_FRAMES = 7
 DEFLICKER_SMOOTH_BINS = 5
 ONSET_BAND_HZ = (300.0, 7000.0)
 ONSET_FLUX_DB = 3.0
-ONSET_RANGE_DB = 60.0
-ONSET_PROTECT_BEFORE = 1
-ONSET_PROTECT_AFTER = 3
+ONSET_RANGE_DB = 40.0
+ONSET_PROTECT_BEFORE = 1        # frames
+ONSET_PROTECT_AFTER_S = 0.060   # seconds after an onset frame (attack + early decay)
 STATIONARY_RATIO = 0.6
 _RAYLEIGH_P10 = math.sqrt(-math.log(0.9))
 _MAX_FLOOR_FRAMES = 3000
-_DEFLICKER_CONTEXT = 4  # frames: 3 for the 7-frame median, +1 for the flux of the first protected frame
 
 
 def _params(strength: str) -> DenoiseParams:
@@ -180,15 +182,22 @@ def _noise_reduction(x: np.ndarray, grid: FrameGrid, floor: np.ndarray, params: 
 
 
 # --------------------------------------------------------------- de-flicker
-def _temporal_median(mag: np.ndarray, width: int) -> np.ndarray:
-    """Running median over ``width`` frames along axis 1 (edges replicated)."""
+def _temporal_median(mag: np.ndarray, width: int, stride: int = 1) -> np.ndarray:
+    """Median along axis 1 of the ``width`` frames ``t + k*stride``, ``|k| <= width//2``.
+
+    With ``stride`` = frames per window length the compared frames do not
+    overlap, so a short burst occupies at most a couple of the ``width``
+    samples and stands out from the median. Edges are replicated.
+    """
     half = width // 2
-    padded = np.pad(mag, ((0, 0), (half, half), (0, 0)), mode="edge")
-    windows = sliding_window_view(padded, width, axis=1)
+    pad = half * stride
+    padded = np.pad(mag, ((0, 0), (pad, pad), (0, 0)), mode="edge")
+    windows = sliding_window_view(padded, 2 * pad + 1, axis=1)[..., ::stride]
     return np.partition(windows, half, axis=-1)[..., half]
 
 
-def _onset_protection(mag: np.ndarray, band: slice, first_is_signal_start: bool) -> np.ndarray:
+def _onset_protection(mag: np.ndarray, band: slice, first_is_signal_start: bool,
+                      before: int, after: int) -> np.ndarray:
     """Protected-frame mask (c, F) from broadband positive spectral flux."""
     band_mag = mag[:, :, band]
     # ignore bins more than ONSET_RANGE_DB below the frame's strongest bin
@@ -202,7 +211,7 @@ def _onset_protection(mag: np.ndarray, band: slice, first_is_signal_start: bool)
         onset[:, 0] = False  # flux of the first context frame is unknown
     protected = np.zeros_like(onset)
     n_frames = onset.shape[1]
-    for shift in range(-ONSET_PROTECT_BEFORE, ONSET_PROTECT_AFTER + 1):
+    for shift in range(-before, after + 1):
         # frame u is protected if an onset happens at u - shift
         if shift >= 0:
             protected[:, shift:] |= onset[:, :n_frames - shift]
@@ -220,18 +229,22 @@ def _deflicker(x: np.ndarray, grid: FrameGrid, sr: int, params: DenoiseParams) -
     hi_bin = int(np.searchsorted(freqs, min(ONSET_BAND_HZ[1], 0.95 * sr / 2.0)))
     onset_band = slice(lo_bin, max(hi_bin, lo_bin + 1))
     k_lin = np.float32(10.0 ** (params.deflicker_db / 20.0))
+    stride = grid.overlap
+    after = int(math.ceil(ONSET_PROTECT_AFTER_S * sr / grid.hop))
+    context = max((DEFLICKER_FRAMES // 2) * stride, after + 1, ONSET_PROTECT_BEFORE)
     out = np.empty_like(x)
-    for blk in grid.blocks(1024, context=_DEFLICKER_CONTEXT):
+    for blk in grid.blocks(1024, context=context):
         spec = np.empty((n_ch, blk.fb - blk.fa, grid.n_bins), dtype=np.complex64)
         for ch in range(n_ch):
             spec[ch] = grid.analyze(x[ch], blk.fa, blk.fb)
         mag = np.abs(spec)
         lo, hi = blk.m0 - blk.fa, blk.m1 - blk.fa
-        protected = _onset_protection(mag, onset_band, first_is_signal_start=(blk.fa == 0))
+        protected = _onset_protection(mag, onset_band, first_is_signal_start=(blk.fa == 0),
+                                      before=ONSET_PROTECT_BEFORE, after=after)
         level = mag[:, :, hf]
         if DEFLICKER_SMOOTH_BINS > 1:
             level = np.sqrt(uniform_filter1d(level * level, size=DEFLICKER_SMOOTH_BINS, axis=2, mode="nearest"))
-        limit = k_lin * _temporal_median(level, DEFLICKER_FRAMES)
+        limit = k_lin * _temporal_median(level, DEFLICKER_FRAMES, stride)
         clamp = np.where(level > limit, limit / np.maximum(level, np.float32(1e-30)), np.float32(1.0))
         clamp[protected] = 1.0
         out_spec = spec[:, lo:hi]

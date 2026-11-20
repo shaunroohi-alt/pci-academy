@@ -243,6 +243,28 @@ def _onset_envelope(y: np.ndarray, sr: int, n_fft: int = 1024, hop: int = 256,
     return env
 
 
+def _mean_tempogram(env: np.ndarray, sr: int, hop: int, ac_size: float = 8.0,
+                    chunk: int = 4096) -> np.ndarray:
+    """Time-average of ``librosa.feature.tempogram`` computed in chunks.
+
+    Every chunk carries half a window of real context on both sides, so the
+    columns kept are identical to those of a one-shot tempogram; memory is
+    bounded by the chunk size. Returns shape ``(win_length, 1)``.
+    """
+    import librosa
+
+    win = int(librosa.time_to_frames(ac_size, sr=sr, hop_length=hop))
+    half = win // 2 + 1
+    n = env.shape[0]
+    total = np.zeros(win, dtype=np.float64)
+    for a in range(0, n, chunk):
+        b = min(n, a + chunk)
+        lo, hi = max(0, a - half), min(n, b + half)
+        tg = librosa.feature.tempogram(onset_envelope=env[lo:hi], sr=sr, hop_length=hop, win_length=win)
+        total += tg[:, a - lo:b - lo].sum(axis=1)
+    return (total / max(n, 1))[:, np.newaxis]
+
+
 def _refine_period(beats: np.ndarray) -> Optional[Tuple[float, float]]:
     """Least-squares beat period (frames) and relative residual spread."""
     if beats.size < 4:
@@ -308,9 +330,16 @@ def _estimate_tempo(y: np.ndarray, sr: int) -> Tuple[Optional[float], float]:
     if env.size < 16 or float(np.std(env)) <= 1e-6:
         return None, 0.0
     fps = sr / float(hop)
-    tempo, beats = librosa.beat.beat_track(onset_envelope=env, sr=sr, hop_length=hop,
-                                           start_bpm=120.0, units="frames")
-    tempo = float(np.atleast_1d(tempo)[0]) if np.size(tempo) else 0.0
+    # librosa's tempo estimator on a tempogram averaged chunk by chunk (its
+    # one-shot tempogram of a 15-minute envelope needs ~2.7 GB), then the
+    # dynamic-programming beat tracker at that tempo.
+    tg = _mean_tempogram(env, sr, hop)
+    tempo = float(np.atleast_1d(librosa.feature.tempo(tg=tg, sr=sr, hop_length=hop, start_bpm=120.0,
+                                                      aggregate=None))[0])
+    if not math.isfinite(tempo) or tempo <= 0:
+        return None, 0.0
+    _, beats = librosa.beat.beat_track(onset_envelope=env, sr=sr, hop_length=hop, bpm=tempo,
+                                       units="frames")
     beats = np.asarray(beats, dtype=np.int64)
     refined = _refine_period(beats)
     if refined is not None:
@@ -643,7 +672,7 @@ def stem_stats(x: np.ndarray, sr: int) -> dict:
     win_sq = np.zeros(n_win, dtype=np.float64)
     env = np.empty(n, dtype=np.float32)
     total_sq = 0.0
-    chunk = win * 4096
+    chunk = win * 256
     for start in range(0, n, chunk):
         block = arr[:, start:start + chunk]
         env[start:start + block.shape[1]] = np.max(np.abs(block), axis=0)

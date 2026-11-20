@@ -88,48 +88,60 @@ def test_dc_and_rumble_removed():
     np.testing.assert_allclose(clean + removed, dirty, atol=1e-6)
 
 
-def _flicker_band(seconds: float, seed: int, flicker_db: float) -> np.ndarray:
+def _shimmer(seconds: float, seed: int, spike_db: float = 10.0, fraction: float = 0.1,
+             segment_ms: float = 12.0) -> np.ndarray:
+    """Steady 8-14 kHz noise bed whose level jumps up by ``spike_db`` in random
+    ~12 ms segments: a codec-style high-band "shimmer"."""
     rng = np.random.default_rng(seed)
     n = int(SR * seconds)
     sos = signal.butter(8, [8000, 14000], btype="band", fs=SR, output="sos")
     hf = signal.sosfilt(sos, rng.standard_normal(n))
-    hf *= 0.02 / np.sqrt(np.mean(hf ** 2))
-    seg = int(0.02 * SR)
-    gains = 10 ** (rng.uniform(-flicker_db, 0.0, -(-n // seg)) / 20)
+    hf *= 0.01 / np.sqrt(np.mean(hf ** 2))
+    seg = int(segment_ms / 1000 * SR)
+    gains = np.where(rng.random(-(-n // seg)) < fraction, 10 ** (spike_db / 20), 1.0)
     return hf * np.repeat(gains, seg)[:n]
 
 
-def _hf_roughness(x: np.ndarray) -> float:
-    """Median |level change| (dB) of the 8-14 kHz band between non-overlapping 23 ms frames."""
-    f, t, z = signal.stft(x[0], fs=SR, nperseg=1024, noverlap=0)
+def _hf_prominence(x: np.ndarray) -> float:
+    """How far the 8-14 kHz band level peaks above its median (95th - 50th percentile, dB)."""
+    f, _, z = signal.stft(x[0], fs=SR, nperseg=512, noverlap=384)
     band = (f >= 8000) & (f <= 14000)
-    level = 10 * np.log10((np.abs(z[band]) ** 2).sum(axis=0) + 1e-20)
-    return float(np.median(np.abs(np.diff(level[2:-2]))))
+    level = 10 * np.log10((np.abs(z[band]) ** 2).sum(axis=0) + 1e-20)[4:-4]
+    return float(np.percentile(level, 95) - np.percentile(level, 50))
 
 
-def test_high_band_flicker_is_reduced():
-    x = (_tone(seconds=4.0, channels=1)[0] + _flicker_band(4.0, 7, 12.0)).astype(np.float32)[np.newaxis]
-    clean, removed = denoise_dsp(x, SR, "strong")
-    assert _hf_roughness(clean) < _hf_roughness(x) - 0.5
+@pytest.mark.parametrize("strength,min_reduction_db", [("light", 1.0), ("standard", 2.0), ("strong", 3.0)])
+def test_high_band_flicker_is_reduced(strength, min_reduction_db):
+    x = (_tone(seconds=4.0, channels=1)[0] + _shimmer(4.0, 7)).astype(np.float32)[np.newaxis]
+    clean, removed = denoise_dsp(x, SR, strength)
+    assert _hf_prominence(x) - _hf_prominence(clean) >= min_reduction_db
+    # the tone underneath is untouched
+    f, before = _spectrum(x)
+    _, after = _spectrum(clean)
+    tone = _tone_mask(f)
+    assert abs(10 * np.log10(after[tone].sum() / before[tone].sum())) < 0.5
     np.testing.assert_allclose(clean + removed, x, atol=1e-6)
 
 
 def test_transients_survive_deflicker():
-    """Hi-hat-like bursts on a steady bed: onset protection keeps their attack."""
+    """Hi-hat-like bursts on a quiet steady bed: onset protection keeps attack and early decay."""
     n = SR * 4
     rng = np.random.default_rng(4)
     sos = signal.butter(4, 7000, btype="highpass", fs=SR, output="sos")
-    x = 0.002 * signal.sosfilt(sos, rng.standard_normal(n))       # quiet steady HF bed
-    burst_len = int(0.03 * SR)
-    env = np.exp(-np.arange(burst_len) / (0.006 * SR))
+    x = 0.002 * signal.sosfilt(sos, rng.standard_normal(n))
+    burst_len = int(0.08 * SR)
+    env = np.exp(-np.arange(burst_len) / (0.02 * SR))
     starts = list(range(int(0.25 * SR), n - burst_len, int(0.25 * SR)))
     for s in starts:
         x[s:s + burst_len] += 0.5 * env * signal.sosfilt(sos, rng.standard_normal(burst_len))
     x = x.astype(np.float32)[np.newaxis]
-    clean, _ = denoise_dsp(x, SR, "strong")
-    for s in starts[1:-1]:
-        window = slice(s, s + int(0.005 * SR))                     # first 5 ms of each hit
-        assert _db(x[:, window]) - _db(clean[:, window]) < 1.5
+    for strength in ("light", "strong"):
+        clean, _ = denoise_dsp(x, SR, strength)
+        for s in starts[1:-1]:
+            attack = slice(s, s + int(0.005 * SR))
+            decay = slice(s + int(0.01 * SR), s + int(0.05 * SR))
+            assert _db(x[:, attack]) - _db(clean[:, attack]) < 1.0
+            assert _db(x[:, decay]) - _db(clean[:, decay]) < 1.0
 
 
 def test_shapes_and_validation():
