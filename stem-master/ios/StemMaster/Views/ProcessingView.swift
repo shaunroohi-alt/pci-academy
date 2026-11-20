@@ -120,7 +120,7 @@ struct ChecklistRow: View {
     private var icon: String {
         switch step.state {
         case .done: return "checkmark.circle.fill"
-        case .current: return "circle.dotted.circle"
+        case .current: return "smallcircle.filled.circle"
         case .pending: return "circle"
         case .failed: return "xmark.circle.fill"
         }

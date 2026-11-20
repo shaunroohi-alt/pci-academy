@@ -76,6 +76,8 @@ final class AppModel {
     @ObservationIgnored private let hooks: PlatformHooks
     @ObservationIgnored private let clientID: String
     @ObservationIgnored private var uploadTasks: [UUID: Task<Void, Never>] = [:]
+    /// Id of the current upload attempt per session; completions of superseded attempts are ignored.
+    @ObservationIgnored private var uploadAttempts: [UUID: UUID] = [:]
     @ObservationIgnored private var previewTasks: [UUID: Task<Void, Error>] = [:]
     @ObservationIgnored private var fileTasks: [String: Task<URL, Error>] = [:]
 
@@ -247,6 +249,8 @@ final class AppModel {
         }
         uploadProgress[sessionID] = 0
 
+        let attempt = UUID()
+        uploadAttempts[sessionID] = attempt
         let sourceURL = store.sourceURL(for: session)
         let filename = session.originalFilename
         let api = self.api
@@ -258,26 +262,24 @@ final class AppModel {
             do {
                 let job = try await api.createJob(sourceURL: sourceURL, filename: filename, options: options) { fraction in
                     Task { @MainActor [weak model = self] in
-                        model?.setUploadProgress(fraction, for: sessionID)
+                        model?.setUploadProgress(fraction, for: sessionID, attempt: attempt)
                     }
                 }
-                self.uploadFinished(job, sessionID: sessionID)
+                self.uploadFinished(job, sessionID: sessionID, attempt: attempt)
             } catch {
-                self.uploadFailed(error, sessionID: sessionID)
+                self.uploadFailed(error, sessionID: sessionID, attempt: attempt)
             }
         }
     }
 
-    private func setUploadProgress(_ fraction: Double, for sessionID: UUID) {
-        guard uploadTasks[sessionID] != nil, store.session(id: sessionID)?.state == .uploading else { return }
+    private func setUploadProgress(_ fraction: Double, for sessionID: UUID, attempt: UUID) {
+        guard uploadAttempts[sessionID] == attempt else { return }
         uploadProgress[sessionID] = fraction
     }
 
-    private func uploadFinished(_ job: Job, sessionID: UUID) {
-        uploadTasks[sessionID] = nil
-        uploadProgress[sessionID] = nil
-        guard store.session(id: sessionID) != nil else {
-            // Deleted while uploading: don't leave the job running on the server.
+    private func uploadFinished(_ job: Job, sessionID: UUID, attempt: UUID) {
+        guard uploadAttempts[sessionID] == attempt, store.session(id: sessionID) != nil else {
+            // Deleted or restarted while uploading: don't leave this job running on the server.
             let api = self.api
             Task {
                 _ = try? await api.cancelJob(id: job.id)
@@ -285,6 +287,9 @@ final class AppModel {
             }
             return
         }
+        uploadAttempts[sessionID] = nil
+        uploadTasks[sessionID] = nil
+        uploadProgress[sessionID] = nil
         store.saveJob(job, for: sessionID)
         if job.status.isFinished {
             handleFinished(job, sessionID: sessionID)
@@ -293,7 +298,10 @@ final class AppModel {
         }
     }
 
-    private func uploadFailed(_ error: Error, sessionID: UUID) {
+    private func uploadFailed(_ error: Error, sessionID: UUID, attempt: UUID) {
+        // A superseded attempt (restarted upload) must not touch the new one's state.
+        guard uploadAttempts[sessionID] == attempt else { return }
+        uploadAttempts[sessionID] = nil
         uploadTasks[sessionID] = nil
         uploadProgress[sessionID] = nil
         let apiError = APIError.from(error)
@@ -388,6 +396,7 @@ final class AppModel {
         let session = store.session(id: sessionID)
         uploadTasks[sessionID]?.cancel()
         uploadTasks[sessionID] = nil
+        uploadAttempts[sessionID] = nil
         previewTasks[sessionID]?.cancel()
         previewTasks[sessionID] = nil
         for (key, task) in fileTasks where key.hasPrefix(sessionID.uuidString) {
