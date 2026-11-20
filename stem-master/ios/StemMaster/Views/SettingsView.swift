@@ -189,6 +189,11 @@ struct SettingsView: View {
                 confirmClear = true
             }
             .disabled(downloadedBytes == 0)
+            if let problem = model.store.lastError {
+                Label(problem, systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(Color.smYellow)
+            }
         } header: {
             Text("Storage")
         } footer: {

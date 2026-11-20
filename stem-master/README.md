@@ -258,7 +258,8 @@ Workflows (in `.github/workflows/`):
   7-second clip, and the default Max chain runs six models, so a full song
   takes on the order of an hour or more. A GPU brings that down to minutes
   (expected from the models' design; not benchmarked in this repository).
-  The app's Settings screen warns when the server reports `device: cpu`.
+  The app warns under Settings > Test Connection when the server reports
+  `device: cpu`.
 - **The server has to be hosted somewhere.** The cheapest GPU tier on Hugging
   Face Spaces (T4) costs about $0.40 an hour while running; a sleep timeout
   stops billing when idle, at the cost of a cold start on the next job. Any

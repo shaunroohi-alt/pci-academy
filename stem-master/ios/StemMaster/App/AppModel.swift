@@ -63,7 +63,6 @@ final class AppModel {
     private(set) var uploadProgress: [UUID: Double] = [:]
     private(set) var connectionIssues: [UUID: String] = [:]
     private(set) var previewProgress: [UUID: BatchProgress] = [:]
-    private(set) var previewErrors: [UUID: String] = [:]
     /// Lossless/ZIP download progress keyed by `transferKey(...)`.
     private(set) var transferProgress: [String: Double] = [:]
     private(set) var selectionExportProgress: [UUID: BatchProgress] = [:]
@@ -234,7 +233,6 @@ final class AppModel {
         poller.untrack(sessionID)
         store.clearJob(for: sessionID)
         connectionIssues[sessionID] = nil
-        previewErrors[sessionID] = nil
         store.update(sessionID) { record in
             record.options = options
             record.state = .uploading
@@ -406,7 +404,6 @@ final class AppModel {
         uploadProgress[sessionID] = nil
         connectionIssues[sessionID] = nil
         previewProgress[sessionID] = nil
-        previewErrors[sessionID] = nil
         path.removeAll { $0 == sessionID }
         if optionsRequest?.id == sessionID { optionsRequest = nil }
         store.delete(sessionID)
@@ -445,7 +442,6 @@ final class AppModel {
         let missing = items.filter { !store.hasFile(at: $0.destination, expectedBytes: $0.expectedBytes) }
         if missing.isEmpty { return }
 
-        previewErrors[sessionID] = nil
         previewProgress[sessionID] = BatchProgress(done: items.count - missing.count, total: items.count)
         let downloader = self.downloader
         let task = Task<Void, Error> {
@@ -456,19 +452,11 @@ final class AppModel {
             }
         }
         previewTasks[sessionID] = task
-        do {
-            try await task.value
+        defer {
             previewTasks[sessionID] = nil
             previewProgress[sessionID] = nil
-        } catch {
-            previewTasks[sessionID] = nil
-            previewProgress[sessionID] = nil
-            let message = userFacingMessage(for: error)
-            if !(error is CancellationError), APIError.from(error) != .cancelled {
-                previewErrors[sessionID] = message
-            }
-            throw error
         }
+        try await task.value
     }
 
     /// Key for `transferProgress`.

@@ -40,8 +40,6 @@ final class JobPoller {
     /// Sessions currently tracked (running or paused).
     var trackedSessions: Set<UUID> { Set(tracked.keys) }
 
-    func isTracking(_ sessionID: UUID) -> Bool { tracked[sessionID] != nil }
-
     /// Starts (or restarts) polling `jobID` for `sessionID`.
     func track(sessionID: UUID, jobID: String) {
         tracked[sessionID] = jobID
