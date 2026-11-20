@@ -361,8 +361,13 @@ def readme_text(job: Job) -> str:
         row = f"{name.ljust(width)}  {stem.role:<8}"
         lines.append(f"{row}  {note}".rstrip())
     lines += ["", "How the stems fit together", "--------------------------"]
-    lines.append("* Primary stems sum to the original mix. Whatever Cleanup or Denoise took out")
-    lines.append("  is in the Removed stems, so primary + removed stems always equal the mix.")
+    if any(stem.role == "removed" for stem in job.stems):
+        lines.append("* Primary stems + Removed stems sum to the original mix. The Removed stems")
+        lines.append("  hold exactly what Cleanup/Denoise took out (muted by default in the app),")
+        lines.append("  so the primary stems alone are the cleaned-up version.")
+    else:
+        lines.append("* Primary stems sum to the original mix: play them all at 0 dB and you get")
+        lines.append("  the source back.")
     lines.append("* Bus stems are sums of primary stems (e.g. Drums = every drum part). Use a bus")
     lines.append("  instead of its parts, not together with them, or that part plays twice.")
     lines.append("* Every file has the source's sample rate and length and starts at sample 0:")
@@ -416,6 +421,18 @@ def build_zip(manager: JobManager, job: Job) -> Path:
 # ---------------------------------------------------------------------------
 
 
+def _ensure_logging() -> None:
+    """Make the server's INFO logs visible when nothing configured logging
+    (e.g. plain ``uvicorn stem_master.api:app``); a no-op otherwise."""
+    package_logger = logging.getLogger("stem_master")
+    if package_logger.handlers or logging.getLogger().handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    package_logger.addHandler(handler)
+    package_logger.setLevel(logging.INFO)
+
+
 def create_app(
     settings: Optional[Settings] = None, job_manager: Optional[JobManager] = None
 ) -> FastAPI:
@@ -427,6 +444,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        _ensure_logging()
         device = await anyio.to_thread.run_sync(detect_device)
         await anyio.to_thread.run_sync(manager.start)
         logger.info(

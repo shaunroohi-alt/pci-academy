@@ -243,7 +243,7 @@ def test_upload_to_completion_and_downloads(make_client, preview_m4a):
         assert json.loads(archive.read("manifest.json")) == client.get(f"/v1/jobs/{job_id}").json()
         readme = archive.read("README.txt").decode()
         for fragment in ("Stem Master by MP Audio", "Ünïcode Söng", "120.0 BPM", "A minor", "8A",
-                         "-14.2 LUFS", "-1.50", "+1.50", "primary", "sum to the original mix",
+                         "-14.2 LUFS", "-1.50", "+1.50", "primary", "Primary stems sum to the original mix",
                          "01 Vocals.wav"):
             assert fragment in readme, fragment
 
@@ -263,6 +263,7 @@ def test_bus_and_removed_roles_in_readme(make_client, preview_m4a):
         assert archive.namelist()[:4] == ["01 Drums.wav", "02 Kick.wav", "03 Snare.wav", "04 Removed Bleed.wav"]
         readme = archive.read("README.txt").decode()
         assert "bus" in readme and "removed" in readme
+        assert "Primary stems + Removed stems sum to the original mix" in readme
         assert "no gain was applied" in readme
 
 

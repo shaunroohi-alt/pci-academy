@@ -426,7 +426,13 @@ def _band_roughness(levels_db: np.ndarray, valid: np.ndarray) -> float:
     return float(np.median(second[mask]))
 
 
-def artifact_features(mono: np.ndarray, sr: int) -> Dict[str, Optional[float]]:
+def _spectral_flatness(power: np.ndarray) -> np.ndarray:
+    """Wiener entropy (geometric / arithmetic mean) of each row of a power spectrum."""
+    p = np.maximum(power.astype(np.float64), 1e-30)
+    return np.exp(np.mean(np.log(p), axis=-1)) / np.mean(p, axis=-1)
+
+
+def artifact_features(mono: np.ndarray, sr: int, max_sampled_frames: int = 3000) -> Dict[str, Optional[float]]:
     """Sub-scores behind ``artifact_level`` (see module docstring)."""
     n_fft = scaled_fft_size(1024, sr)
     hop = n_fft // 4
@@ -449,6 +455,9 @@ def artifact_features(mono: np.ndarray, sr: int) -> Dict[str, Optional[float]]:
     bands = np.zeros((grid.n_frames, n_bands), dtype=np.float32)
     ltas = np.zeros(grid.n_bins, dtype=np.float64)
     ltas_count = 0
+    stride = max(1, -(-grid.n_frames // max_sampled_frames))
+    sampled_idx: List[int] = []
+    sampled_power: List[np.ndarray] = []
     done = 0
     for blk in grid.blocks(2048):
         start = max(blk.m0, done)
@@ -462,10 +471,15 @@ def artifact_features(mono: np.ndarray, sr: int) -> Dict[str, Optional[float]]:
         if np.any(audible):
             ltas += power[audible].sum(axis=0)
             ltas_count += int(audible.sum())
+        first = -(-start // stride) * stride
+        rows = np.arange(first, blk.m1, stride)
+        if rows.size:
+            sampled_idx.extend(rows.tolist())
+            sampled_power.append(power[rows - start])
         done = blk.m1
 
     out: Dict[str, Optional[float]] = {
-        "flicker_db": None, "noise_floor_db": None, "program_db": None,
+        "flicker_db": None, "noise_floor_db": None, "program_db": None, "floor_flatness": None,
         "cutoff_hz": None, "s_flicker": 0.0, "s_noise": 0.0, "s_cutoff": 0.0,
     }
     if ltas_count == 0:
@@ -473,21 +487,31 @@ def artifact_features(mono: np.ndarray, sr: int) -> Dict[str, Optional[float]]:
     ltas_db = 10.0 * np.log10(ltas / ltas_count + 1e-20)
     cutoff = _detect_cutoff(ltas_db, freqs, sr)
     out["cutoff_hz"] = cutoff
+    f_hi = min(16000.0, 0.9 * sr / 2.0)
+    if cutoff is not None:
+        f_hi = min(f_hi, cutoff - 500.0)
 
-    # (b) noise floor
-    level_db = 10.0 * np.log10(np.maximum(frame_ms, 1e-12))
-    level_db = np.maximum(level_db, SILENCE_FLOOR_DB)
+    # (b) static noise floor: level of the quietest frames, how far it sits
+    # below the programme and whether those quiet frames are noise-like.
+    level_db = np.maximum(10.0 * np.log10(np.maximum(frame_ms, 1e-12)), SILENCE_FLOOR_DB)
     floor_db = float(np.percentile(level_db, 5))
     program_db = float(np.percentile(level_db, 95))
     out["noise_floor_db"] = round(floor_db, 2)
     out["program_db"] = round(program_db, 2)
-    s_noise = min(1.0, max(0.0, (floor_db + 75.0) / 25.0)) * \
-        min(1.0, max(0.0, (program_db - floor_db - 12.0) / 12.0))
+    flatness = 0.0
+    if sampled_power:
+        sp = np.concatenate(sampled_power, axis=0)
+        sp_level = level_db[np.asarray(sampled_idx)]
+        quiet = (sp_level <= np.percentile(level_db, 10) + 1.0) & (sp_level > -100.0)
+        flat_bins = (freqs >= 1000.0) & (freqs <= max(f_hi, 2000.0))
+        if np.any(quiet) and np.count_nonzero(flat_bins) >= 8:
+            flatness = float(np.median(_spectral_flatness(sp[quiet][:, flat_bins])))
+            out["floor_flatness"] = round(flatness, 4)
+    s_noise = (min(1.0, max(0.0, (floor_db + 75.0) / 25.0))
+               * min(1.0, max(0.0, (program_db - floor_db - 12.0) / 12.0))
+               * min(1.0, max(0.0, (flatness - 0.15) / 0.25)))
 
     # (a) high-band flicker relative to the mid band
-    f_hi = min(16000.0, 0.9 * sr / 2.0)
-    if cutoff is not None:
-        f_hi = min(f_hi, cutoff - 500.0)
     hi_sel = (band_lo_hz >= 7000.0) & (band_hi_hz <= f_hi + 1e-6)
     mid_sel = (band_lo_hz >= 1000.0) & (band_hi_hz <= 4000.0 + 1e-6)
     s_flicker = 0.0

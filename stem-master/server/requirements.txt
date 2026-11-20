@@ -4,18 +4,26 @@
 # (CUDA wheel in the GPU Docker image, CPU wheel in CI) *before* this file,
 # otherwise audio-separator pulls the default PyPI torch wheel.
 #
-# Ranges are open enough for pip to pick wheels that support Python 3.11
-# (e.g. numpy/scipy/librosa releases newer than the ones developed against
-# require Python >= 3.12; pip falls back to the newest compatible release).
+# Ranges are open enough for pip to pick wheels that support Python 3.11:
+# numpy/scipy/librosa releases newer than the ones developed against need
+# Python >= 3.12, so on 3.11 pip resolves e.g. numpy 2.4, scipy 1.17,
+# librosa 0.11 (checked with `pip install --dry-run` on 3.11).
+# Keep this file free of pip options and inline comments: pyproject.toml
+# reads it as the package's dependency list.
 
+# Separation models (BS/Mel-Band RoFormer, MDX23C .ckpt run on torch; the
+# [cpu] extra only adds onnxruntime, which these models do not need on GPU).
 audio-separator[cpu]==0.48.0
 
+# HTTP API. starlette >= 0.40 for FileResponse HTTP Range (206) support;
+# python-multipart >= 0.0.18 for the python_multipart streaming parser.
 fastapi>=0.115.6,<1.0
-starlette>=0.40.0,<2.0          # FileResponse HTTP Range support (206)
+starlette>=0.40.0,<2.0
 uvicorn[standard]>=0.30.0,<1.0
-python-multipart>=0.0.18,<0.1   # streaming multipart parser (python_multipart)
+python-multipart>=0.0.18,<0.1
 pydantic>=2.7,<3.0
 
+# DSP / analysis.
 numpy>=2.0,<3.0
 scipy>=1.13.0,<2.0
 soundfile>=0.12.1,<1.0

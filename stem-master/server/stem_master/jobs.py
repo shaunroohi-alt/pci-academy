@@ -613,7 +613,7 @@ class JobManager:
     def _remove_outputs(self, job_id: str, input_name: str) -> None:
         """Remove everything a run produced, keeping job.json and the input."""
         job_dir = self._dir(job_id)
-        keep = {JOB_FILENAME, input_name, DELETED_MARKER}
+        keep = {JOB_FILENAME, f".{JOB_FILENAME}.tmp", input_name, DELETED_MARKER}
         try:
             entries = list(job_dir.iterdir())
         except OSError:
@@ -729,7 +729,16 @@ class JobManager:
                 self._run(ctx, active)
             except Exception:  # never let a bookkeeping bug kill the worker
                 logger.exception("Worker error while finishing job %s", job_id)
-                self._finish(job_id, "failed", error="Processing failed: internal error")
+                self._fail_safely(job_id)
+            except BaseException:  # SystemExit & co. from a runner: record, then let it end the thread
+                self._fail_safely(job_id)
+                raise
+
+    def _fail_safely(self, job_id: str) -> None:
+        try:
+            self._finish(job_id, "failed", error="Processing failed: internal error")
+        except Exception:
+            logger.exception("Could not record failure of job %s", job_id)
 
     def _make_context(self, rec: JobRecord, active: _Active) -> PipelineContext:
         job_id = rec.id
