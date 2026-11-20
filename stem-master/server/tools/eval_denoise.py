@@ -282,6 +282,8 @@ def cmd_meter(args: argparse.Namespace) -> None:
 
 # --------------------------------------------------------------------- clean
 def cmd_clean(args: argparse.Namespace) -> None:
+    from stem_master.dsp.denoise import STRENGTHS, denoise_dsp
+
     work = Path(args.work)
     items = [m for m in _musdb(work) if m["stems"]]
     table: Dict[Tuple[str, str], List[float]] = {}
@@ -326,6 +328,8 @@ def _flicker(x: np.ndarray, sr: int, depth_db: float, rng: np.random.Generator,
 
 def cmd_synthetic(args: argparse.Namespace) -> None:
     from scipy import signal
+
+    from stem_master.dsp.denoise import STRENGTHS, denoise_dsp
 
     work = Path(args.work)
     items = [m for m in _musdb(work) if m["stems"]][: args.clips]
