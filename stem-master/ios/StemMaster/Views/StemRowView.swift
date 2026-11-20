@@ -7,8 +7,6 @@ struct StemRowView: View {
     let sessionID: UUID
     let player: StemPlayer
 
-    @Environment(AppModel.self) private var model
-
     private var color: Color { Color.stem(stem) }
     private var state: MixerChannelState { player.state(for: stem.id) }
     private var audible: Bool { player.isAudible(stem.id) }
@@ -147,10 +145,8 @@ struct StemShareButton: View {
         } label: {
             ZStack {
                 if let progress {
-                    ProgressView(value: progress)
-                        .progressViewStyle(.circular)
-                        .tint(Color.smAccent)
-                        .controlSize(.small)
+                    MiniProgressRing(progress: progress)
+                        .frame(width: 18, height: 18)
                 } else {
                     Image(systemName: "square.and.arrow.up")
                         .font(.subheadline.weight(.semibold))
@@ -178,5 +174,24 @@ struct StemShareButton: View {
             model.alert = AppAlert(title: "Couldn't export \(stem.name)", message: userFacingMessage(for: error))
             Haptics.error()
         }
+    }
+}
+
+
+/// Small determinate ring for per-file download progress.
+struct MiniProgressRing: View {
+    let progress: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.smMuted.opacity(0.35), lineWidth: 2.5)
+            Circle()
+                .trim(from: 0, to: CGFloat(min(max(progress, 0.02), 1)))
+                .stroke(Color.smAccent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 0.2), value: progress)
+        }
+        .accessibilityHidden(true)
     }
 }
