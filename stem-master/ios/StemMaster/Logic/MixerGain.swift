@@ -18,6 +18,24 @@ struct MixerChannelState: Hashable, Sendable {
 /// * If any channel is soloed, only soloed channels are audible.
 /// * Mute always wins: a muted channel is silent even when it is soloed.
 /// * An audible channel plays at its fader volume (clamped to 0...maxVolume).
+/// A short stepped fade for gain changes. An instant jump of a channel's volume (mute, solo)
+/// is audible as a click; `StemPlayer` applies these values one by one instead.
+///
+/// shortcut: the mixer reads its volume once per render cycle (about 5-23 ms on iOS), so this
+/// is a few steps, not a sample-accurate ramp. Upgrade to AU parameter ramps if clicks remain.
+enum GainRamp {
+    static let steps = 8
+    static let stepSeconds = 0.008
+
+    /// The values to apply, in order; the last one is exactly `target`.
+    static func values(from start: Float, to target: Float) -> [Float] {
+        guard start != target else { return [target] }
+        return (1...steps).map { step in
+            step == steps ? target : start + (target - start) * Float(step) / Float(steps)
+        }
+    }
+}
+
 enum MixerGain {
     static let maxVolume: Float = 1
 

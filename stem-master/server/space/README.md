@@ -24,13 +24,19 @@ repository.
 
 What it produces: vocals (lead / backing, optional dry + reverb), a drum kit
 split into kick, snare, toms, hi-hat, ride and crash, bass, guitar, piano &
-keys, and synths & other, with optional Cleanup (bleed removal) and Denoise
-(AI-generation artifact removal). Whatever those two options remove is
-returned as separate `removed_*` stems, so nothing is thrown away silently.
+keys, and synths & other, with optional Cleanup (bleed removal between
+stems) and Denoise (removes measured hiss, hum, rumble and high-band flicker;
+it does not remove the noise-like high band that is part of AI-generated
+music, and it does not remove provenance watermarks). Whatever those two
+options remove is returned as separate `removed_*` stems, so nothing is
+thrown away silently.
 
 The files in this Space are overwritten on every deploy from the repository
 (`stem-master/server`, deployed by `.github/workflows/stem-master-space.yml`).
 Edit the source there, not here.
 
-Models are downloaded on first use. Without a storage volume mounted at
-`/data`, they are downloaded again after each restart or wake-up from sleep.
+Models are downloaded on first use (about 2.9 GB for the default options,
+4.7 GB for all options). Without a storage volume mounted at `/data`, they
+are downloaded again after each restart or wake-up from sleep. On `cpu-basic`
+or `cpu-upgrade` hardware separation is very slow (minutes for a few seconds
+of audio).

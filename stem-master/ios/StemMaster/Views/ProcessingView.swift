@@ -20,6 +20,13 @@ struct ProcessingView: View {
                     }
                 }
                 checklist
+                if session.state == .uploading {
+                    Label("Keep Stem Master open until the upload finishes: iOS stops uploads shortly after an app leaves the screen.", systemImage: "iphone")
+                        .font(.footnote)
+                        .foregroundStyle(Color.smInk2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .panel(padding: 12)
+                }
                 Text(OptionText.vocalFocus)
                     .font(.footnote)
                     .foregroundStyle(Color.smMuted)
@@ -29,9 +36,14 @@ struct ProcessingView: View {
                 Button(role: .destructive) {
                     confirmCancel = true
                 } label: {
-                    Label(session.state == .uploading ? "Cancel Upload" : "Cancel Separation", systemImage: "xmark")
+                    if model.isCancellingUpload(session.id) {
+                        Label("Cancelling…", systemImage: "hourglass")
+                    } else {
+                        Label(session.state == .uploading ? "Cancel Upload" : "Cancel Separation", systemImage: "xmark")
+                    }
                 }
                 .buttonStyle(SecondaryButtonStyle(tint: .smDanger))
+                .disabled(model.isCancellingUpload(session.id))
             }
             .padding(Theme.gutter)
         }
@@ -74,7 +86,7 @@ struct ProcessingView: View {
         switch session.state {
         case .uploading:
             progress = upload ?? 0
-            caption = "Uploading"
+            caption = (upload ?? 0) >= 1 ? "Checking the file" : "Uploading"
         case .queued:
             progress = 0
             indeterminate = true

@@ -61,6 +61,11 @@ final class AppModel {
 
     // Live progress, keyed by session id
     private(set) var uploadProgress: [UUID: Double] = [:]
+    /// Uploads the user cancelled after the whole file was sent: the app waits for the job id,
+    /// then cancels and deletes that job on the server.
+    private(set) var cancellingUploads: Set<UUID> = []
+    /// Imports whose file is still being copied (or downloaded from iCloud Drive).
+    private(set) var importsInProgress = 0
     private(set) var connectionIssues: [UUID: String] = [:]
     private(set) var previewProgress: [UUID: BatchProgress] = [:]
     /// Lossless/ZIP download progress keyed by `transferKey(...)`.
@@ -79,12 +84,17 @@ final class AppModel {
     @ObservationIgnored private var uploadAttempts: [UUID: UUID] = [:]
     @ObservationIgnored private var previewTasks: [UUID: Task<Void, Error>] = [:]
     @ObservationIgnored private var fileTasks: [String: Task<URL, Error>] = [:]
+    /// Sessions whose upload was cut off by termination, until their job is found or retried.
+    @ObservationIgnored private var interruptedUploads: Set<UUID> = []
+    /// "Export Mixer Selection" runs the user cancelled.
+    @ObservationIgnored private var cancelledSelections: Set<UUID> = []
 
     init(
         settings: AppSettings? = nil,
         store: SessionStore? = nil,
         hooks: PlatformHooks = .inert,
-        clientID: String = ClientIdentity.current()
+        clientID: String = ClientIdentity.current(),
+        api injected: APIClient? = nil
     ) {
         let settings = settings ?? AppSettings()
         let store = store ?? SessionStore()
@@ -94,11 +104,9 @@ final class AppModel {
         self.clientID = clientID
         let key = hooks.loadAPIKey() ?? ""
         self.apiKey = key
-        let api = APIClient(configuration: APIClient.Configuration(
-            baseURL: settings.serverURL,
-            apiKey: key,
-            clientID: clientID
-        ))
+        let configuration = APIClient.Configuration(baseURL: settings.serverURL, apiKey: key, clientID: clientID)
+        let api = injected ?? APIClient(configuration: configuration)
+        api.updateConfiguration(configuration)
         self.api = api
         self.downloader = Downloader(api: api)
         self.poller = JobPoller(fetch: { id in try await api.job(id: id) })
@@ -153,10 +161,18 @@ final class AppModel {
         connectionTest = .testing
         do {
             let health = try await api.health()
+            if health.authRequired {
+                // /v1/health answers without a key: check the key on a route that needs one.
+                _ = try await api.capabilities()
+            }
             connectionTest = .success(health)
             hooks.feedback(.success)
         } catch {
-            connectionTest = .failure(userFacingMessage(for: error))
+            if case .notFound = APIError.from(error) {
+                connectionTest = .failure("No Stem Master server answered at this address (HTTP 404). Enter the server's base address, without /v1.")
+            } else {
+                connectionTest = .failure(userFacingMessage(for: error))
+            }
             hooks.feedback(.error)
         }
     }
@@ -172,8 +188,10 @@ final class AppModel {
     }
 
     /// After a relaunch: resume polling jobs the server is still working on; an upload that was
-    /// cut off by termination cannot continue, so it is marked failed with a retry.
+    /// cut off by termination cannot continue, so it is marked failed with a retry, unless the
+    /// server got the whole file and created the job (`recoverInterruptedUploads`).
     private func restoreInFlightSessions() {
+        APIClient.removeStaleUploadBodies()
         for session in store.sessions {
             switch session.state {
             case .uploading:
@@ -181,6 +199,7 @@ final class AppModel {
                     record.state = .failed
                     record.errorMessage = "The upload was interrupted. Tap Try Again to send the track again."
                 }
+                interruptedUploads.insert(session.id)
             case .queued, .processing:
                 if let jobID = session.jobID {
                     poller.track(sessionID: session.id, jobID: jobID)
@@ -194,18 +213,55 @@ final class AppModel {
                 break
             }
         }
+        if !interruptedUploads.isEmpty {
+            Task { [weak self] in
+                await self?.recoverInterruptedUploads()
+            }
+        }
+    }
+
+    /// Looks for the jobs of interrupted uploads in this client's job list (`GET /v1/jobs`)
+    /// and picks up each one that matches its session unambiguously.
+    private func recoverInterruptedUploads() async {
+        guard let jobs = try? await api.listJobs() else { return }
+        let interrupted = interruptedUploads
+            .compactMap { store.session(id: $0) }
+            .filter { $0.state == .failed && $0.jobID == nil }
+        let claimed = Set(store.sessions.compactMap(\.jobID))
+        for (sessionID, job) in UploadRecovery.matches(interrupted: interrupted, jobs: jobs, claimed: claimed) {
+            interruptedUploads.remove(sessionID)
+            store.saveJob(job, for: sessionID)
+            if job.status.isFinished {
+                handleFinished(job, sessionID: sessionID)
+            } else {
+                poller.track(sessionID: sessionID, jobID: job.id)
+            }
+        }
     }
 
     // MARK: - Import
 
-    /// Imports a picked or "Open in" file and shows the options sheet for it.
+    var isImporting: Bool { importsInProgress > 0 }
+
+    /// Imports a picked or "Open in" file and shows the options sheet for it. The copy runs off
+    /// the main actor: an iCloud Drive file may have to download first, and a 200 MB copy takes
+    /// a moment.
     func importAudio(from url: URL) {
-        do {
-            let record = try store.importAudio(from: url, options: settings.defaultOptions)
-            optionsRequest = OptionsRequest(id: record.id, options: record.options)
-        } catch {
-            alert = AppAlert(title: "Couldn't import the track", message: userFacingMessage(for: error))
-            hooks.feedback(.error)
+        importsInProgress += 1
+        let rootURL = store.rootURL
+        let options = settings.defaultOptions
+        Task {
+            defer { importsInProgress -= 1 }
+            do {
+                let source = try await Task.detached(priority: .userInitiated) {
+                    try SessionStore.copySource(from: url, rootURL: rootURL)
+                }.value
+                let record = store.addImported(source, options: options)
+                optionsRequest = OptionsRequest(id: record.id, options: record.options)
+            } catch {
+                alert = AppAlert(title: "Couldn't import the track", message: userFacingMessage(for: error))
+                hooks.feedback(.error)
+            }
         }
     }
 
@@ -233,6 +289,8 @@ final class AppModel {
         poller.untrack(sessionID)
         store.clearJob(for: sessionID)
         connectionIssues[sessionID] = nil
+        cancellingUploads.remove(sessionID)
+        interruptedUploads.remove(sessionID)
         store.update(sessionID) { record in
             record.options = options
             record.state = .uploading
@@ -251,6 +309,7 @@ final class AppModel {
         uploadAttempts[sessionID] = attempt
         let sourceURL = store.sourceURL(for: session)
         let filename = session.originalFilename
+        let sourceBytes = session.sourceBytes
         let api = self.api
         let hooks = self.hooks
         // Keep uploading for a while if the user leaves the app mid-upload.
@@ -258,15 +317,26 @@ final class AppModel {
         uploadTasks[sessionID] = Task {
             defer { hooks.endBackgroundActivity(token) }
             do {
+                try await Self.checkUploadAllowed(api: api, sourceBytes: sourceBytes)
                 let job = try await api.createJob(sourceURL: sourceURL, filename: filename, options: options) { fraction in
                     Task { @MainActor [weak model = self] in
                         model?.setUploadProgress(fraction, for: sessionID, attempt: attempt)
                     }
                 }
-                self.uploadFinished(job, sessionID: sessionID, attempt: attempt)
+                self.uploadFinished(job, sessionID: sessionID, attempt: attempt, taskCancelled: Task.isCancelled)
             } catch {
                 self.uploadFailed(error, sessionID: sessionID, attempt: attempt)
             }
+        }
+    }
+
+    /// `GET /v1/capabilities` before sending the file: a rejected API key or a file over the
+    /// server's limit fails at once instead of after a long upload.
+    private nonisolated static func checkUploadAllowed(api: APIClient, sourceBytes: Int64) async throws {
+        let capabilities = try await api.capabilities()
+        let limit = Int64(capabilities.maxUploadMB) * 1024 * 1024
+        guard sourceBytes <= limit else {
+            throw APIError.payloadTooLarge("This file is \(NumberFormatting.bytes(sourceBytes)); the server accepts files up to \(NumberFormatting.bytes(limit)).")
         }
     }
 
@@ -275,19 +345,24 @@ final class AppModel {
         uploadProgress[sessionID] = fraction
     }
 
-    private func uploadFinished(_ job: Job, sessionID: UUID, attempt: UUID) {
+    private func uploadFinished(_ job: Job, sessionID: UUID, attempt: UUID, taskCancelled: Bool) {
         guard uploadAttempts[sessionID] == attempt, store.session(id: sessionID) != nil else {
             // Deleted or restarted while uploading: don't leave this job running on the server.
-            let api = self.api
-            Task {
-                _ = try? await api.cancelJob(id: job.id)
-                try? await api.deleteJob(id: job.id)
-            }
+            discardServerJob(job.id)
             return
         }
         uploadAttempts[sessionID] = nil
         uploadTasks[sessionID] = nil
         uploadProgress[sessionID] = nil
+        if cancellingUploads.remove(sessionID) != nil || taskCancelled {
+            // Cancelled, but the server had already created the job.
+            discardServerJob(job.id)
+            store.update(sessionID) { record in
+                record.state = .cancelled
+                record.errorMessage = "The upload was cancelled."
+            }
+            return
+        }
         store.saveJob(job, for: sessionID)
         if job.status.isFinished {
             handleFinished(job, sessionID: sessionID)
@@ -302,8 +377,9 @@ final class AppModel {
         uploadAttempts[sessionID] = nil
         uploadTasks[sessionID] = nil
         uploadProgress[sessionID] = nil
+        let cancelRequested = cancellingUploads.remove(sessionID) != nil
         let apiError = APIError.from(error)
-        if case .cancelled = apiError {
+        if cancelRequested || apiError == .cancelled {
             store.update(sessionID) { record in
                 record.state = .cancelled
                 record.errorMessage = "The upload was cancelled."
@@ -329,11 +405,21 @@ final class AppModel {
         poller.pollNow(sessionID)
     }
 
+    func isCancellingUpload(_ sessionID: UUID) -> Bool {
+        cancellingUploads.contains(sessionID)
+    }
+
     /// Cancels the upload, or asks the server to cancel the job.
     func cancelProcessing(sessionID: UUID) {
         guard let session = store.session(id: sessionID) else { return }
         if session.state == .uploading {
-            uploadTasks[sessionID]?.cancel()
+            if (uploadProgress[sessionID] ?? 0) >= 1 {
+                // The server has the whole file and is creating the job. Cancelling the request
+                // now could leave that job running out of reach: wait for its id, then cancel it.
+                cancellingUploads.insert(sessionID)
+            } else {
+                uploadTasks[sessionID]?.cancel()
+            }
             return
         }
         guard let jobID = session.jobID, session.state.isTrackedOnServer else { return }
@@ -387,6 +473,15 @@ final class AppModel {
         }
     }
 
+    /// Cancels and deletes a server job nobody will use (best effort).
+    private func discardServerJob(_ jobID: String) {
+        let api = self.api
+        Task {
+            _ = try? await api.cancelJob(id: jobID)
+            try? await api.deleteJob(id: jobID)
+        }
+    }
+
     // MARK: - Delete
 
     /// Deletes the local session and, best effort, the server job.
@@ -395,6 +490,8 @@ final class AppModel {
         uploadTasks[sessionID]?.cancel()
         uploadTasks[sessionID] = nil
         uploadAttempts[sessionID] = nil
+        cancellingUploads.remove(sessionID)
+        interruptedUploads.remove(sessionID)
         previewTasks[sessionID]?.cancel()
         previewTasks[sessionID] = nil
         for (key, task) in fileTasks where key.hasPrefix(sessionID.uuidString) {
@@ -493,11 +590,30 @@ final class AppModel {
         )
     }
 
+    /// Stops a lossless WAV or ZIP download (`item` is a stem id or `"zip"`).
+    func cancelTransfer(sessionID: UUID, item: String) {
+        fileTasks[Self.transferKey(sessionID: sessionID, item: item)]?.cancel()
+    }
+
+    /// Stops a running "Export Mixer Selection" and its WAV downloads.
+    func cancelSelectionExport(sessionID: UUID) {
+        guard selectionExportProgress[sessionID] != nil else { return }
+        cancelledSelections.insert(sessionID)
+        let zip = Self.transferKey(sessionID: sessionID, item: "zip")
+        for (key, task) in fileTasks where key.hasPrefix(sessionID.uuidString) && key != zip {
+            task.cancel()
+        }
+    }
+
     /// Downloads the WAVs of `stems` (3 at a time) for "Export Mixer Selection".
     func losslessFiles(for stems: [Stem], sessionID: UUID) async throws -> [URL] {
         guard !stems.isEmpty else { return [] }
+        cancelledSelections.remove(sessionID)
         selectionExportProgress[sessionID] = BatchProgress(done: 0, total: stems.count)
-        defer { selectionExportProgress[sessionID] = nil }
+        defer {
+            selectionExportProgress[sessionID] = nil
+            cancelledSelections.remove(sessionID)
+        }
         var urls: [String: URL] = [:]
         var next = 0
         try await withThrowingTaskGroup(of: (String, URL).self) { group in
@@ -509,13 +625,14 @@ final class AppModel {
             while let (stemID, url) = try await group.next() {
                 urls[stemID] = url
                 selectionExportProgress[sessionID]?.done += 1
-                if next < stems.count {
+                if next < stems.count, !cancelledSelections.contains(sessionID) {
                     let stem = stems[next]
                     next += 1
                     group.addTask { @MainActor in (stem.id, try await self.losslessFile(for: stem, sessionID: sessionID)) }
                 }
             }
         }
+        if cancelledSelections.contains(sessionID) { throw APIError.cancelled }
         return stems.compactMap { urls[$0.id] }
     }
 

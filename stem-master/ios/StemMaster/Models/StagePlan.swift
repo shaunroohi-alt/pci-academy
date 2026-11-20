@@ -2,11 +2,11 @@ import Foundation
 
 /// Which pipeline stages (SPEC section 2) a job runs for given options, and their checklist titles.
 enum StagePlan {
-    /// The stages the server runs for `options`, in pipeline order.
+    /// The stages the server runs for `options`, in pipeline order (the server's
+    /// `pipeline.stage_plan`). `debleed` is not listed: the server runs it for no cleanup
+    /// strength (SPEC section 2).
     static func stages(for options: JobOptions) -> [JobStage] {
-        var stages: [JobStage] = [.analyze, .vocals]
-        if options.cleanup { stages.append(.debleed) }
-        stages.append(.instruments)
+        var stages: [JobStage] = [.analyze, .vocals, .instruments]
         if options.drumSplit { stages.append(.drums) }
         if options.vocalSplit { stages.append(.vocalSplit) }
         if options.dereverb { stages.append(.dereverb) }
@@ -28,7 +28,7 @@ enum StagePlan {
         case .vocalSplit: return "Split lead & backing vocals"
         case .dereverb: return "Remove vocal reverb"
         case .cleanup: return "Clean up stems"
-        case .denoise: return "Remove AI artifacts & noise"
+        case .denoise: return "Denoise"
         case .finalize: return "Write stems"
         case .done: return "Done"
         case .unknown: return "Processing"
@@ -46,7 +46,7 @@ enum StagePlan {
         case .vocalSplit: return "Lead vocal vs. harmonies and doubles"
         case .dereverb: return "Dry vocals plus a separate reverb stem"
         case .cleanup: return "Bleed masking, gating and range filters"
-        case .denoise: return "Noise floor, high-band flicker and rumble"
+        case .denoise: return "Measured hiss, sub-sonic rumble and flicker"
         case .finalize: return "Lossless WAVs and previews"
         case .queued, .done, .unknown: return ""
         }
@@ -73,7 +73,15 @@ struct ChecklistStep: Identifiable, Equatable, Sendable {
 /// options) from a session's current state.
 enum ProcessingChecklist {
     static func steps(for session: SessionRecord) -> [ChecklistStep] {
-        let plan = StagePlan.stages(for: session.options)
+        var plan = StagePlan.stages(for: session.options)
+        // A stage the server reports that the plan does not expect (a newer server) is shown at
+        // its pipeline position, so the checklist does not fall back to "all waiting".
+        let pipeline = JobStage.allCases
+        if ![.queued, .done, .unknown].contains(session.stage), !plan.contains(session.stage),
+           let reported = pipeline.firstIndex(of: session.stage) {
+            let insertAt = plan.firstIndex { (pipeline.firstIndex(of: $0) ?? 0) > reported } ?? plan.endIndex
+            plan.insert(session.stage, at: insertAt)
+        }
         let currentIndex = plan.firstIndex(of: session.stage)
         var steps: [ChecklistStep] = []
 

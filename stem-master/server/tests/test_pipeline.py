@@ -319,6 +319,9 @@ def test_debleed_is_off_for_every_strength_but_can_be_enabled(monkeypatch):
     assert not uses_debleed(JobOptions(cleanup=False, cleanup_strength="strong"))
     assert "debleed" in [stage for stage, _ in stage_plan(strong)]
     assert models_for(strong)[3] == SUPPRESSOR
+    for strength in ("light", "standard", "strong"):   # prefetch covers whichever strength enables it
+        monkeypatch.setattr(pipeline_module, "DEBLEED_STRENGTHS", frozenset({strength}))
+        assert SUPPRESSOR in models_for_quality("max"), strength
 
 
 def test_models_for_options_and_quality():
@@ -737,6 +740,31 @@ def test_engine_failures_become_user_messages(make_run, exc, message):
     assert not run.ctx.stems_dir.exists()
 
 
+def test_full_disk_is_a_clear_pipeline_error(make_run, monkeypatch):
+    import errno
+
+    import stem_master.pipeline as pipeline_module
+
+    # not enough free space for the stems: refused before any WAV is written
+    real_usage = shutil.disk_usage
+    monkeypatch.setattr(pipeline_module.shutil, "disk_usage",
+                        lambda path: real_usage(path)._replace(free=1_000_000))
+    run = make_run(**COMBOS["fast"])
+    with pytest.raises(PipelineError, match="out of disk space"):
+        execute(run)
+    assert not run.ctx.stems_dir.exists()
+    monkeypatch.undo()
+
+    def no_space(*_args, **_kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(pipeline_module.audio_io, "write_wav", no_space)
+    run = make_run(**COMBOS["fast"])
+    with pytest.raises(PipelineError, match="out of disk space"):
+        execute(run)
+    assert not run.ctx.stems_dir.exists()
+
+
 def test_unexpected_errors_propagate(make_run):
     run = make_run(engine=ExplodingEngine(ValueError("bug")), **COMBOS["fast"])
     with pytest.raises(ValueError, match="bug"):
@@ -795,6 +823,10 @@ def test_fake_engine_ensemble_subset_and_progress():
 
 LIB_STEM_NAMES = {  # capitalisation exactly as audio-separator 0.48 writes them
     "BS-Roformer-SW.ckpt": ["bass", "drums", "other", "vocals", "guitar", "piano"],
+    "bs_roformer_vocals_revive_v2_unwa.ckpt": ["vocals", "other"],
+    "mel_band_roformer_kim_ft2_bleedless_unwa.ckpt": ["vocals", "other"],
+    "MDX23C-DrumSep-aufr33-jarredou.ckpt": ["kick", "snare", "toms", "hh", "ride", "crash"],
+    "denoise_mel_band_roformer_aufr33_sdr_27.9959.ckpt": ["dry", "other"],
     "bs_roformer_karaoke_frazer_becruily.ckpt": ["Instrumental", "Vocals"],
     "mel_band_roformer_bleed_suppressor_v1.ckpt": ["Bleed", "Instrumental"],
     "dereverb_mel_band_roformer_anvuew_sdr_19.1729.ckpt": ["reverb", "noreverb"],
@@ -921,6 +953,179 @@ def test_audio_separator_engine_lru_cache(stub_engine):
     engine.separate(x, a)
     engine.separate(x, a)
     assert len(StubSeparator.instances) == 2 and all(s.model_instance is None for s in StubSeparator.instances)
+
+
+GIB = 1 << 30
+
+
+def test_auto_model_cache_size_selection():
+    from stem_master.device import auto_model_cache_size
+
+    # CUDA: free VRAM minus 4 GiB for one inference, 1 GiB per loaded model
+    assert auto_model_cache_size("cuda", 15 * GIB, 900) == 11      # T4: all 7 pipeline models stay
+    assert auto_model_cache_size("cuda", 7 * GIB, 900) == 3
+    assert auto_model_cache_size("cuda", 3 * GIB, 900) == 1
+    assert auto_model_cache_size("cuda", 80 * GIB, 900) == 16      # upper bound
+    # CPU / MPS: RAM minus 1 GiB and 9 MB per second of the longest allowed track
+    assert auto_model_cache_size("cpu", 16 * GIB, 900) == 7
+    assert auto_model_cache_size("cpu", 16 * GIB, 300) == 12
+    assert auto_model_cache_size("mps", 8 * GIB, 900) == 1
+    assert auto_model_cache_size("cpu", None, 900) == 1            # unknown memory: one model
+
+
+def test_available_ram_uses_the_tightest_of_meminfo_and_cgroup(tmp_path):
+    from stem_master.device import available_ram_bytes
+
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_text("MemTotal:       65000000 kB\nMemFree: 1000 kB\nMemAvailable:   60000000 kB\n")
+    host = 60000000 * 1024
+    v2 = tmp_path / "v2"
+    v2.mkdir()
+    assert available_ram_bytes(meminfo, v2) == host                # no cgroup limit files
+    (v2 / "memory.max").write_text("17179869184\n")
+    (v2 / "memory.current").write_text(f"{3 * GIB}\n")
+    (v2 / "memory.stat").write_text(f"anon 123\nactive_file 5\ninactive_file {2 * GIB}\n")
+    assert available_ram_bytes(meminfo, v2) == 16 * GIB - 1 * GIB  # container limit, page cache reclaimable
+    (v2 / "memory.max").write_text("max\n")
+    assert available_ram_bytes(meminfo, v2) == host
+    v1 = tmp_path / "v1"
+    (v1 / "memory").mkdir(parents=True)
+    (v1 / "memory" / "memory.limit_in_bytes").write_text(str(8 * GIB))
+    (v1 / "memory" / "memory.usage_in_bytes").write_text(str(2 * GIB))
+    assert available_ram_bytes(meminfo, v1) == 6 * GIB
+    (v1 / "memory" / "memory.limit_in_bytes").write_text("9223372036854771712")   # v1 "no limit"
+    assert available_ram_bytes(meminfo, v1) == host
+    assert available_ram_bytes(tmp_path / "missing", tmp_path / "none") is None
+
+
+def test_engine_sizes_its_model_cache_from_free_memory_when_unset(stub_engine, monkeypatch):
+    monkeypatch.setattr(engines_mod, "detect_device", lambda: "cuda")
+    monkeypatch.setattr(engines_mod, "available_memory_bytes", lambda device: 15 * GIB)
+    assert stub_engine(cache=None).cache_size == 11
+    assert stub_engine(cache=3).cache_size == 3, "an explicit STEM_MASTER_MODEL_CACHE wins"
+    assert stub_engine(cache=0).cache_size == 0
+
+
+@pytest.mark.parametrize("cache, later_loads", [(1, 7), (2, 6), (4, 4), (7, 0)])
+def test_model_cache_keeps_models_across_jobs_without_thrashing(stub_engine, make_run, cache, later_loads):
+    """Every job uses the same models in the same order (the max chain with
+    every option: 7 models, 10 inferences). An LRU cache smaller than 7 then
+    evicts each model just before the next job needs it again and reloads all
+    7 every job; the cache keeps its first ``size - 1`` models loaded and
+    rotates the last slot instead."""
+    engine = stub_engine(cache=cache)
+    loads = []
+    for _ in range(3):
+        before = len(StubSeparator.instances)
+        execute(make_run(rich_mix(seconds=0.5), engine=engine, quality="max", drum_split=True, vocal_split=True,
+                         dereverb=True, cleanup=False, denoise=True))
+        loads.append(len(StubSeparator.instances) - before)
+    assert loads == [7, later_loads, later_loads]
+
+
+def test_cancel_while_waiting_for_another_jobs_inference(stub_engine):
+    """With STEM_MASTER_WORKERS > 1 the jobs share one engine, which runs one
+    inference at a time. A job waiting for it must still see its cancellation
+    (through its progress callback), not only after the other job's model
+    step ends (minutes on a GPU, an hour on a CPU)."""
+    import time
+
+    engine = stub_engine()
+    gate, entered = threading.Event(), threading.Event()
+
+    class Blocking(StubSeparator):
+        def separate(self, audio_file_path):
+            entered.set()
+            gate.wait(10)
+            return super().separate(audio_file_path)
+
+    engine._separator_factory = Blocking
+    x = rich_mix(seconds=0.2)
+    first = threading.Thread(target=engine.separate, args=(x, "BS-Roformer-SW.ckpt"))
+    first.start()
+    try:
+        assert entered.wait(5)
+        cancelled = threading.Event()
+        outcome: Dict[str, float] = {}
+
+        def progress(_fraction: float) -> None:
+            if cancelled.is_set():
+                raise PipelineCancelled()
+
+        def second() -> None:
+            try:
+                engine.separate(x, "bs_roformer_karaoke_frazer_becruily.ckpt", progress=progress)
+            except PipelineCancelled:
+                outcome["cancelled_at"] = time.monotonic()
+
+        waiter = threading.Thread(target=second)
+        waiter.start()
+        time.sleep(0.2)
+        requested = time.monotonic()
+        cancelled.set()
+        waiter.join(3)
+        assert "cancelled_at" in outcome, "the waiting job did not stop"
+        assert outcome["cancelled_at"] - requested < 2.0
+        assert entered.is_set() and not gate.is_set(), "the first job is still in its inference"
+    finally:
+        gate.set()
+        first.join(10)
+    assert engine.separate(x, "bs_roformer_karaoke_frazer_becruily.ckpt"), "the engine is not left locked"
+
+
+def test_engine_removes_temp_dirs_a_killed_process_left_behind(stub_engine, tmp_path):
+    """A process killed in an inference (e.g. by the OOM killer) leaves its
+    temp dir (the float input plus every output stem, GBs for a long track)
+    in $TMPDIR. A new engine removes those older than a day, and leaves
+    recent ones (another process may be using them) and unrelated dirs alone."""
+    import time
+
+    tmp = tmp_path / "tmp"
+    old = time.time() - 2 * 86400
+    stale = []
+    for name in ("stem-master-sep-abc", "stem-master-prefetch-def"):
+        path = tmp / name
+        (path / "out0").mkdir(parents=True)
+        (path / "input.wav").write_bytes(b"x" * 100)
+        for p in (path / "input.wav", path / "out0", path):
+            os.utime(p, (old, old))
+        stale.append(path)
+    fresh = tmp / "stem-master-sep-live"
+    fresh.mkdir()
+    other = tmp / "someone-else"
+    other.mkdir()
+    os.utime(other, (old, old))
+    stub_engine()
+    assert not any(p.exists() for p in stale)
+    assert fresh.is_dir() and other.is_dir()
+
+
+@pytest.mark.parametrize("frames", [1, 100, 1024])
+def test_audio_separator_engine_pads_very_short_inputs(stub_engine, frames):
+    """The RoFormer models reflect-pad their 2048-point STFT, so audio-separator
+    0.48 raises "Padding size should be less than the corresponding input
+    dimension" on input of 1024 samples or less (measured with the karaoke
+    model on 1 and 100 samples). The engine pads such input with silence and
+    trims every output back."""
+    seen: List[int] = []
+
+    class ShortFails(StubSeparator):
+        def separate(self, audio_file_path):
+            n = sf.info(audio_file_path).frames
+            seen.append(n)
+            if n <= 1024:
+                raise RuntimeError("Argument #4: Padding size should be less than the corresponding input dimension")
+            return super().separate(audio_file_path)
+
+    engine = stub_engine()
+    engine._separator_factory = ShortFails
+    x = rich_mix(seconds=0.1)[:, :frames]
+    out = engine.separate(x, "bs_roformer_karaoke_frazer_becruily.ckpt")
+    assert seen and min(seen) > 1024
+    assert {k: v.shape for k, v in out.items()} == {"instrumental": (2, frames), "vocals": (2, frames)}
+    assert all(v.flags.c_contiguous and v.dtype == np.float32 for v in out.values())
+    seed = sum(map(ord, "bs_roformer_karaoke_frazer_becruily.ckpt")) % 7
+    assert np.allclose(out["vocals"], x * np.float32(1.0 + 0.1 * seed)), "the real samples, unchanged"
 
 
 def test_audio_separator_engine_load_failure(stub_engine):

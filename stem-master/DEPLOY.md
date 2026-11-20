@@ -145,7 +145,7 @@ curl https://mpindahouse-stem-master.hf.space/v1/health
 A Space's own disk is wiped on every restart, wake-up and redeploy. The server
 keeps jobs and models under `/data` when that directory is writable, so
 without extra storage each restart re-downloads the models on the first job:
-about 3.8 GB for the default options, 7.5 GB for all options.
+about 2.9 GB for the default options, 4.7 GB for all options (7 models).
 
 To keep them, attach a Hugging Face **Storage Bucket** to the Space as a volume
 mounted at **`/data`** (Space **Settings**; see
@@ -205,9 +205,45 @@ docker logs -f stem-master
   1000 first (`sudo chown 1000:1000 /srv/stem-master`).
 - Other settings (`STEM_MASTER_MAX_UPLOAD_MB`, `STEM_MASTER_MAX_DURATION_S`,
   `STEM_MASTER_JOB_TTL_HOURS`, `STEM_MASTER_WORKERS`, ...) are listed in
-  SPEC section 5. Pass them with `-e`.
+  SPEC section 5. Pass them with `-e`. Memory, the model cache and workers:
+  see below.
 - Upgrade: `docker pull ghcr.io/shaunroohi-alt/stem-master-server:latest`,
   then `docker rm -f stem-master` and the same `docker run`.
+
+**Memory, disk, model cache and workers**
+
+- **RAM.** At its peak the pipeline holds about 9 MB of RAM per second of
+  audio (measured with every option on): about 3.2 GB for a 6-minute song,
+  8 GB for a 15-minute one (`STEM_MASTER_MAX_DURATION_S`, default 900 s). On
+  a CPU-only host the loaded models come on top (the 7 models of the Max
+  chain with every option: 5.2 GB, measured). Lower
+  `STEM_MASTER_MAX_DURATION_S` on a small machine.
+- **Disk.** A finished job keeps its WAVs and, once downloaded, the ZIP (a
+  second copy) until it expires: about 3.8 GB for a 6-minute song with every
+  option in 24-bit, 9.6 GB for 15 minutes. When the disk is full, uploads and
+  ZIP downloads get HTTP 507 and jobs fail with *The server is out of disk
+  space*. Give `/data` room for the jobs of one TTL period, or lower
+  `STEM_MASTER_JOB_TTL_HOURS`.
+- **Model cache** (`STEM_MASTER_MODEL_CACHE`, default `auto`): how many loaded
+  models the server keeps between jobs. A model that is not kept is loaded
+  again when the next job needs it: 1 to 28 s per model on a 4-core CPU
+  (depending on whether the file is in the page cache); not measured on a
+  GPU. `auto` keeps as many models as fit at 1 GiB each:
+  - on CUDA, in the free VRAM minus 4 GiB for one inference (an estimate, not
+    measured on a GPU). By that rule a 16 GB T4 keeps all 7 models;
+  - on CPU, in the free RAM (the container's cgroup limit when it has one)
+    minus 1 GiB and 9 MB per second of the longest track the server accepts.
+
+  The first job logs the result (`Model cache: N model(s) (auto: ...)`). Set a
+  number to override it, or `0` to load every model each time it is used.
+  When the cache holds fewer models than a job uses, the models loaded first
+  stay and the last slot is reused, so each job reloads only the remainder.
+- **Workers** (`STEM_MASTER_WORKERS`, default 1): jobs that run at the same
+  time in the server process. They share one engine, and the engine runs one
+  model inference at a time on one device. A second worker therefore does
+  not use a second GPU. It only lets one job's DSP stages (analysis, Cleanup,
+  Denoise, writing) run during another job's inference, and it needs the RAM
+  of both jobs. Keep 1 unless the host has that RAM.
 
 ### B3. Put HTTPS in front
 
@@ -237,7 +273,9 @@ Then keep port 7860 closed to the outside and use
 
 ### B4. CPU-only image
 
-For testing without a GPU (slow):
+For testing without a GPU. It is very slow: on a 4-core CPU, Fast quality with
+every option took 104 s for a 6.8-second clip (about 15 times the length of the
+audio; README, Limitations).
 
 ```bash
 docker build --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu \
@@ -254,7 +292,7 @@ that job slow. Fetch them up front into the same `/data` volume the server
 uses:
 
 ```bash
-# all models (about 7.5 GB); or --quality max / --quality fast
+# all models (7 files, about 4.7 GB); or --quality max / --quality fast
 docker run --rm -v stem-models:/data ghcr.io/shaunroohi-alt/stem-master-server:latest \
   python -m stem_master prefetch --quality all
 ```
@@ -458,6 +496,18 @@ HTTPS.
   On a Hugging Face Space, set a Space **variable** `TORCH_INDEX_URL` to that
   URL (variables are passed to the Docker build as build arguments) and
   rebuild the Space (Settings > *Factory reboot*).
+
+### Uploads or ZIP downloads fail with 507, jobs fail with "out of disk space"
+
+The disk that holds `/data` (or `STEM_MASTER_DATA_DIR`) is full. Finished
+jobs free their space when they expire (`STEM_MASTER_JOB_TTL_HOURS`, 24 h by
+default). See *Memory, disk, model cache and workers* in B2 for the sizes.
+
+### Jobs fail with "The server ran out of memory"
+
+The track needs more RAM than the host has (about 9 MB per second of audio,
+plus the loaded models on a CPU-only host; B2). Use a host with more RAM, or
+lower `STEM_MASTER_MAX_DURATION_S` so such tracks are refused at upload.
 
 ### Uploads fail with 413
 

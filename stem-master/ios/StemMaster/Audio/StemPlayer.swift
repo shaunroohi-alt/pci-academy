@@ -49,6 +49,9 @@ final class StemPlayer {
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var remoteTargets: [(command: MPRemoteCommand, target: Any)] = []
     @ObservationIgnored private var resumeAfterInterruption = false
+    /// Volume each channel's mixer is set to right now (mid-ramp values included).
+    @ObservationIgnored private var appliedGains: [String: Float] = [:]
+    @ObservationIgnored private var rampTask: Task<Void, Never>?
     @ObservationIgnored private var title = ""
 
     /// Lead time before a synchronized start.
@@ -109,6 +112,9 @@ final class StemPlayer {
     func shutdown() {
         ticker?.cancel()
         ticker = nil
+        rampTask?.cancel()
+        rampTask = nil
+        appliedGains = [:]
         stopPlayers()
         if engine.isRunning {
             engine.stop()
@@ -317,11 +323,38 @@ final class StemPlayer {
         applyGains()
     }
 
+    /// Sets every channel's volume from the mute/solo/fader state. While audio renders, the
+    /// change is stepped over `GainRamp` (about 60 ms) so a mute or solo does not click.
     private func applyGains() {
-        let gains = MixerGain.resolve(channelStates)
-        for (id, gain) in gains {
-            channels[id]?.mixer.outputVolume = gain
+        let targets = MixerGain.resolve(channelStates)
+        rampTask?.cancel()
+        rampTask = nil
+        guard isPlaying, engine.isRunning else {
+            for (id, gain) in targets {
+                setGain(gain, for: id)
+            }
+            return
         }
+        let plans: [String: [Float]] = targets.reduce(into: [:]) { result, entry in
+            result[entry.key] = GainRamp.values(from: appliedGains[entry.key] ?? entry.value, to: entry.value)
+        }
+        let stepNanoseconds = UInt64(GainRamp.stepSeconds * 1_000_000_000)
+        rampTask = Task { @MainActor [weak self] in
+            for step in 0..<GainRamp.steps {
+                guard let self, !Task.isCancelled else { return }
+                for (id, values) in plans {
+                    self.setGain(values[min(step, values.count - 1)], for: id)
+                }
+                if step < GainRamp.steps - 1 {
+                    try? await Task.sleep(nanoseconds: stepNanoseconds)
+                }
+            }
+        }
+    }
+
+    private func setGain(_ gain: Float, for id: String) {
+        channels[id]?.mixer.outputVolume = gain
+        appliedGains[id] = gain
     }
 
     // MARK: System integration

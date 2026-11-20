@@ -72,11 +72,15 @@ struct ProgressRing: View {
                     .font(.system(.title, design: .rounded).weight(.bold))
                     .monospacedDigit()
                     .foregroundStyle(Color.smInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                 if let caption {
                     Text(caption)
                         .font(.caption)
                         .foregroundStyle(Color.smMuted)
                         .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.6)
                 }
             }
             .padding(lineWidth * 2)
@@ -122,6 +126,7 @@ struct SectionHeader: View {
         HStack(spacing: 8) {
             Image(systemName: systemImage)
                 .foregroundStyle(tint)
+                .accessibilityHidden(true)
             Text(title)
                 .font(.headline)
                 .foregroundStyle(Color.smInk)

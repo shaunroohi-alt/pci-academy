@@ -155,6 +155,33 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(SessionStore(rootURL: root).sessions.map(\.id), [second.id])
     }
 
+    /// A download that lands just after its session was deleted must not recreate the deleted
+    /// session folder (it would never be cleaned up).
+    func testFinishedDownloadDoesNotRecreateADeletedSessionFolder() throws {
+        let download = root.appendingPathComponent("download.tmp")
+        try Data(repeating: 3, count: 32).write(to: download)
+        let deletedSession = root.appendingPathComponent("Sessions/\(UUID().uuidString)", isDirectory: true)
+        XCTAssertThrowsError(try TransferSession.moveReplacing(download, to: deletedSession.appendingPathComponent("previews/vocals.m4a")))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: deletedSession.path))
+
+        let liveSession = root.appendingPathComponent("Sessions/live", isDirectory: true)
+        try FileManager.default.createDirectory(at: liveSession, withIntermediateDirectories: true)
+        let preview = liveSession.appendingPathComponent("previews/vocals.m4a")
+        try TransferSession.moveReplacing(download, to: preview)
+        XCTAssertEqual(try Data(contentsOf: preview).count, 32, "the first download creates previews/")
+        let again = root.appendingPathComponent("again.tmp")
+        try Data(repeating: 4, count: 16).write(to: again)
+        try TransferSession.moveReplacing(again, to: preview)
+        XCTAssertEqual(try Data(contentsOf: preview).count, 16, "an existing copy is replaced")
+    }
+
+    /// Lossless downloads of a long track can be several GB.
+    func testTransferTimeoutsSuitLargeFilesOnSlowNetworks() {
+        let configuration = TransferSession.defaultConfiguration()
+        XCTAssertGreaterThanOrEqual(configuration.timeoutIntervalForResource, 6 * 60 * 60)
+        XCTAssertLessThanOrEqual(configuration.timeoutIntervalForRequest, 300, "a stalled transfer still fails")
+    }
+
     @MainActor
     func testCorruptIndexIsSetAside() async throws {
         try Data("not json".utf8).write(to: root.appendingPathComponent("sessions.json"))

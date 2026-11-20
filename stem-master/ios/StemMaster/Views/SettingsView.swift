@@ -128,7 +128,7 @@ struct SettingsView: View {
         } header: {
             Text("Server")
         } footer: {
-            Text("Separation runs on a Stem Master GPU server. The API key is stored in the iOS Keychain. Plain http:// works for servers on your local network only.")
+            Text("Separation runs on a Stem Master GPU server. The API key is stored in the iOS Keychain. Plain http:// works only for an IP address, a .local name or a one-word host name; use https:// for anything else.")
         }
         .listRowBackground(Color.smPanel)
     }
@@ -222,7 +222,7 @@ struct SettingsView: View {
             }
             .accessibilityElement(children: .combine)
             LabeledContent("Version", value: Self.versionString)
-            Text("Studio-grade stem separation: vocal-first RoFormer ensembles, a fully split drum kit, auditable Cleanup and AI-artifact Denoise. Every removal is kept as its own stem, and the stems sum back to the original mix.")
+            Text("Stem separation with a vocal-first RoFormer ensemble, a fully split drum kit, and auditable Cleanup and Denoise. Everything they remove is kept as its own stem, so the stems sum back to the original mix.")
                 .font(.footnote)
                 .foregroundStyle(Color.smInk2)
                 .fixedSize(horizontal: false, vertical: true)

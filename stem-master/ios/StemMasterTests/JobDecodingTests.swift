@@ -204,6 +204,16 @@ final class JobDecodingTests: XCTestCase {
         XCTAssertEqual(list.jobs.map(\.status), [.queued, .failed])
     }
 
+    func testTransportSecurityAndAuthMessages() {
+        let ats = APIError.from(URLError(.appTransportSecurityRequiresSecureConnection)).errorDescription ?? ""
+        XCTAssertTrue(ats.contains("https://"), ats)
+        XCTAssertTrue(ats.contains(".local"), "names the local addresses iOS allows over http (\(ats))")
+        XCTAssertTrue(ats.contains("IP address"), ats)
+        let unauthorized = APIError.unauthorized(nil).errorDescription ?? ""
+        XCTAssertTrue(unauthorized.contains("API key"))
+        XCTAssertFalse(unauthorized.contains("rejected the API key"), "with no key set, nothing was rejected")
+    }
+
     func testErrorBodies() {
         let plain = Data(#"{"detail": "File too large (max 200 MB)."}"#.utf8)
         XCTAssertEqual(APIError.from(statusCode: 413, body: plain), .payloadTooLarge("File too large (max 200 MB)."))

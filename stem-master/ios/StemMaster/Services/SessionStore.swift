@@ -37,7 +37,13 @@ final class SessionStore {
     var sessionsFolderURL: URL { rootURL.appendingPathComponent("Sessions", isDirectory: true) }
 
     func folderURL(for id: UUID) -> URL {
-        sessionsFolderURL.appendingPathComponent(id.uuidString, isDirectory: true)
+        Self.folderURL(for: id, rootURL: rootURL)
+    }
+
+    nonisolated static func folderURL(for id: UUID, rootURL: URL) -> URL {
+        rootURL
+            .appendingPathComponent("Sessions", isDirectory: true)
+            .appendingPathComponent(id.uuidString, isDirectory: true)
     }
 
     func sourceURL(for session: SessionRecord) -> URL {
@@ -123,33 +129,44 @@ final class SessionStore {
     /// Copies an audio file (from the Files picker or "Open in Stem Master") into a new session
     /// folder and adds a draft session.
     func importAudio(from url: URL, options: JobOptions) throws -> SessionRecord {
+        addImported(try Self.copySource(from: url, rootURL: rootURL), options: options)
+    }
+
+    /// Copies an audio file into a new session folder under `rootURL`. It touches no store state,
+    /// so it can run off the main actor while a large file copies or an iCloud Drive file downloads.
+    nonisolated static func copySource(from url: URL, rootURL: URL) throws -> ImportedSource {
+        let manager = FileManager.default
         let id = UUID()
-        let folder = folderURL(for: id)
+        let folder = folderURL(for: id, rootURL: rootURL)
         let originalName = url.lastPathComponent.isEmpty ? "Track" : url.lastPathComponent
         let safeName = FileNaming.sanitizeKeepingExtension(originalName)
         let destination = folder
             .appendingPathComponent("source", isDirectory: true)
             .appendingPathComponent(safeName)
         do {
-            try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try manager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             try FileImport.copyItem(at: url, to: destination)
         } catch {
-            try? fileManager.removeItem(at: folder)
+            try? manager.removeItem(at: folder)
             throw APIError.file("Couldn't read “\(originalName)”. If it's in iCloud Drive, make sure it has finished downloading. (\(error.localizedDescription))")
         }
-        let size = (try? fileManager.attributesOfItem(atPath: destination.path)[.size] as? NSNumber)?.int64Value ?? 0
+        let size = (try? manager.attributesOfItem(atPath: destination.path)[.size] as? NSNumber)?.int64Value ?? 0
         guard size > 0 else {
-            try? fileManager.removeItem(at: folder)
+            try? manager.removeItem(at: folder)
             throw APIError.file("“\(originalName)” is empty.")
         }
         FileImport.removeIfInInbox(url, documentsURL: rootURL)
+        return ImportedSource(id: id, originalName: originalName, fileName: safeName, bytes: size)
+    }
 
+    /// Adds a source copied by `copySource` as a draft session.
+    func addImported(_ source: ImportedSource, options: JobOptions) -> SessionRecord {
         let record = SessionRecord(
-            id: id,
-            title: FileNaming.title(fromFilename: originalName),
-            originalFilename: originalName,
-            sourceFileName: safeName,
-            sourceBytes: size,
+            id: source.id,
+            title: FileNaming.title(fromFilename: source.originalName),
+            originalFilename: source.originalName,
+            sourceFileName: source.fileName,
+            sourceBytes: source.bytes,
             options: options
         )
         sessions.insert(record, at: 0)
@@ -253,6 +270,14 @@ final class SessionStore {
         }
         return total
     }
+}
+
+/// A source file copied into a new session folder, not yet in the library index.
+struct ImportedSource: Sendable {
+    let id: UUID
+    let originalName: String
+    let fileName: String
+    let bytes: Int64
 }
 
 /// Copying user-picked files: security-scoped access and file coordination (so iCloud Drive

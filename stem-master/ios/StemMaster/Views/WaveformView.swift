@@ -34,6 +34,7 @@ struct StemWaveformView: View {
     let color: Color
     let player: StemPlayer
     var height: CGFloat = 44
+    var label: String = "Waveform"
 
     var body: some View {
         GeometryReader { proxy in
@@ -55,7 +56,7 @@ struct StemWaveformView: View {
         }
         .frame(height: height)
         .accessibilityElement()
-        .accessibilityLabel("Waveform")
+        .accessibilityLabel(label)
         .accessibilityHint("Tap to move the playhead")
     }
 }

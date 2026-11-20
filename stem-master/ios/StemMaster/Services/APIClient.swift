@@ -47,6 +47,17 @@ final class APIClient: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// Where `createJob` writes the multipart body it streams: a full copy of the track.
+    static var uploadStagingFolder: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("StemMasterUploads", isDirectory: true)
+    }
+
+    /// Removes bodies left by uploads the app was terminated during. Call at launch, before any
+    /// upload starts.
+    static func removeStaleUploadBodies() {
+        try? FileManager.default.removeItem(at: uploadStagingFolder)
+    }
+
     static let userAgent: String = {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -167,10 +178,10 @@ final class APIClient: @unchecked Sendable {
         let ext = URL(fileURLWithPath: filename).pathExtension
         form.addFile(name: "file", filename: filename, mimeType: FileNaming.mimeType(forPathExtension: ext), fileURL: sourceURL)
 
-        let bodyURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("upload-\(UUID().uuidString).multipart")
+        let bodyURL = Self.uploadStagingFolder.appendingPathComponent("upload-\(UUID().uuidString).multipart")
         defer { try? FileManager.default.removeItem(at: bodyURL) }
         do {
+            try FileManager.default.createDirectory(at: Self.uploadStagingFolder, withIntermediateDirectories: true)
             try form.writeBody(to: bodyURL)
         } catch {
             throw APIError.file("Couldn't read the audio file for upload: \(error.localizedDescription)")

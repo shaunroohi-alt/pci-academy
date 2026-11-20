@@ -12,7 +12,7 @@ typealias TransferProgressHandler = @Sendable (Double) -> Void
 /// convenience methods) because it reports upload and download progress reliably on every
 /// iOS version. Each call registers a continuation keyed by task identifier; Swift task
 /// cancellation cancels the underlying `URLSessionTask`.
-final class TransferSession: NSObject, @unchecked Sendable {
+class TransferSession: NSObject, @unchecked Sendable {
     private final class UploadState {
         let continuation: CheckedContinuation<(Data, HTTPURLResponse), Error>
         let progress: TransferProgressHandler?
@@ -79,7 +79,8 @@ final class TransferSession: NSObject, @unchecked Sendable {
     static func defaultConfiguration() -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 120
-        configuration.timeoutIntervalForResource = 2 * 60 * 60
+        // The ZIP of a 15-minute track is about 5 GB; stalls are caught by the request timeout.
+        configuration.timeoutIntervalForResource = 12 * 60 * 60
         configuration.httpMaximumConnectionsPerHost = 6
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.urlCache = nil
@@ -131,10 +132,15 @@ final class TransferSession: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Moves a finished download into place, creating folders and replacing an older copy.
+    /// Moves a finished download into place, replacing an older copy. Only the last folder
+    /// (`previews/`, `stems/`) is created: a download that lands after its session was deleted
+    /// fails instead of bringing the deleted session folder back.
     static func moveReplacing(_ source: URL, to destination: URL) throws {
         let manager = FileManager.default
-        try manager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let folder = destination.deletingLastPathComponent()
+        if !manager.fileExists(atPath: folder.path) {
+            try manager.createDirectory(at: folder, withIntermediateDirectories: false)
+        }
         let staging = destination.deletingLastPathComponent()
             .appendingPathComponent(".\(UUID().uuidString).part")
         try manager.moveItem(at: source, to: staging)

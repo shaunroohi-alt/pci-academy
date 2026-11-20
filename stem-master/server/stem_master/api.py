@@ -34,6 +34,8 @@ from .catalog import sort_by_catalog
 from .config import Settings, load_settings
 from .device import detect_device
 from .jobs import (
+    DISK_FULL_ERRNOS,
+    DISK_FULL_MESSAGE,
     ZIP_FILENAME,
     JobManager,
     JobNotFound,
@@ -481,6 +483,14 @@ def create_app(
             loc = ".".join(str(item) for item in err.get("loc", ()))
             parts.append(f"{loc}: {err.get('msg', 'invalid value')}")
         return JSONResponse(status_code=422, content={"detail": "; ".join(parts) or "Invalid request"})
+
+    @app.exception_handler(OSError)
+    async def _os_error_handler(request: Request, exc: OSError) -> JSONResponse:
+        if exc.errno in DISK_FULL_ERRNOS:  # an upload, job directory or ZIP that does not fit
+            logger.error("Disk full on %s %s: %s", request.method, request.url.path, exc)
+            return JSONResponse(status_code=507, content={"detail": DISK_FULL_MESSAGE})
+        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     @app.exception_handler(Exception)
     async def _unhandled_handler(request: Request, exc: Exception) -> JSONResponse:

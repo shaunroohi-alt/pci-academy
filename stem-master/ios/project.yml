@@ -43,6 +43,11 @@ targets:
       - path: StemMaster
         excludes:
           - Info.plist
+          - Resources/PrivacyInfo.xcprivacy
+      # App Store privacy manifest: required-reason APIs (UserDefaults, mach_absolute_time)
+      # and the audio the app uploads to the configured server.
+      - path: StemMaster/Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: StemMaster/Info.plist
       properties:

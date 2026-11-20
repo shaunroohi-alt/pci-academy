@@ -21,6 +21,7 @@ runner imports ``stem_master.pipeline.run_pipeline`` lazily, inside the worker.
 
 from __future__ import annotations
 
+import errno
 import logging
 import math
 import os
@@ -73,6 +74,8 @@ DEFAULT_MAX_QUEUED = 100
 """Jobs that may wait in the queue before new uploads are refused."""
 
 RESTART_ERROR = "Server restarted during processing"
+DISK_FULL_ERRNOS = frozenset({errno.ENOSPC, errno.EDQUOT})
+DISK_FULL_MESSAGE = "The server is out of disk space. Try again later."
 CANCELLING_LABEL = "Cancelling…"
 CANCELLED_LABEL = "Cancelled"
 FAILED_LABEL = "Failed"
@@ -950,6 +953,8 @@ class JobManager:
 
 __all__ = [
     "DELETED_MARKER",
+    "DISK_FULL_ERRNOS",
+    "DISK_FULL_MESSAGE",
     "JOB_FILENAME",
     "JobManager",
     "JobNotFound",

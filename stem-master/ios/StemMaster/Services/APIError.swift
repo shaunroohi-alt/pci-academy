@@ -34,7 +34,7 @@ enum APIError: Error, LocalizedError, Equatable, Sendable {
         case .invalidServerURL:
             return "The server URL isn't valid. Check it in Settings."
         case let .unauthorized(detail):
-            return Self.join("The server rejected the API key. Enter the right key in Settings.", detail)
+            return Self.join("The server needs a valid API key. Enter it in Settings.", detail)
         case let .notFound(detail):
             return Self.join("The server doesn't have this item (finished jobs are deleted after 24 hours).", detail)
         case let .payloadTooLarge(detail):
@@ -134,7 +134,7 @@ enum APIError: Error, LocalizedError, Equatable, Sendable {
              .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot, .clientCertificateRejected:
             return .network("A secure connection to the server couldn't be made.")
         case .appTransportSecurityRequiresSecureConnection:
-            return .network("Plain http:// only works for servers on your local network. Use https:// for remote servers.")
+            return .network("iOS only allows plain http:// to an IP address (e.g. http://192.168.1.20:7860), a .local name or a one-word host name. Use https:// for any other server.")
         case .badServerResponse, .cannotParseResponse, .zeroByteResource:
             return .network("The server sent an invalid response.")
         case .cannotWriteToFile, .cannotCreateFile, .cannotOpenFile, .cannotMoveFile, .cannotRemoveFile:

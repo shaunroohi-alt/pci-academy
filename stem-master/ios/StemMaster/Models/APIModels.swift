@@ -204,8 +204,8 @@ struct Analysis: Codable, Hashable, Sendable {
     var keyConfidence: Double
     var loudnessLUFS: Double
     var peakDBFS: Double
-    /// 0...1. A measurement of static noise, high-band flicker and spectral cut-off; never an
-    /// authorship claim.
+    /// 0...1. How noise-like the high band is, plus an audible static noise floor (SPEC 2.3);
+    /// never an authorship claim.
     var artifactLevel: Double
     var artifactLabel: ArtifactLabel
     /// `nil` when no hard spectral cut-off was detected.

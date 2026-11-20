@@ -37,6 +37,7 @@ import re
 import shutil
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 from contextlib import contextmanager
 from pathlib import Path
@@ -46,6 +47,7 @@ import numpy as np
 import soundfile as sf
 
 from .config import Settings
+from .device import auto_model_cache_size, available_memory_bytes, detect_device
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,21 @@ MODEL_STEMS: Dict[str, Tuple[str, ...]] = {
 audio-separator 0.48.0 writes them (verified by running each model on a real
 clip: e.g. the karaoke model writes ``(Vocals)``/``(Instrumental)``, the bleed
 suppressor ``(Bleed)``/``(Instrumental)``)."""
+
+TEMP_PREFIXES = ("stem-master-sep-", "stem-master-prefetch-")
+"""Prefixes of the engine's temp dirs in ``$TMPDIR``."""
+
+STALE_TEMP_S = 24 * 3600.0
+"""An engine temp dir untouched this long belongs to a process that died (no
+single model step runs this long; the dir is touched between models)."""
+
+MIN_MODEL_FRAMES = SAMPLE_RATE
+"""Input shorter than this (1 s) is padded with silence for the model and
+the outputs are trimmed back. audio-separator 0.48 fails on 1024 samples or
+less (the RoFormers' 2048-point STFT reflect-pads by 1024)."""
+
+ENGINE_WAIT_POLL_S = 0.5
+"""How often a call waiting for the engine checks for cancellation."""
 
 INPUT_BASENAME = "input"
 """Base name of the temporary input file; output files are
@@ -290,6 +307,24 @@ class _QuietWriteFilter(logging.Filter):
         return "Using soundfile for writing" not in record.getMessage()
 
 
+def _remove_stale_temp_dirs() -> None:
+    """Remove engine temp dirs that a killed process left in ``$TMPDIR``."""
+    root = tempfile.gettempdir()
+    cutoff = time.time() - STALE_TEMP_S
+    try:
+        entries = list(os.scandir(root))
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if (entry.name.startswith(TEMP_PREFIXES) and entry.is_dir(follow_symlinks=False)
+                    and entry.stat(follow_symlinks=False).st_mtime < cutoff):
+                logger.info("Removing stale temp dir %s", entry.path)
+                shutil.rmtree(entry.path, ignore_errors=True)
+        except OSError:
+            continue
+
+
 def _release_torch_memory() -> None:
     gc.collect()
     try:
@@ -320,11 +355,19 @@ class AudioSeparatorEngine(SeparationEngine):
       ``Separator`` and combine the stems with the library's ``Ensembler``.
       (``Separator.load_model([..])`` would reload every model from disk on
       every call and relabel stems ``Vocals``/``Instrumental``.)
-    * Loaded separators are kept in an LRU cache of
-      ``settings.model_cache_size`` entries keyed by
-      ``((model,), None, overlap)``; the oldest is released (and the GPU cache
-      emptied) *before* a new model is loaded. ``0`` disables caching.
+    * Loaded separators are kept in a cache of ``settings.model_cache_size``
+      entries (``None``: as many as fit in free VRAM / RAM,
+      :func:`~stem_master.device.auto_model_cache_size`) keyed by
+      ``((model,), None, overlap)``. When it is full, the most recently
+      *loaded* entry is released (and the GPU cache emptied) *before* a new
+      model is loaded, so the first ``size - 1`` models stay loaded. Every job
+      uses its models in the same order, and an LRU cache smaller than that
+      set would evict each model just before the next job needs it (a reload
+      of every model, every job). ``0`` disables caching.
     * One inference at a time per process (a lock around load + separate).
+      A call waiting for the lock (``STEM_MASTER_WORKERS`` > 1) calls
+      ``progress(0.0)`` every :data:`ENGINE_WAIT_POLL_S`, so a cancelled job
+      stops waiting instead of sitting out another job's model step.
     """
 
     name = "audio-separator"
@@ -334,10 +377,18 @@ class AudioSeparatorEngine(SeparationEngine):
         (tests use a stub that writes files the way the library does)."""
         self.settings = settings
         self.model_dir = Path(settings.model_dir)
-        self.cache_size = max(0, int(settings.model_cache_size))
+        if settings.model_cache_size is None:
+            device = detect_device()
+            available = available_memory_bytes(device)
+            self.cache_size = auto_model_cache_size(device, available, settings.max_duration_seconds)
+            logger.info("Model cache: %d model(s) (auto: %s free on %s)", self.cache_size,
+                        "unknown" if available is None else f"{available / 2 ** 30:.1f} GiB", device)
+        else:
+            self.cache_size = max(0, int(settings.model_cache_size))
         self._separator_factory = separator_factory
         self._cache: "OrderedDict[Tuple[Tuple[str, ...], Optional[str], int], Any]" = OrderedDict()
         self._lock = threading.RLock()
+        _remove_stale_temp_dirs()
 
     # ------------------------------------------------------------ factories
     def _separator_class(self) -> Callable[..., Any]:
@@ -389,8 +440,8 @@ class AudioSeparatorEngine(SeparationEngine):
         return sep
 
     # ---------------------------------------------------------------- cache
-    def _evict_one(self) -> None:
-        key, sep = self._cache.popitem(last=False)
+    def _evict_one(self, newest: bool = False) -> None:
+        key, sep = self._cache.popitem(last=newest)
         logger.info("Unloading model %s (overlap %d)", key[0][0], key[2])
         self._release(sep)
 
@@ -408,10 +459,9 @@ class AudioSeparatorEngine(SeparationEngine):
         key = ((model,), None, int(overlap))
         sep = self._cache.get(key)
         if sep is not None:
-            self._cache.move_to_end(key)
-            return sep
+            return sep  # no reordering: the cache stays in load order (class docstring)
         while self._cache and len(self._cache) >= max(1, self.cache_size):
-            self._evict_one()
+            self._evict_one(newest=True)
         logger.info("Loading model %s (overlap %d)", model, overlap)
         sep = self._new_separator(output_dir, overlap)
         try:
@@ -451,8 +501,14 @@ class AudioSeparatorEngine(SeparationEngine):
             raise ValueError("overlap must be positive")
         wanted = _wanted(stems)
         n = x.shape[1]
+        if n < MIN_MODEL_FRAMES:
+            x = np.concatenate([x, np.zeros((2, MIN_MODEL_FRAMES - n), dtype=np.float32)], axis=1)
+        n_in = x.shape[1]
 
-        with self._lock:
+        while not self._lock.acquire(timeout=ENGINE_WAIT_POLL_S):
+            if progress is not None:
+                progress(0.0)  # raises PipelineCancelled for a cancelled job
+        try:
             tmp = tempfile.mkdtemp(prefix="stem-master-sep-")
             try:
                 in_path = os.path.join(tmp, f"{INPUT_BASENAME}.wav")
@@ -463,21 +519,26 @@ class AudioSeparatorEngine(SeparationEngine):
                     out_dir = os.path.join(tmp, f"out{index}")
                     os.makedirs(out_dir)
                     outputs.append(
-                        self._run_model(model, in_path, out_dir, overlap, n, wanted,
+                        self._run_model(model, in_path, out_dir, overlap, n_in, wanted,
                                         _sub_progress(progress, index, len(names)))
                     )
             finally:
                 shutil.rmtree(tmp, ignore_errors=True)
+        finally:
+            self._lock.release()
 
         if len(outputs) == 1:
-            return outputs[0]
-        ensembled: Dict[str, np.ndarray] = {}
-        for key in _common_keys(outputs):
-            waves = [o.pop(key) for o in outputs]
-            combined = self._ensembler(ensemble_algorithm).ensemble(waves)
-            del waves
-            ensembled[key] = _fit(combined, n)
-        return ensembled
+            result = outputs[0]
+        else:
+            result = {}
+            for key in _common_keys(outputs):
+                waves = [o.pop(key) for o in outputs]
+                combined = self._ensembler(ensemble_algorithm).ensemble(waves)
+                del waves
+                result[key] = _fit(combined, n_in)
+        if n_in != n:
+            result = {key: np.ascontiguousarray(arr[:, :n]) for key, arr in result.items()}
+        return result
 
     def _run_model(self, model: str, in_path: str, out_dir: str, overlap: int, n: int,
                    wanted: Optional[Tuple[str, ...]], progress: Optional[ProgressFn]) -> Dict[str, np.ndarray]:

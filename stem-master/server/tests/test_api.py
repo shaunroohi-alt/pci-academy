@@ -310,6 +310,34 @@ def test_upload_too_large_streamed(make_client):
         assert _uploads_empty(manager)
 
 
+def test_full_disk_is_a_clear_507_for_uploads_and_zips(make_client, preview_m4a, monkeypatch):
+    import errno
+
+    import stem_master.api as api_module
+
+    def no_space(*_args, **_kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    with make_client(FakeRunner(preview_m4a)) as (client, manager):
+        job_id = upload(client).json()["id"]
+        wait_job(client, job_id, "completed")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(api_module._MultipartUpload, "_write", no_space)
+            response = upload(client)
+        assert response.status_code == 507
+        assert response.json() == {"detail": "The server is out of disk space. Try again later."}
+        assert _uploads_empty(manager)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(api_module.zipfile.ZipFile, "write", no_space)
+            response = client.get(f"/v1/jobs/{job_id}/download.zip")
+        assert response.status_code == 507
+        job_dir = manager.job_dir(job_id)
+        assert not (job_dir / "download.zip").exists() and not (job_dir / "download.zip.tmp").exists()
+        assert client.get(f"/v1/jobs/{job_id}/download.zip").status_code == 200, "works once there is space"
+
+
 def test_options_part_after_file_part(make_client, preview_m4a):
     """A hand-built body with the options part after the file part."""
     with make_client(FakeRunner(preview_m4a)) as (client, _):
@@ -555,7 +583,7 @@ def test_load_settings_defaults_and_env(tmp_path):
     assert settings.jobs_dir == tmp_path / "jobs"
     assert (settings.max_upload_mb, settings.max_duration_seconds) == (200, 900)
     assert (settings.job_ttl_hours, settings.workers, settings.engine) == (24.0, 1, "audio-separator")
-    assert (settings.overlap_max, settings.overlap_fast, settings.model_cache_size) == (4, 2, 2)
+    assert (settings.overlap_max, settings.overlap_fast, settings.model_cache_size) == (4, 2, None)  # None = auto
     assert (settings.host, settings.port) == ("0.0.0.0", 7860)
     assert settings.api_key is None and not settings.auth_required
     assert settings.overlap_for("fast") == 2 and settings.overlap_for("max") == 4
@@ -574,6 +602,9 @@ def test_load_settings_defaults_and_env(tmp_path):
     assert custom.job_ttl_seconds == 1800
     assert (custom.workers, custom.engine, custom.port) == (2, "fake", 8080)
     assert (custom.overlap_max, custom.overlap_fast, custom.model_cache_size) == (8, 1, 0)
+    assert load_settings({"STEM_MASTER_MODEL_CACHE": "auto"}).model_cache_size is None
+    assert load_settings({"STEM_MASTER_MODEL_CACHE": "AUTO"}).model_cache_size is None
+    assert load_settings({"STEM_MASTER_MODEL_CACHE": "7"}).model_cache_size == 7
     assert load_settings({"STEM_MASTER_API_KEY": "  "}).api_key is None
     assert load_settings({"STEM_MASTER_JOB_TTL_HOURS": "0"}).job_ttl_seconds is None
 
@@ -582,7 +613,8 @@ def test_load_settings_defaults_and_env(tmp_path):
 
     for env in ({"STEM_MASTER_WORKERS": "0"}, {"STEM_MASTER_WORKERS": "two"},
                 {"STEM_MASTER_ENGINE": "magic"}, {"PORT": "70000"},
-                {"STEM_MASTER_JOB_TTL_HOURS": "nan"}):
+                {"STEM_MASTER_JOB_TTL_HOURS": "nan"}, {"STEM_MASTER_MODEL_CACHE": "-1"},
+                {"STEM_MASTER_MODEL_CACHE": "lots"}):
         with pytest.raises(ConfigError):
             load_settings(env)
 

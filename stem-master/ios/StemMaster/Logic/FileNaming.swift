@@ -8,16 +8,21 @@ enum FileNaming {
         .union(.newlines)
 
     /// A file-system-safe version of `name` (no path separators, no leading dots, at most
-    /// `maxLength` characters). Falls back to "Untitled".
-    static func sanitize(_ name: String, maxLength: Int = 120) -> String {
+    /// `maxLength` characters and `maxBytes` UTF-8 bytes: file names are limited to 255 bytes,
+    /// which 85 CJK characters already fill). Falls back to "Untitled".
+    static func sanitize(_ name: String, maxLength: Int = 120, maxBytes: Int = 200) -> String {
         let cleaned = String(name.unicodeScalars.map { forbidden.contains($0) ? "_" : Character($0) })
         var result = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
         while result.hasPrefix(".") {
             result.removeFirst()
         }
         if result.count > maxLength {
-            result = String(result.prefix(maxLength)).trimmingCharacters(in: .whitespaces)
+            result = String(result.prefix(maxLength))
         }
+        while result.utf8.count > maxBytes {
+            result.removeLast()
+        }
+        result = result.trimmingCharacters(in: .whitespaces)
         return result.isEmpty ? "Untitled" : result
     }
 
@@ -39,14 +44,15 @@ enum FileNaming {
         return trimmed.isEmpty ? filename : trimmed
     }
 
-    /// `"My Song - Lead Vocals (Dry).wav"`.
+    /// `"My Song - Lead Vocals (Dry).wav"`. A long title is shortened, never the stem name,
+    /// so every stem of a track keeps its own file name.
     static func stemWAVName(trackTitle: String, stemName: String) -> String {
-        sanitize("\(trackTitle) - \(stemName)", maxLength: 150) + ".wav"
+        "\(sanitize(trackTitle, maxLength: 100, maxBytes: 150)) - \(sanitize(stemName, maxLength: 60, maxBytes: 80)).wav"
     }
 
     /// `"My Song - Stem Master.zip"` (the server's ZIP naming, SPEC section 4).
     static func zipName(trackTitle: String) -> String {
-        sanitize("\(trackTitle) - Stem Master", maxLength: 150) + ".zip"
+        "\(sanitize(trackTitle, maxLength: 100, maxBytes: 150)) - Stem Master.zip"
     }
 
     /// Audio extensions the server decodes (SPEC section 4).

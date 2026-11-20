@@ -15,7 +15,15 @@ struct TransportBar: View {
             Slider(
                 value: Binding(
                     get: { isScrubbing ? scrubTime : player.currentTime },
-                    set: { scrubTime = $0 }
+                    set: { value in
+                        // A drag only previews until it ends; VoiceOver's adjust gestures set the
+                        // value without an editing phase, so they seek right away.
+                        if isScrubbing {
+                            scrubTime = value
+                        } else {
+                            player.seek(to: value)
+                        }
+                    }
                 ),
                 in: 0...max(player.duration, 0.1),
                 onEditingChanged: { editing in
@@ -105,6 +113,8 @@ struct TransportBar: View {
         .padding(.horizontal, Theme.gutter)
         .padding(.top, 10)
         .padding(.bottom, 6)
+        // Five fixed-size controls in one row: beyond this size they would not fit the screen.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) {
             Rectangle()

@@ -57,6 +57,22 @@ final class MixerGainTests: XCTestCase {
         XCTAssertEqual(gains["removed_bleed"], 0)
     }
 
+    /// Mute/solo/fader changes are stepped over a short ramp instead of jumping (clicks).
+    func testGainRampIsShortAndLandsOnTheTarget() {
+        let up = GainRamp.values(from: 0, to: 1)
+        XCTAssertEqual(up.count, GainRamp.steps)
+        XCTAssertEqual(up.last, 1)
+        XCTAssertTrue(zip(up, up.dropFirst()).allSatisfy { $0 < $1 }, "monotonic")
+        XCTAssertGreaterThan(up[0], 0)
+        XCTAssertLessThan(up[0], 0.5, "no big first jump")
+        let down = GainRamp.values(from: 0.8, to: 0)
+        XCTAssertEqual(down.last, 0)
+        XCTAssertTrue(zip(down, down.dropFirst()).allSatisfy { $0 > $1 })
+        XCTAssertEqual(GainRamp.values(from: 0.5, to: 0.5), [0.5], "nothing to ramp")
+        XCTAssertLessThanOrEqual(Double(GainRamp.steps) * GainRamp.stepSeconds, 0.1, "short enough to feel instant")
+        XCTAssertGreaterThanOrEqual(Double(GainRamp.steps) * GainRamp.stepSeconds, 0.04, "spans a few render cycles")
+    }
+
     func testRemovedStemsStartMuted() {
         XCTAssertTrue(MixerChannelState.initial(for: .removed).isMuted)
         XCTAssertFalse(MixerChannelState.initial(for: .primary).isMuted)

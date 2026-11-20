@@ -12,8 +12,8 @@ extension Quality {
 
     var explanation: String {
         switch self {
-        case .max: return "Ensembles of the strongest RoFormer models: the cleanest stems, slower."
-        case .fast: return "One model per stage: several times faster, slightly more bleed."
+        case .max: return "A three-model vocal ensemble and the highest overlap on every stage: the cleanest stems, slower."
+        case .fast: return "One vocal model and half the overlap: faster, with slightly more bleed."
         }
     }
 }
@@ -59,9 +59,9 @@ enum OptionText {
     static let drumSplit = "Kick, snare, toms, hi-hat, ride and crash each on their own lane instead of one drum bus."
     static let vocalSplit = "Separates the lead vocal from harmonies, doubles and ad-libs."
     static let dereverb = "Takes the room and reverb off the vocals for a dry, raw take; the reverb gets its own stem."
-    static let cleanup = "Removes what doesn't belong in each stem: bleed from other instruments, noise between phrases, out-of-range rumble. Everything taken out is kept in a Removed Bleed stem."
-    static let denoise = "Reduces the static noise floor, high-band shimmer/flicker and rumble that AI music generators leave behind. Removed audio goes to a Removed Noise stem."
-    static let vocalFocus = "Vocals are separated first with a bleed-minimising ensemble, so the vocal stems stay clean and raw for editing on their own."
+    static let cleanup = "Removes bleed from other instruments and silences each stem between its notes. Everything removed is kept in a Removed Bleed stem you can audition."
+    static let denoise = "Removes measurable hiss, sub-sonic rumble and high-band flicker, often found in AI-generated or old recordings. Results depend on the source: audio without measurable noise passes through unchanged. It does not target mains hum and does not remove watermarks. Everything removed goes to a Removed Noise stem you can audition."
+    static let vocalFocus = "Vocals are separated first, with the vocal models that scored best in our measurements, so the vocal stems stay clean and raw enough to use on their own."
 
     static func cleanupStrength(_ strength: Strength) -> String {
         switch strength {
@@ -73,9 +73,9 @@ enum OptionText {
 
     static func denoiseStrength(_ strength: Strength) -> String {
         switch strength {
-        case .light: return "Subtle: only the steady noise floor."
-        case .standard: return "Noise floor plus high-band flicker."
-        case .strong: return "Maximum reduction for heavily artifacted tracks."
+        case .light: return "Gentle: acts only on clearly measured noise and flicker."
+        case .standard: return "Balanced for most material."
+        case .strong: return "Removes more where noise is measured; on dense stems it can also take some cymbal wash or air."
         }
     }
 
@@ -90,6 +90,20 @@ enum OptionText {
         parts.append(options.outputFormat.title)
         return parts.joined(separator: " · ")
     }
+}
+
+/// The artifact-level popover (SPEC section 2.3).
+enum ArtifactText {
+    static let whatIsMeasured = "Measures two things in the full mix: how noise-like the high band (4-16 kHz) is, and whether a static noise floor is audible in the quietest passages."
+    static let notAuthorship = "It describes the sound, not who or what made the track."
+    static let denoiseRelation = "Denoise does not lower this reading: a noise-like high band is usually part of the music itself, so Denoise leaves it in place and only removes noise it can measure apart from the music."
+
+    /// The reported band-limit, rounded to 100 Hz.
+    static func bandLimit(hertz: Double) -> String {
+        "Band-limited near \(Int((hertz / 100).rounded()) * 100) Hz (reported only; MP3 and AAC files are often band-limited too)."
+    }
+
+    static var allText: String { [whatIsMeasured, notAuthorship, denoiseRelation].joined(separator: " ") }
 }
 
 extension ArtifactLabel {

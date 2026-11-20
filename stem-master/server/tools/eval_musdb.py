@@ -285,7 +285,7 @@ def use_model_segments() -> None:
 
 def make_engine(cache: Path, offline: bool = False) -> Tuple[CachingEngine, Any]:
     settings = load_settings()
-    settings = dataclasses.replace(settings, model_cache_size=max(settings.model_cache_size, 8))
+    settings = dataclasses.replace(settings, model_cache_size=max(settings.model_cache_size or 0, 8))
     inner = None
     if not offline:
         inner = AudioSeparatorEngine(settings)

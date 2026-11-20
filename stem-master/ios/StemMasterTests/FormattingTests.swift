@@ -61,6 +61,16 @@ final class ServerURLTests: XCTestCase {
         XCTAssertEqual(ServerURL.normalizedString("localhost:7860"), "https://localhost:7860")
     }
 
+    /// Users paste API paths from the docs; requests would then go to /v1/v1/... and 404.
+    func testPastedAPIPathsAreStripped() {
+        XCTAssertEqual(ServerURL.normalizedString("https://example.com/v1"), "https://example.com")
+        XCTAssertEqual(ServerURL.normalizedString("https://example.com/v1/"), "https://example.com")
+        XCTAssertEqual(ServerURL.normalizedString("https://example.com/v1/health"), "https://example.com")
+        XCTAssertEqual(ServerURL.normalizedString("https://example.com/stem-master/v1/jobs/abc"), "https://example.com/stem-master")
+        XCTAssertEqual(ServerURL.normalizedString("https://example.com/v10"), "https://example.com/v10", "not an API path")
+        XCTAssertEqual(ServerURL.normalizedString("https://example.com/av1"), "https://example.com/av1")
+    }
+
     func testRejectsUnusableInput() {
         XCTAssertNil(ServerURL.normalize(""))
         XCTAssertNil(ServerURL.normalize("   "))
@@ -151,6 +161,25 @@ final class MiscLogicTests: XCTestCase {
         XCTAssertEqual(FileNaming.mimeType(forPathExtension: "xyz"), "application/octet-stream")
     }
 
+    /// Long titles must not cut the stem name off (every stem would get the same file name),
+    /// and names must fit the 255-byte file-name limit even for non-Latin titles.
+    func testStemFileNamesStayDistinctAndFitTheFileSystem() {
+        let longLatin = String(repeating: "Extended Club Mix ", count: 12)
+        let japanese = String(repeating: "夜明けの歌", count: 30)
+        for title in [longLatin, japanese] {
+            let lead = FileNaming.stemWAVName(trackTitle: title, stemName: "Lead Vocals (Dry)")
+            let backing = FileNaming.stemWAVName(trackTitle: title, stemName: "Backing Vocals")
+            XCTAssertNotEqual(lead, backing)
+            XCTAssertTrue(lead.hasSuffix(" - Lead Vocals (Dry).wav"), lead)
+            XCTAssertLessThanOrEqual(lead.utf8.count, 255)
+            let zip = FileNaming.zipName(trackTitle: title)
+            XCTAssertTrue(zip.hasSuffix(" - Stem Master.zip"), zip)
+            XCTAssertLessThanOrEqual(zip.utf8.count, 255)
+        }
+        XCTAssertLessThanOrEqual(FileNaming.sanitize(japanese).utf8.count, 255)
+        XCTAssertEqual(FileNaming.stemWAVName(trackTitle: "My Song", stemName: "Kick"), "My Song - Kick.wav")
+    }
+
     func testPollerBackoff() {
         XCTAssertEqual(JobPoller.delay(afterFailures: 0, interval: 1.5, maxBackoff: 15), 1.5)
         XCTAssertEqual(JobPoller.delay(afterFailures: 1, interval: 1.5, maxBackoff: 15), 3)
@@ -158,6 +187,15 @@ final class MiscLogicTests: XCTestCase {
         XCTAssertEqual(JobPoller.delay(afterFailures: 3, interval: 1.5, maxBackoff: 15), 12)
         XCTAssertEqual(JobPoller.delay(afterFailures: 4, interval: 1.5, maxBackoff: 15), 15)
         XCTAssertEqual(JobPoller.delay(afterFailures: 100, interval: 1.5, maxBackoff: 15), 15)
+    }
+
+    /// Short descriptions under the stem names, so vocal and room stems are unambiguous.
+    func testStemDescriptions() {
+        for id in ["lead_vocals", "backing_vocals", "vocals_dry", "vocal_reverb", "vocal_ambience", "drum_room", "removed_bleed", "removed_noise"] {
+            XCTAssertFalse((StemCatalog.detail(for: id) ?? "").isEmpty, id)
+        }
+        XCTAssertNil(StemCatalog.detail(for: "kick"))
+        XCTAssertNil(StemCatalog.detail(for: "theremin"))
     }
 
     func testWaveformDisplayCurve() {

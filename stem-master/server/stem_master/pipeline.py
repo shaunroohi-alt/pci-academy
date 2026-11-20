@@ -44,8 +44,9 @@ round trip through the source rate, to about -110 dB).
 
 Memory: everything is float32 at 44.1 kHz stereo (127 MB per stem for a
 6-minute song). Arrays are dropped as soon as they are consumed and cleanup
-runs in place; a 6-minute song with every option holds about 20 stem-sized
-arrays at the peak (~2.5 GB) plus model memory.
+runs in place; with every option the peak is about 25 stem-sized arrays,
+8.8 MB per second of audio (measured with the fake engine: peak RSS of a
+180 s vs a 60 s input), so ~3.2 GB for a 6-minute song, plus model memory.
 """
 
 from __future__ import annotations
@@ -68,7 +69,14 @@ from .dsp.analysis import analyze, stem_stats
 from .dsp.cleanup import bleed_mask, cleanup_stems, stem_groups
 from .dsp.denoise import denoise_dsp, measure_artifacts
 from .engines import EngineError, SeparationEngine, get_engine
-from .jobs import PipelineCancelled, PipelineContext, PipelineError, PipelineResult
+from .jobs import (
+    DISK_FULL_ERRNOS,
+    DISK_FULL_MESSAGE,
+    PipelineCancelled,
+    PipelineContext,
+    PipelineError,
+    PipelineResult,
+)
 from .probe import ProbeError, probe_audio
 from .schemas import STAGE_LABELS, Analysis, JobOptions, Stem, stem_preview_url, stem_wav_url
 
@@ -84,6 +92,9 @@ CLIP_TARGET_PEAK = 0.999
 """Peak the common gain aims for when an integer-format stem would clip."""
 
 INTEGER_FORMATS = frozenset({"wav24", "wav16"})
+WAV_BYTES_PER_SAMPLE = {"wav16": 2, "wav24": 3, "wav32f": 4}
+PREVIEW_BYTES_PER_SECOND = 256_000 // 8
+"""AAC preview bit rate (``audio_io.encode_preview_aac``) in bytes per second."""
 
 DURATION_GRACE_S = 0.5
 """Same tolerance as the API: container durations are approximate."""
@@ -208,7 +219,7 @@ def models_for_quality(quality: str) -> List[str]:
         raise ValueError(f"quality must be max, fast or all, got {quality!r}")
     names: List[str] = []
     for q in qualities:
-        for cleanup, strength in ((True, "strong"), (True, "standard"), (False, "standard")):
+        for cleanup, strength in ((True, "light"), (True, "standard"), (True, "strong"), (False, "standard")):
             names += models_for(JobOptions(quality=q, cleanup=cleanup, cleanup_strength=strength, drum_split=True,
                                            vocal_split=True, dereverb=True, denoise=True))
     return list(dict.fromkeys(names))
@@ -645,6 +656,13 @@ class _Run:
         if stems_dir.exists():
             shutil.rmtree(stems_dir)
         stems_dir.mkdir(parents=True)
+        seconds = source.frames / float(source.sample_rate)
+        needed = len(delivered) * (source.frames * source.channels * WAV_BYTES_PER_SAMPLE[fmt]
+                                   + PREVIEW_BYTES_PER_SECOND * seconds) + (1 << 20)
+        free = shutil.disk_usage(stems_dir).free
+        if free < needed:
+            logger.error("Job %s: %.0f MB of stems, %.0f MB free", ctx.job_id, needed / 1e6, free / 1e6)
+            raise PipelineError(DISK_FULL_MESSAGE)
 
         for index, item in enumerate(delivered):
             assert item.audio is not None
@@ -826,6 +844,11 @@ def run_pipeline(ctx: PipelineContext, *, engine: Optional[SeparationEngine] = N
             result = run.run()
         except MemoryError:
             raise PipelineError(MEMORY_MESSAGE) from None
+        except OSError as exc:
+            if exc.errno not in DISK_FULL_ERRNOS:
+                raise
+            logger.error("Job %s: %s", ctx.job_id, exc)
+            raise PipelineError(DISK_FULL_MESSAGE) from None
     except BaseException:
         shutil.rmtree(ctx.stems_dir, ignore_errors=True)
         raise

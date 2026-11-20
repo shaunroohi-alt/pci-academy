@@ -14,6 +14,12 @@ struct RootView: View {
                     SessionDetailView(sessionID: sessionID)
                 }
         }
+        .overlay(alignment: .bottom) {
+            if model.isImporting {
+                ImportingBanner()
+                    .padding(.bottom, 24)
+            }
+        }
         .fileImporter(
             isPresented: $model.isImporterPresented,
             allowedContentTypes: ImportableAudio.contentTypes
@@ -57,5 +63,21 @@ struct RootView: View {
                 break
             }
         }
+    }
+}
+
+/// Shown while an imported file is copied (or downloaded from iCloud Drive first).
+struct ImportingBanner: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+            Text("Importing the track…")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.smInk)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Capsule().fill(Color.smPanel2))
+        .accessibilityElement(children: .combine)
     }
 }

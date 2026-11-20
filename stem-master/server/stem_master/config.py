@@ -20,7 +20,8 @@ DEFAULT_WORKERS = 1
 DEFAULT_ENGINE = "audio-separator"
 DEFAULT_OVERLAP_MAX = 4
 DEFAULT_OVERLAP_FAST = 2
-DEFAULT_MODEL_CACHE_SIZE = 2
+DEFAULT_MODEL_CACHE_SIZE: Optional[int] = None
+"""``None`` = auto: sized from free VRAM / RAM by the engine (:func:`stem_master.device.auto_model_cache_size`)."""
 
 ENGINES = ("audio-separator", "fake")
 
@@ -51,7 +52,7 @@ class Settings:
     engine                    STEM_MASTER_ENGINE               audio-separator
     overlap_max               STEM_MASTER_OVERLAP_MAX          4
     overlap_fast              STEM_MASTER_OVERLAP_FAST         2
-    model_cache_size          STEM_MASTER_MODEL_CACHE          2
+    model_cache_size          STEM_MASTER_MODEL_CACHE          auto (None)
     host                      STEM_MASTER_HOST                 0.0.0.0
     port                      PORT                             7860
     ========================  ===============================  ==================
@@ -67,7 +68,7 @@ class Settings:
     engine: str = DEFAULT_ENGINE
     overlap_max: int = DEFAULT_OVERLAP_MAX
     overlap_fast: int = DEFAULT_OVERLAP_FAST
-    model_cache_size: int = DEFAULT_MODEL_CACHE_SIZE
+    model_cache_size: Optional[int] = DEFAULT_MODEL_CACHE_SIZE
     host: str = "0.0.0.0"
     port: int = DEFAULT_PORT
 
@@ -194,8 +195,9 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> Settings:
         engine=engine,
         overlap_max=_int(env, "STEM_MASTER_OVERLAP_MAX", DEFAULT_OVERLAP_MAX, 1),
         overlap_fast=_int(env, "STEM_MASTER_OVERLAP_FAST", DEFAULT_OVERLAP_FAST, 1),
-        model_cache_size=_int(
-            env, "STEM_MASTER_MODEL_CACHE", DEFAULT_MODEL_CACHE_SIZE, 0
+        model_cache_size=(
+            None if (_get(env, "STEM_MASTER_MODEL_CACHE") or "auto").lower() == "auto"
+            else _int(env, "STEM_MASTER_MODEL_CACHE", 0, 0)
         ),
         host=_get(env, "STEM_MASTER_HOST") or "0.0.0.0",
         port=port,

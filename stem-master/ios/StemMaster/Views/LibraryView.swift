@@ -171,7 +171,7 @@ struct EmptyLibraryView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color.smInk)
                         .multilineTextAlignment(.center)
-                    Text("Vocals, lead and backing, a fully separated drum kit, bass, guitar, keys and synths, with optional Cleanup and AI-artifact Denoise.")
+                    Text("Vocals, lead and backing, a fully separated drum kit, bass, guitar, keys and synths, with optional Cleanup and Denoise.")
                         .font(.subheadline)
                         .foregroundStyle(Color.smInk2)
                         .multilineTextAlignment(.center)
@@ -187,7 +187,7 @@ struct EmptyLibraryView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     FeatureLine(icon: "music.mic", tint: .smAccent, text: "Vocal-first separation keeps vocals clean and raw for editing.")
                     FeatureLine(icon: "metronome.fill", tint: .smTeal, text: "Drum split: kick, snare, toms, hi-hat, ride and crash.")
-                    FeatureLine(icon: "sparkles", tint: .smViolet, text: "Cleanup removes bleed; Denoise removes AI-generation noise and shimmer.")
+                    FeatureLine(icon: "sparkles", tint: .smViolet, text: "Cleanup removes bleed between stems; Denoise removes measurable hiss, rumble and flicker.")
                     FeatureLine(icon: "square.and.arrow.up", tint: .smYellow, text: "Export lossless WAVs or a ZIP. You can also open audio from other apps with “Open in Stem Master”.")
                 }
                 .panel()

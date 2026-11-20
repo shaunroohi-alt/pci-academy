@@ -156,7 +156,7 @@ struct OptionsFormSections: View {
 
         Section {
             OptionToggle(
-                title: "AI artifact denoise",
+                title: "Denoise",
                 detail: OptionText.denoise,
                 systemImage: "waveform.path.badge.minus",
                 isOn: $options.denoise
@@ -169,8 +169,6 @@ struct OptionsFormSections: View {
             }
         } header: {
             Text("Denoise")
-        } footer: {
-            Text("Targets audible noise and flicker only; inaudible watermarks are not touched.")
         }
         .listRowBackground(Color.smPanel)
 

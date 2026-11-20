@@ -7,6 +7,8 @@ struct StemRowView: View {
     let sessionID: UUID
     let player: StemPlayer
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private var color: Color { Color.stem(stem) }
     private var state: MixerChannelState { player.state(for: stem.id) }
     private var audible: Bool { player.isAudible(stem.id) }
@@ -19,41 +21,21 @@ struct StemRowView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(stem.name)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(audible ? Color.smInk : Color.smMuted)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                        Text(levelText)
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(Color.smMuted)
+                if dynamicTypeSize.isAccessibilitySize {
+                    // Large text: the name gets the full width, the buttons go below it.
+                    VStack(alignment: .leading, spacing: 8) {
+                        titleBlock
+                        channelButtons
                     }
-                    Spacer(minLength: 4)
-                    ChannelToggle(
-                        letter: "M",
-                        isOn: state.isMuted,
-                        onColor: Color.smAccent,
-                        label: "Mute \(stem.name)"
-                    ) {
-                        Haptics.selection()
-                        player.toggleMute(stem.id)
+                } else {
+                    HStack(spacing: 8) {
+                        titleBlock
+                        Spacer(minLength: 4)
+                        channelButtons
                     }
-                    ChannelToggle(
-                        letter: "S",
-                        isOn: state.isSoloed,
-                        onColor: Color.smYellow,
-                        label: "Solo \(stem.name)"
-                    ) {
-                        Haptics.selection()
-                        player.toggleSolo(stem.id)
-                    }
-                    StemShareButton(stem: stem, sessionID: sessionID)
                 }
 
-                StemWaveformView(peaks: stem.waveform, color: color, player: player)
+                StemWaveformView(peaks: stem.waveform, color: color, player: player, label: "\(stem.name) waveform")
 
                 HStack(spacing: 10) {
                     Image(systemName: state.volume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill")
@@ -83,6 +65,50 @@ struct StemRowView: View {
             RoundedRectangle(cornerRadius: Theme.rowRadius, style: .continuous)
                 .strokeBorder(state.isSoloed ? Color.smYellow.opacity(0.6) : Color.clear, lineWidth: 1)
         )
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(stem.name)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(audible ? Color.smInk : Color.smMuted)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                .minimumScaleFactor(0.8)
+            if let detail = StemCatalog.detail(for: stem.id) {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(Color.smInk2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+            }
+            Text(levelText)
+                .font(.caption2)
+                .monospacedDigit()
+                .foregroundStyle(Color.smMuted)
+        }
+    }
+
+    private var channelButtons: some View {
+        HStack(spacing: 8) {
+            ChannelToggle(
+                letter: "M",
+                isOn: state.isMuted,
+                onColor: Color.smAccent,
+                label: "Mute \(stem.name)"
+            ) {
+                Haptics.selection()
+                player.toggleMute(stem.id)
+            }
+            ChannelToggle(
+                letter: "S",
+                isOn: state.isSoloed,
+                onColor: Color.smYellow,
+                label: "Solo \(stem.name)"
+            ) {
+                Haptics.selection()
+                player.toggleSolo(stem.id)
+            }
+            StemShareButton(stem: stem, sessionID: sessionID)
+        }
     }
 
     private var volumeBinding: Binding<Double> {
@@ -116,7 +142,7 @@ struct ChannelToggle: View {
             Text(letter)
                 .font(.system(.subheadline, design: .rounded).weight(.heavy))
                 .foregroundStyle(isOn ? Color.smBackground : Color.smInk2)
-                .frame(width: 34, height: 30)
+                .frame(minWidth: 34, minHeight: 30)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(isOn ? onColor : Color.smPanel2)
@@ -141,27 +167,33 @@ struct StemShareButton: View {
         let progress = model.transferProgress(sessionID: sessionID, item: stem.id)
         Button {
             Haptics.tap()
-            Task { await share() }
+            if progress != nil {
+                model.cancelTransfer(sessionID: sessionID, item: stem.id)
+            } else {
+                Task { await share() }
+            }
         } label: {
             ZStack {
                 if let progress {
                     MiniProgressRing(progress: progress)
                         .frame(width: 18, height: 18)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(Color.smInk2)
                 } else {
                     Image(systemName: "square.and.arrow.up")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.smInk2)
                 }
             }
-            .frame(width: 34, height: 30)
+            .frame(minWidth: 34, minHeight: 30)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.smPanel2)
             )
         }
         .buttonStyle(.plain)
-        .disabled(progress != nil)
-        .accessibilityLabel("Export \(stem.name) as lossless WAV")
+        .accessibilityLabel(progress == nil ? "Export \(stem.name) as lossless WAV" : "Cancel the \(stem.name) download")
         .accessibilityValue(progress.map { "Downloading \(NumberFormatting.percent($0))" } ?? "")
     }
 

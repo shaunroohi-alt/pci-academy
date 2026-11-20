@@ -40,6 +40,21 @@ enum StemCatalog {
             .map(\.element)
     }
 
+    /// One-line description under the stem name, for stems whose name alone is ambiguous.
+    static func detail(for id: String) -> String? {
+        switch id {
+        case "lead_vocals": return "The main vocal line"
+        case "backing_vocals": return "Harmonies and doubles behind the lead"
+        case "vocals_dry": return "The vocals with their reverb taken off"
+        case "vocal_reverb": return "The reverb taken off the vocals"
+        case "vocal_ambience": return "Vocal traces found in the instrumental"
+        case "drum_room": return "Room sound and percussion outside the kit parts"
+        case "removed_bleed": return "What Cleanup took out of the other stems"
+        case "removed_noise": return "What Denoise took out of the other stems"
+        default: return nil
+        }
+    }
+
     /// The stem's own colour if it parses, else the catalogue colour, else neutral grey.
     static func colorHex(for stem: Stem) -> String {
         if HexColor.parse(stem.color) != nil { return stem.color }

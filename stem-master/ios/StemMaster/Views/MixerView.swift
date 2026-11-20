@@ -253,31 +253,37 @@ struct MixerView: View {
         return VStack(spacing: 10) {
             Button {
                 Haptics.tap()
-                Task { await exportZIP() }
+                if zipProgress != nil {
+                    model.cancelTransfer(sessionID: session.id, item: "zip")
+                } else {
+                    Task { await exportZIP() }
+                }
             } label: {
                 if let zipProgress {
-                    Label("Downloading ZIP… \(NumberFormatting.percent(zipProgress))", systemImage: "arrow.down.circle")
+                    Label("Cancel ZIP Download (\(NumberFormatting.percent(zipProgress)))", systemImage: "xmark.circle")
                 } else {
                     Label("Export All (ZIP)", systemImage: "archivebox.fill")
                 }
             }
             .buttonStyle(PrimaryButtonStyle())
-            .disabled(zipProgress != nil)
-            .accessibilityHint("Every stem as lossless WAV, plus manifest and readme")
+            .accessibilityHint(zipProgress == nil ? "Every stem as lossless WAV, plus manifest and readme" : "Stops the download")
 
             Button {
                 Haptics.tap()
-                Task { await exportSelection() }
+                if selection != nil {
+                    model.cancelSelectionExport(sessionID: session.id)
+                } else {
+                    Task { await exportSelection() }
+                }
             } label: {
                 if let selection {
-                    Label("Preparing \(min(selection.done + 1, selection.total)) of \(selection.total)…", systemImage: "arrow.down.circle")
+                    Label("Cancel Export (\(min(selection.done + 1, selection.total)) of \(selection.total))", systemImage: "xmark.circle")
                 } else {
                     Label("Export Mixer Selection", systemImage: "square.and.arrow.up.on.square")
                 }
             }
             .buttonStyle(SecondaryButtonStyle())
-            .disabled(selection != nil)
-            .accessibilityHint("Exports the WAVs of the stems you can currently hear")
+            .accessibilityHint(selection == nil ? "Exports the WAVs of the stems you can currently hear" : "Stops the export")
 
             Text("Lossless \(job.options.outputFormat.title). Exports are also kept in the Files app under On My iPhone › Stem Master.")
                 .font(.caption)
