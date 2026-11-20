@@ -193,8 +193,21 @@ def _temporal_median(mag: np.ndarray, width: int, stride: int = 1) -> np.ndarray
     half = width // 2
     pad = half * stride
     padded = np.pad(mag, ((0, 0), (pad, pad), (0, 0)), mode="edge")
+    n_frames = mag.shape[1]
+    if width == 7:
+        # Devillard's 13-exchange median-of-7 network on whole arrays
+        p = [padded[:, k * stride:k * stride + n_frames].copy() for k in range(7)]
+        for i, j in _MEDIAN7_NETWORK:
+            lo = np.minimum(p[i], p[j])
+            np.maximum(p[i], p[j], out=p[j])
+            p[i] = lo
+        return p[3]
     windows = sliding_window_view(padded, 2 * pad + 1, axis=1)[..., ::stride]
     return np.partition(windows, half, axis=-1)[..., half]
+
+
+_MEDIAN7_NETWORK = ((0, 5), (0, 3), (1, 6), (2, 4), (0, 1), (3, 5), (2, 6),
+                    (2, 3), (3, 6), (4, 5), (1, 4), (1, 3), (3, 4))
 
 
 def _onset_protection(mag: np.ndarray, band: slice, first_is_signal_start: bool,

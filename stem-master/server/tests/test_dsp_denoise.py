@@ -184,3 +184,18 @@ def test_48k_input():
     clean, removed = denoise_dsp(noisy.astype(np.float32), sr, "standard")
     assert _db(removed) > _db(noisy) - 30.0                         # the noise went somewhere
     assert abs(_db(clean) - _db(tone)) < 0.5
+
+
+@pytest.mark.parametrize("width,stride", [(7, 1), (7, 4), (5, 2)])
+def test_temporal_median_matches_numpy(width, stride):
+    from numpy.lib.stride_tricks import sliding_window_view
+
+    from stem_master.dsp.denoise import _temporal_median
+
+    rng = np.random.default_rng(width * 10 + stride)
+    a = rng.random((2, 200, 31)).astype(np.float32)
+    a[:, ::5] = np.round(a[:, ::5], 1)          # include ties
+    pad = (width // 2) * stride
+    padded = np.pad(a, ((0, 0), (pad, pad), (0, 0)), mode="edge")
+    ref = np.median(sliding_window_view(padded, 2 * pad + 1, axis=1)[..., ::stride], axis=-1)
+    np.testing.assert_array_equal(_temporal_median(a, width, stride), ref)
