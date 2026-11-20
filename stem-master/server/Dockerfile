@@ -28,9 +28,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 # ffmpeg decodes uploads and encodes the AAC previews; libsndfile backs soundfile.
+# gcc + libc6-dev: diffq (pulled in by audio-separator) ships no wheel for
+# Python 3.11 and compiles a small C extension during pip install.
 # hadolint ignore=DL3008
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libsndfile1 \
+    && apt-get install -y --no-install-recommends ffmpeg libsndfile1 gcc libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Hugging Face Spaces run the container as uid 1000. /data is created here and
