@@ -81,4 +81,13 @@ let package = Package(
 )
 EOF
 (cd "$work" && "$swift_bin" build --build-tests -Xswiftc -warnings-as-errors 2>&1 | tail -n 5)
-(cd "$work" && "$swift_bin" test --skip-build 2>&1 | tail -n 25)
+set +e
+(cd "$work" && "$swift_bin" test --skip-build >"$work/test.log" 2>&1)
+status=$?
+set -e
+grep -E ': error: |^Test Suite .(All tests|Debug).*(passed|failed)|Executed [0-9]+ tests' "$work/test.log" | tail -n 40
+if [[ $status -ne 0 ]]; then
+    echo "== StemMasterTests FAILED (exit $status)" >&2
+    exit "$status"
+fi
+echo "== all checks passed"

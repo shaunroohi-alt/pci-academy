@@ -89,8 +89,8 @@ struct SessionRecord: Codable, Identifiable, Hashable, Sendable {
         self.originalFilename = originalFilename
         self.sourceFileName = sourceFileName
         self.sourceBytes = sourceBytes
-        self.createdAt = createdAt
-        self.updatedAt = createdAt
+        self.createdAt = createdAt.wholeSeconds
+        self.updatedAt = createdAt.wholeSeconds
         self.options = options
         self.jobID = nil
         self.state = .draft
@@ -115,8 +115,6 @@ struct SessionRecord: Codable, Identifiable, Hashable, Sendable {
         if job.status == .failed {
             let message = job.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             errorMessage = message.isEmpty ? "The server could not separate this track." : message
-        } else if job.status == .cancelled {
-            errorMessage = nil
         } else {
             errorMessage = nil
         }
@@ -127,7 +125,15 @@ struct SessionRecord: Codable, Identifiable, Hashable, Sendable {
             stemCount = job.stems.filter { $0.role == .primary }.count
             progress = 1
         }
-        updatedAt = now
+        updatedAt = now.wholeSeconds
+    }
+}
+
+extension Date {
+    /// The date truncated to whole seconds. Library dates are stored at this precision so they
+    /// round-trip exactly through the ISO-8601 index file.
+    var wholeSeconds: Date {
+        Date(timeIntervalSince1970: timeIntervalSince1970.rounded(.down))
     }
 }
 

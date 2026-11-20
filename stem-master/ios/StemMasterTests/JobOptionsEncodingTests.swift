@@ -56,8 +56,8 @@ final class JobOptionsEncodingTests: XCTestCase {
     func testEncodingIsStableAndCompact() throws {
         let data = try StemMasterJSON.makeEncoder().encode(JobOptions())
         let text = String(decoding: data, as: UTF8.self)
-        let expected = #"{"cleanup":true,"cleanup_strength":"standard","dereverb":false,"denoise":false,"#
-            + #""denoise_strength":"standard","drum_split":true,"output_format":"wav24","quality":"max","vocal_split":true}"#
+        let expected = #"{"cleanup":true,"cleanup_strength":"standard","denoise":false,"denoise_strength":"standard","#
+            + #""dereverb":false,"drum_split":true,"output_format":"wav24","quality":"max","vocal_split":true}"#
         XCTAssertEqual(text, expected, "sorted keys, no whitespace")
         XCTAssertFalse(text.contains("\n"), "the options form field is a single-line JSON string")
     }

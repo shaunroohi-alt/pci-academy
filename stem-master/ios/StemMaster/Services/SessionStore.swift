@@ -87,9 +87,8 @@ final class SessionStore {
         do {
             let data = try Data(contentsOf: indexURL)
             let decoded = try StemMasterJSON.makeDecoder().decode([SessionRecord].self, from: data)
-            sessions = decoded
-                .filter { fileManager.fileExists(atPath: folderURL(for: $0.id).path) }
-                .sorted { $0.createdAt > $1.createdAt }
+            // The index is saved newest first; keep that order (dates have 1 s resolution).
+            sessions = decoded.filter { fileManager.fileExists(atPath: folderURL(for: $0.id).path) }
         } catch {
             lastError = "The library index couldn't be read: \(error.localizedDescription)"
             let backup = rootURL.appendingPathComponent("sessions.corrupt-\(Int(Date().timeIntervalSince1970)).json")

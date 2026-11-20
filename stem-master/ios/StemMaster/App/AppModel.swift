@@ -243,7 +243,7 @@ final class AppModel {
             record.queuePosition = nil
             record.errorMessage = nil
             record.stemCount = 0
-            record.updatedAt = Date()
+            record.updatedAt = Date().wholeSeconds
         }
         uploadProgress[sessionID] = 0
 

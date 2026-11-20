@@ -1,0 +1,271 @@
+name: Stem Master iOS
+
+# Generates the Xcode project with XcodeGen, then builds the app and runs the
+# unit tests (including decoding stem-master/contract/job_completed.json) on
+# the newest iPhone simulator. Run by hand with "testflight" ticked to archive,
+# sign and upload a build to App Store Connect / TestFlight.
+on:
+  push:
+    paths:
+      - 'stem-master/ios/**'
+      - 'stem-master/contract/**'
+      - '.github/workflows/stem-master-ios.yml'
+  pull_request:
+    paths:
+      - 'stem-master/ios/**'
+      - 'stem-master/contract/**'
+      - '.github/workflows/stem-master-ios.yml'
+  workflow_dispatch:
+    inputs:
+      testflight:
+        description: After the tests pass, archive and upload the build to TestFlight
+        type: boolean
+        default: false
+      server_url:
+        description: Default server URL baked into the build (empty = the value in project.yml)
+        type: string
+        default: ''
+
+concurrency:
+  group: stem-master-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: stem-master/ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Pick the newest iPhone simulator
+        id: simulator
+        run: |
+          set -euo pipefail
+          xcrun simctl list -j devices available > "$RUNNER_TEMP/simulators.json"
+          cat > "$RUNNER_TEMP/pick_simulator.py" <<'PY'
+          """Print 'udid<TAB>name<TAB>runtime' of the newest available iPhone simulator."""
+          import json
+          import re
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              devices = json.load(handle)["devices"]
+          candidates = []
+          for runtime, entries in devices.items():
+              match = re.search(r"SimRuntime\.iOS-(\d+)-(\d+)(?:-(\d+))?$", runtime)
+              if not match:
+                  continue
+              version = tuple(int(part or 0) for part in match.groups())
+              if version < (17, 0, 0):  # deployment target
+                  continue
+              for device in entries:
+                  name = device.get("name", "")
+                  if not name.startswith("iPhone") or not device.get("isAvailable", True):
+                      continue
+                  model = re.search(r"iPhone (\d+)", name)
+                  generation = int(model.group(1)) if model else 0
+                  # Newest runtime, then newest model, then the plain model over Plus/Pro/Max variants.
+                  candidates.append((version, generation, -len(name), device["udid"], name, runtime))
+          if not candidates:
+              sys.exit("no available iPhone simulator with iOS 17 or later")
+          best = max(candidates)
+          print(f"{best[3]}\t{best[4]}\t{best[5]}")
+          PY
+          if ! picked="$(python3 "$RUNNER_TEMP/pick_simulator.py" "$RUNNER_TEMP/simulators.json")"; then
+            echo "::error::No available iPhone simulator (iOS 17+) on this runner. Installed devices:"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          IFS=$'\t' read -r udid name runtime <<< "$picked"
+          echo "Using $name ($runtime) $udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        env:
+          UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          set -o pipefail
+          formatter=(cat)
+          if command -v xcbeautify >/dev/null 2>&1; then
+            formatter=(xcbeautify --renderer github-actions)
+          fi
+          xcodebuild test \
+            -project StemMaster.xcodeproj \
+            -scheme StemMaster \
+            -destination "id=$UDID" \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee xcodebuild-test.log | "${formatter[@]}"
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stem-master-ios-test-results
+          path: |
+            stem-master/ios/TestResults.xcresult
+            stem-master/ios/xcodebuild-test.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Signs with cloud-managed certificates through an App Store Connect API key.
+  # The key must have the Admin role: lower roles cannot create the
+  # distribution certificate and provisioning profile that
+  # -allowProvisioningUpdates asks Apple for. See stem-master/DEPLOY.md, section D.
+  testflight:
+    needs: build-test
+    if: github.event_name == 'workflow_dispatch' && inputs.testflight
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: stem-master/ios
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+      SERVER_URL: ${{ inputs.server_url }}
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - name: Check signing secrets
+        working-directory: .
+        run: |
+          missing=""
+          [ -n "$APPLE_TEAM_ID" ] || missing="$missing APPLE_TEAM_ID"
+          [ -n "$ASC_KEY_ID" ] || missing="$missing ASC_KEY_ID"
+          [ -n "$ASC_ISSUER_ID" ] || missing="$missing ASC_ISSUER_ID"
+          [ -n "$ASC_PRIVATE_KEY" ] || missing="$missing ASC_PRIVATE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error title=Missing TestFlight secrets::Add these repository secrets:${missing}. See stem-master/DEPLOY.md, section D."
+            exit 1
+          fi
+          if ! printf '%s' "$APPLE_TEAM_ID" | grep -Eq '^[A-Z0-9]{10}$'; then
+            echo "::error title=APPLE_TEAM_ID looks wrong::Expected the 10-character Team ID from developer.apple.com > Account > Membership details."
+            exit 1
+          fi
+          if ! printf '%s' "$ASC_PRIVATE_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
+            echo "::error title=ASC_PRIVATE_KEY looks wrong::Paste the whole contents of the AuthKey_<id>.p8 file, including the BEGIN/END PRIVATE KEY lines."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Write the App Store Connect API key
+        run: |
+          mkdir -p private_keys
+          key_path="$PWD/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          (umask 077 && printf '%s\n' "$ASC_PRIVATE_KEY" > "$key_path")
+          echo "ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Archive (Release, build ${{ github.run_number }})
+        run: |
+          set -o pipefail
+          formatter=(cat)
+          if command -v xcbeautify >/dev/null 2>&1; then
+            formatter=(xcbeautify --renderer github-actions)
+          fi
+          overrides=()
+          if [ -n "$SERVER_URL" ]; then
+            echo "Default server URL: $SERVER_URL"
+            overrides+=("STEM_MASTER_SERVER_URL=$SERVER_URL")
+          fi
+          xcodebuild archive \
+            -project StemMaster.xcodeproj \
+            -scheme StemMaster \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/StemMaster.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            ${overrides[@]+"${overrides[@]}"} \
+            2>&1 | tee xcodebuild-archive.log | "${formatter[@]}"
+
+      - name: Write ExportOptions.plist
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>upload</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+          plutil -lint "$RUNNER_TEMP/ExportOptions.plist"
+
+      # With destination "upload", -exportArchive signs the app for the App
+      # Store and uploads it to App Store Connect. The build shows up in
+      # TestFlight after Apple finishes processing it (usually 5-30 minutes).
+      - name: Export and upload to App Store Connect
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/StemMaster.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee xcodebuild-export.log
+          {
+            echo "### Stem Master uploaded to App Store Connect"
+            echo "- Build number: \`$BUILD_NUMBER\`"
+            if [ -n "$SERVER_URL" ]; then echo "- Default server URL: \`$SERVER_URL\`"; fi
+            echo "- It appears in TestFlight once Apple finishes processing."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stem-master-ios-archive-logs
+          path: stem-master/ios/xcodebuild-*.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove the API key
+        if: always()
+        working-directory: .
+        run: rm -rf stem-master/ios/private_keys
