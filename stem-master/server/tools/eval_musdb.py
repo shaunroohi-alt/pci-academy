@@ -95,6 +95,8 @@ SR = 44100
 TARGETS = ("vocals", "drums", "bass", "other")
 REPORT_TARGETS = ("vocals", "vocal_main", "drums", "bass", "other")
 MUSDB_STREAMS = {"mixture": 0, "drums": 1, "bass": 2, "other": 3, "vocals": 4}
+BSS_REF_FLOOR_DB = -40.0
+"""White-noise floor added to the BSSEval references (see :func:`bsseval`)."""
 
 REVIVE = "bs_roformer_vocals_revive_v2_unwa.ckpt"
 KIM = "mel_band_roformer_kim_ft2_bleedless_unwa.ckpt"
@@ -190,6 +192,7 @@ class CachingEngine(SeparationEngine):
     def _path(self, audio: np.ndarray, model: str, overlap: int) -> Path:
         h = hashlib.sha1()
         h.update(model.encode())
+        h.update(SEGMENT_MODE.encode())
         h.update(str(int(overlap)).encode())
         h.update(str(audio.shape).encode())
         h.update(np.ascontiguousarray(audio, dtype=np.float32).tobytes())
@@ -235,10 +238,40 @@ class CachingEngine(SeparationEngine):
             self.inner.close()
 
 
+SEGMENT_MODE = "model"
+"""``model``: every model runs with its own segment length (see
+:func:`use_model_segments`); ``short``: audio-separator's default for inputs
+under 10 s. Part of every cache key."""
+
+
+def use_model_segments() -> None:
+    """Make audio-separator use each model's own segment length on short clips.
+
+    audio-separator 0.48.0 switches any input shorter than 10 s to a 256-frame
+    segment (2.55-2.96 s windows, ``MDXCSeparator._use_model_segment_override``).
+    Full songs never take that path in production: they run with the model's
+    own ``dim_t`` (8-23 s windows). The 6.8 s MUSDB previews are therefore run
+    with the model segment too, so the context the models see matches
+    production (one window per clip; production adds overlapping windows on
+    longer input). It is also ~3x cheaper on CPU. Only this evaluation script
+    patches the library; the server does not.
+    """
+    from audio_separator.separator.architectures import mdxc_separator  # noqa: PLC0415
+
+    cls = mdxc_separator.MDXCSeparator
+    if not getattr(cls, "_eval_model_segments", False):
+        cls._use_model_segment_override = lambda self, seconds: bool(self.override_model_segment_size)
+        cls._eval_model_segments = True
+
+
 def make_engine(cache: Path, offline: bool = False) -> Tuple[CachingEngine, Any]:
     settings = load_settings()
-    settings = dataclasses.replace(settings, model_cache_size=max(settings.model_cache_size, 4))
-    inner = None if offline else AudioSeparatorEngine(settings)
+    settings = dataclasses.replace(settings, model_cache_size=max(settings.model_cache_size, 8))
+    inner = None
+    if not offline:
+        inner = AudioSeparatorEngine(settings)
+        if SEGMENT_MODE == "model":
+            use_model_segments()
     return CachingEngine(inner, cache), settings
 
 
@@ -261,10 +294,22 @@ def bsseval(refs: Mapping[str, np.ndarray], est: Mapping[str, np.ndarray], cache
     """museval v4 per estimate in ``est`` (keys from TARGETS order). Each
     estimate is decomposed against all four references, so its numbers do not
     depend on the other estimates; missing / silent estimates are filled with
-    a tiny noise placeholder whose scores are discarded."""
+    a tiny noise placeholder whose scores are discarded.
+
+    The references get an independent white-noise floor :data:`BSS_REF_FLOOR_DB`
+    below their own RMS (fixed seed). The MUSDB previews are AAC and have no
+    content above ~16 kHz, which makes BSSEval's 512-lag reference Gram matrix
+    near-singular; the resulting huge distortion filters leak edge transients
+    into every 1 s window, so interference and artifacts cancel and SIR/SAR
+    become meaningless (raw SW drums on Al James: SIR -15.0 dB at 7.9 dB
+    SDR). With the floor the 1 s-window medians agree with a single
+    whole-clip window (drums SIR 15.1 vs 15.1 dB; vocals 18.8 vs 18.7 dB)
+    and SDR is unchanged to 0.1 dB.
+    """
     import museval  # noqa: PLC0415
 
     h = hashlib.sha1()
+    h.update(f"v2 floor {BSS_REF_FLOOR_DB}".encode())
     for t in TARGETS:
         if t in est:
             h.update(t.encode())
@@ -279,13 +324,16 @@ def bsseval(refs: Mapping[str, np.ndarray], est: Mapping[str, np.ndarray], cache
             return json.loads(path.read_text())
     rng = np.random.default_rng(0)
     n = refs[TARGETS[0]].shape[1]
-    R = np.stack([refs[t].T for t in TARGETS])
+    R = np.stack([refs[t].T for t in TARGETS]).astype(np.float64)
+    for i in range(len(TARGETS)):
+        rms = float(np.sqrt(np.mean(R[i] ** 2)))
+        R[i] += rms * 10.0 ** (BSS_REF_FLOOR_DB / 20.0) * rng.standard_normal(R[i].shape)
     E = []
     for t in TARGETS:
         x = est.get(t)
         if x is None or not np.any(x):
             x = 1e-6 * rng.standard_normal((2, n)).astype(np.float32)
-        E.append(x[:, :n].T)
+        E.append(x[:, :n].T.astype(np.float64))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         sdr, isr, sir, sar = museval.evaluate(R, np.stack(E))

@@ -438,51 +438,78 @@ def _describe_removed(x: np.ndarray, clean: np.ndarray, removed: np.ndarray, sr:
     }
 
 
+def _udio_stems(work: Path, item: dict, seconds: float, vocals_only: bool, neural: bool,
+                engine_box: list) -> Tuple[Dict[str, np.ndarray], Optional[np.ndarray]]:
+    """Production-model stems of one Udio clip (fast quality: kim-ft2 vocals,
+    BS-Roformer-SW on ``mix - vocals``, SW residual into ``other``), cached."""
+    from stem_master import pipeline as pl
+
+    overlap = int(os.environ.get("STEM_MASTER_OVERLAP_FAST", "2"))
+    x, sr = _read(work / "udio" / f"{item['name']}.wav")
+    x44 = resample(x, sr, WORK_SR) if sr != WORK_SR else x
+    if seconds:
+        mid = x44.shape[1] // 2
+        n = int(seconds * WORK_SR)
+        x44 = x44[:, max(0, mid - n // 2):max(0, mid - n // 2) + n]
+    key = f"{item['name']}_{seconds or 'full'}"
+    voc = _cached_separate(work, key, x44, pl.MODEL_PLAN["vocals_fast"].models, overlap,
+                           stems=(pl.VOCALS_OUTPUT,), engine_box=engine_box)["vocals"]
+    stems = {"vocals": voc}
+    if not vocals_only:
+        inst = x44 - voc
+        parts = _cached_separate(work, key + "_inst", inst, pl.MODEL_PLAN["instruments"].models, overlap,
+                                 stems=pl.INSTRUMENT_OUTPUTS, engine_box=engine_box)
+        for k in ("bass", "drums", "guitar", "piano"):
+            stems[k] = parts[k]
+        stems["other"] = inst - sum(parts[k] for k in ("bass", "drums", "guitar", "piano"))
+    dn = None
+    if neural:
+        dn = _cached_separate(work, key + "_vocals", voc, pl.MODEL_PLAN["vocal_denoise"].models, overlap,
+                              stems=(pl.DENOISE_OUTPUT,), engine_box=engine_box)[pl.DENOISE_OUTPUT]
+    return stems, dn
+
+
 def cmd_udio(args: argparse.Namespace) -> None:
     """Separate a few Udio clips with the production models (fast quality,
     cached), then measure what DSP denoise removes from each stem."""
-    from stem_master import pipeline as pl
-
     work = Path(args.work)
     clips = _udio(work)[: args.clips]
     engine_box: list = []
-    overlap = int(os.environ.get("STEM_MASTER_OVERLAP_FAST", "2"))
+    for item in clips:   # 1. model outputs (slow on CPU; cached)
+        _udio_stems(work, item, args.seconds, args.vocals_only, args.neural, engine_box)
+        print(f"separated {item['name']}", flush=True)
+    if args.models_only:
+        return
+    from stem_master.dsp.denoise import STRENGTHS, denoise_dsp, measure_artifacts
+
     rows = []
-    for item in clips:
-        x, sr = _read(work / "udio" / f"{item['name']}.wav")
-        x44 = resample(x, sr, WORK_SR) if sr != WORK_SR else x
-        if args.seconds:
-            mid = x44.shape[1] // 2
-            n = int(args.seconds * WORK_SR)
-            x44 = x44[:, max(0, mid - n // 2):max(0, mid - n // 2) + n]
-        key = f"{item['name']}_{args.seconds or 'full'}"
-        voc = _cached_separate(work, key, x44, pl.MODEL_PLAN["vocals_fast"].models, overlap,
-                               stems=(pl.VOCALS_OUTPUT,), engine_box=engine_box)["vocals"]
-        stems = {"vocals": voc}
-        if not args.vocals_only:
-            inst = x44 - voc
-            parts = _cached_separate(work, key + "_inst", inst, pl.MODEL_PLAN["instruments"].models, overlap,
-                                     stems=pl.INSTRUMENT_OUTPUTS, engine_box=engine_box)
-            for k in ("bass", "drums", "guitar", "piano"):
-                stems[k] = parts[k]
-            stems["other"] = inst - sum(parts[k] for k in ("bass", "drums", "guitar", "piano"))
-        if args.neural:
-            dn = _cached_separate(work, key + "_vocals", voc, pl.MODEL_PLAN["vocal_denoise"].models, overlap,
-                                  stems=(pl.DENOISE_OUTPUT,), engine_box=engine_box)[pl.DENOISE_OUTPUT]
+    for item in clips:   # 2. DSP denoise on every stem
+        stems, dn = _udio_stems(work, item, args.seconds, args.vocals_only, args.neural, engine_box)
+        if dn is not None:
+            voc = stems["vocals"]
             rows.append({"clip": item["name"], "stem": "vocals", "stage": "neural",
                          **_describe_removed(voc, dn, voc - dn, WORK_SR)})
         for stem, s in stems.items():
             meas = measure_artifacts(s, WORK_SR)
             for strength in STRENGTHS:
                 clean, removed = denoise_dsp(s, WORK_SR, strength)
+                assert np.max(np.abs(clean + removed - s)) < 1e-5
                 rows.append({"clip": item["name"], "stem": stem, "stage": strength,
-                             "hiss_db": meas.get("hiss_db"), "flicker_db": meas.get("flicker_db"),
+                             **{k: meas[k] for k in ("noise_db", "noise_confidence", "flicker_db", "flicker_amount")
+                                if k in meas},
                              **_describe_removed(s, clean, removed, WORK_SR)})
-        print(f"done {item['name']}", flush=True)
-    for r in rows:
-        print(json.dumps(r))
+    _print_udio(rows)
     if args.dump:
         Path(args.dump).write_text(json.dumps(rows, indent=1))
+
+
+def _print_udio(rows: List[dict]) -> None:
+    print("=== DSP denoise on production-model stems of Udio clips ===")
+    print(f"{'clip':>10} {'stem':>7} {'stage':>8} | {'lost dB':>7} {'removed re stem':>15} | "
+          f"{'flat(removed)':>13} {'flat(stem)':>10} {'corr(removed,clean)':>19}")
+    for r in rows:
+        print(f"{r['clip']:>10} {r['stem']:>7} {r['stage']:>8} | {r['lost_db']:7.3f} {r['removed_rel_db']:15.1f} | "
+              f"{r['flatness_removed']:13.3f} {r['flatness_stem']:10.3f} {r['corr_removed_clean']:19.3f}")
 
 
 def cmd_neural(args: argparse.Namespace) -> None:
@@ -543,6 +570,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ud.add_argument("--seconds", type=float, default=0.0, help="centre crop (0 = whole clip)")
     ud.add_argument("--vocals-only", action="store_true")
     ud.add_argument("--neural", action="store_true", help="also run the neural vocal denoise model")
+    ud.add_argument("--models-only", action="store_true", help="only run (and cache) the separation models")
     ud.add_argument("--dump")
     ud.set_defaults(func=cmd_udio)
     ne = sub.add_parser("neural")
