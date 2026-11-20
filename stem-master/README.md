@@ -26,7 +26,7 @@ The drum kit is separated piece by piece (a dedicated drum model splits the
 drum stem into kick, snare, toms, hi-hat, ride and crash), not handed back as
 one drum line.
 
-Guarantees, all checked by the server tests:
+Guarantees (SPEC section 2):
 
 - **The stems add up to the mix.** Each split keeps its residual (input minus
   the model's outputs) and assigns it to a stem, so the primary stems plus the
@@ -93,8 +93,10 @@ Vocals get the most work, so they come out usable as a standalone line:
    (`bs_roformer_vocals_revive_v2_unwa` and
    `mel_band_roformer_kim_ft2_bleedless_unwa`) run on the mix and are combined
    per frequency bin taking the *smaller* magnitude (`min_fft`), which keeps
-   the least instrument bleed. Without Cleanup, a pair tuned for fullness is
-   averaged instead. Fast quality uses the bleedless model alone.
+   the least instrument bleed. Without Cleanup, a different pair
+   (`bs_roformer_vocals_resurrection_unwa` and `melband_roformer_big_beta6x`)
+   is averaged (`avg_fft`), which keeps more vocal detail at the cost of a
+   little more bleed. Fast quality uses the bleedless model alone.
 2. **Residual accounting.** The instrumental is the mix minus the vocal, so
    nothing is lost between the two. Vocal remnants that the instrument model
    later finds in the instrumental are returned as Vocal Ambience instead of
@@ -106,8 +108,9 @@ Vocals get the most work, so they come out usable as a standalone line:
 6. **Denoise** (optional): neural vocal denoise, then the DSP passes above.
 
 Everything runs at 44.1 kHz in 32-bit float and is resampled back to the
-source rate at the end. Vocals are never normalised, compressed or EQ'd beyond
-the high-pass, so they arrive raw and ready for your own processing.
+source rate at the end. Nothing beyond the Cleanup and Denoise passes you
+choose touches the vocals: no normalisation, compression or EQ, so they arrive
+raw and ready for your own processing.
 
 ## Architecture
 
@@ -179,7 +182,7 @@ JOB=$(curl -sf -F "file=@My Song.mp3" \
 
 while :; do
   STATE=$(curl -sf "$SERVER/v1/jobs/$JOB" | python3 -c \
-    'import json,sys; j=json.load(sys.stdin); print(j["status"], f"{j[\"progress\"]:.0%}", j["stage_label"] or "")')
+    'import json,sys; j=json.load(sys.stdin); print(j["status"], format(j["progress"], ".0%"), j["stage_label"] or "")')
   echo "$STATE"
   case "$STATE" in completed*|failed*|cancelled*) break ;; esac
   sleep 5
@@ -253,14 +256,15 @@ Workflows (in `.github/workflows/`):
 - **It needs a GPU server to be practical.** The pipeline runs on CPU, but
   slowly. On a 4-core CPU, a single model took 13 to 70 seconds to separate a
   7-second clip, and the default Max chain runs six models, so a full song
-  takes on the order of an hour or more. On a GPU, the same work takes
-  minutes. The app warns when the server reports `device: cpu`.
+  takes on the order of an hour or more. A GPU brings that down to minutes
+  (expected from the models' design; not benchmarked in this repository).
+  The app's Settings screen warns when the server reports `device: cpu`.
 - **The server has to be hosted somewhere.** The cheapest GPU tier on Hugging
   Face Spaces (T4) costs about $0.40 an hour while running; a sleep timeout
   stops billing when idle, at the cost of a cold start on the next job. Any
   machine with an NVIDIA GPU and Docker works as well.
 - **First jobs are slow on a fresh server.** Models download on first use:
-  about 3.8 GB for the default options and 7.1 GB for every option. Fetch them
+  about 3.8 GB for the default options and 7.5 GB for every option. Fetch them
   ahead of time (DEPLOY.md section C) and keep them on a persistent volume.
 - **Releasing on the App Store needs an Apple Developer Program membership**
   ($99 a year), an App Store Connect app record and a privacy policy. Without
