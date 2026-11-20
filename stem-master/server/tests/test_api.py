@@ -310,7 +310,7 @@ def test_upload_too_large_streamed(make_client):
         assert _uploads_empty(manager)
 
 
-def test_upload_exactly_streams_options_after_file(make_client, preview_m4a):
+def test_options_part_after_file_part(make_client, preview_m4a):
     """A hand-built body with the options part after the file part."""
     with make_client(FakeRunner(preview_m4a)) as (client, _):
         boundary = "b0undary"
