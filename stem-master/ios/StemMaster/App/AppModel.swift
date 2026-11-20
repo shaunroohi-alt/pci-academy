@@ -257,8 +257,8 @@ final class AppModel {
             defer { hooks.endBackgroundActivity(token) }
             do {
                 let job = try await api.createJob(sourceURL: sourceURL, filename: filename, options: options) { fraction in
-                    Task { @MainActor [weak self] in
-                        self?.setUploadProgress(fraction, for: sessionID)
+                    Task { @MainActor [weak model = self] in
+                        model?.setUploadProgress(fraction, for: sessionID)
                     }
                 }
                 self.uploadFinished(job, sessionID: sessionID)
@@ -441,8 +441,8 @@ final class AppModel {
         let downloader = self.downloader
         let task = Task<Void, Error> {
             try await downloader.downloadAll(missing, maxConcurrent: 4) { _ in
-                Task { @MainActor [weak self] in
-                    self?.previewProgress[sessionID]?.done += 1
+                Task { @MainActor [weak model = self] in
+                    model?.previewProgress[sessionID]?.done += 1
                 }
             }
         }
@@ -529,9 +529,9 @@ final class AppModel {
         let downloader = self.downloader
         let task = Task<URL, Error> {
             try await downloader.download(path, to: destination, expectedBytes: expectedBytes) { fraction in
-                Task { @MainActor [weak self] in
-                    guard let self, self.fileTasks[key] != nil else { return }
-                    self.transferProgress[key] = fraction
+                Task { @MainActor [weak model = self] in
+                    guard let model, model.fileTasks[key] != nil else { return }
+                    model.transferProgress[key] = fraction
                 }
             }
         }
