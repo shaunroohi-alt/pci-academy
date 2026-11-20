@@ -15,22 +15,30 @@ of the audio only and is never a statement about who or what made a track.
 Three sub-scores in 0..1 are computed on a mono copy at the source rate
 (STFT, ``n_fft`` ~23 ms, hop = ``n_fft/4``, Hann):
 
-* ``s_flicker`` — high-band temporal flicker. Per-frame energies are taken
-  in 1 kHz bands. For every band ``L[t]`` (dB) the roughness is the median
-  over frames of ``|L[t] - (L[t-1] + L[t+1]) / 2|`` (a second difference:
-  ~0 for steady or smoothly decaying sound, large when the band jumps up and
-  down from frame to frame; the median ignores sparse genuine transients).
-  ``F = mean roughness of the bands in [7 kHz, f_hi) - mean roughness of the
-  bands in [1, 4) kHz`` (dB), with ``f_hi = min(16 kHz, cutoff - 500 Hz,
-  0.9 * Nyquist)``, using only frames whose high band carries energy
-  (> -90 dB and no more than 50 dB below the mid band). Comparing with the
-  mid band cancels the fluctuation every natural sound has.
-  ``s_flicker = clip((F - 1.0) / 3.0, 0, 1)``.
+* ``s_flicker`` — high-band temporal flicker. Per frame, the energy of the
+  high band ``[7 kHz, f_hi)`` and of the mid band ``[1, 4) kHz`` is taken
+  (``f_hi = min(16 kHz, cutoff - 500 Hz, 0.9 * Nyquist)``). For each band the
+  roughness is the median over frames of ``|L[t] - L[t-4]|`` (dB, frames one
+  window length apart, i.e. non-overlapping): steady sound — including a
+  stationary noise floor — barely moves, a codec "shimmer" jumps by several dB
+  from one ~20 ms frame to the next, and the median ignores sparse genuine
+  transients. Only frames where both bands are within 60 dB of their own
+  maximum count. ``F = roughness_high - roughness_mid`` (dB): comparing with
+  the mid band cancels fluctuation that the music itself has everywhere.
+  ``s_flicker = clip((F - 1.5) / 2.5, 0, 1)``; the 1.5 dB dead zone is above
+  what dense acoustic mixes and their separated stems reach (MUSDB18 clips
+  measure -0.6..1.3 dB).
 * ``s_noise`` — static noise floor. Frame mean-square levels in dB:
-  ``floor = 5th percentile``, ``program = 95th percentile`` (digital silence
-  counts as -120 dB). A floor is only observable if quiet frames exist, so
-  ``s_noise = clip((floor + 75) / 25, 0, 1) * clip((program - floor - 12) / 12, 0, 1)``
-  (a floor at -50 dB under a 24 dB louder programme scores 1).
+  ``floor`` = 5th percentile, ``programme`` = 95th percentile (digital
+  silence counts as -120 dB). A floor only counts if it is audible, clearly
+  below the programme (i.e. quiet frames exist) and noise-like (median
+  spectral flatness, 1 kHz..f_hi, of the quietest 10 % of frames; ~0.56 for
+  white noise, < 0.1 for quiet musical passages)::
+
+      s_noise = clip((floor + 75) / 25, 0, 1)
+              * clip((programme - floor - 12) / 12, 0, 1)
+              * clip((flatness - 0.15) / 0.25, 0, 1)
+
 * ``s_cutoff`` — hard spectral cut-off between 11 and 20 kHz: the long-term
   average spectrum falls by more than 30 dB from ``[f-500, f-100]`` Hz to
   ``[f+100, f+500]`` Hz while the region below carries content.
@@ -412,18 +420,25 @@ def _detect_cutoff(ltas_db: np.ndarray, freqs: np.ndarray, sr: int) -> Optional[
     if not np.any(ok):
         return None
     idx = int(np.argmax(np.where(ok, drop, -np.inf)))
-    return float(round(cand[idx] / 10.0) * 10.0)
+    # refine: steepest descent of the (lightly smoothed) spectrum near the drop
+    centre = cand[idx]
+    near = np.flatnonzero((freqs >= centre - 500.0) & (freqs <= centre + 500.0))
+    if near.size > 2:
+        slope = np.gradient(smooth[near])
+        centre = float(freqs[near[int(np.argmin(slope))]])
+    return float(round(centre / 10.0) * 10.0)
 
 
-def _band_roughness(levels_db: np.ndarray, valid: np.ndarray) -> float:
-    """Median |second difference| of per-frame band levels over valid frames."""
-    if levels_db.shape[0] < 3:
-        return 0.0
-    second = np.abs(levels_db[1:-1] - 0.5 * (levels_db[:-2] + levels_db[2:]))
-    mask = valid[1:-1] & valid[:-2] & valid[2:]
+def _level_roughness(energy: np.ndarray, valid: np.ndarray, lag: int) -> float:
+    """Median ``|L[t] - L[t-lag]|`` (dB) of a band level over valid frame pairs."""
+    if energy.shape[0] <= lag:
+        return float("nan")
+    level = 10.0 * np.log10(np.maximum(energy.astype(np.float64), 1e-14))
+    diff = np.abs(level[lag:] - level[:-lag])
+    mask = valid[lag:] & valid[:-lag]
     if mask.sum() < 20:
         return float("nan")
-    return float(np.median(second[mask]))
+    return float(np.median(diff[mask]))
 
 
 def _spectral_flatness(power: np.ndarray) -> np.ndarray:
@@ -511,23 +526,21 @@ def artifact_features(mono: np.ndarray, sr: int, max_sampled_frames: int = 3000)
                * min(1.0, max(0.0, (program_db - floor_db - 12.0) / 12.0))
                * min(1.0, max(0.0, (flatness - 0.15) / 0.25)))
 
-    # (a) high-band flicker relative to the mid band
+    # (a) high-band flicker relative to the mid band (frames one window apart)
     hi_sel = (band_lo_hz >= 7000.0) & (band_hi_hz <= f_hi + 1e-6)
     mid_sel = (band_lo_hz >= 1000.0) & (band_hi_hz <= 4000.0 + 1e-6)
     s_flicker = 0.0
     if np.any(hi_sel) and np.any(mid_sel):
         hi_energy = bands[:, hi_sel].sum(axis=1)
         mid_energy = bands[:, mid_sel].sum(axis=1)
-        valid = (hi_energy > 1e-9) & (mid_energy > 1e-9) & (hi_energy > mid_energy * 1e-5)
-        levels = 10.0 * np.log10(np.maximum(bands, 1e-14))
-        r_hi = [_band_roughness(levels[:, b], valid) for b in np.flatnonzero(hi_sel)]
-        r_mid = [_band_roughness(levels[:, b], valid) for b in np.flatnonzero(mid_sel)]
-        r_hi = [r for r in r_hi if math.isfinite(r)]
-        r_mid = [r for r in r_mid if math.isfinite(r)]
-        if r_hi and r_mid:
-            flicker = float(np.mean(r_hi) - np.mean(r_mid))
+        valid = ((hi_energy > 1e-9) & (mid_energy > 1e-9)
+                 & (hi_energy > hi_energy.max() * 1e-6) & (mid_energy > mid_energy.max() * 1e-6))
+        r_hi = _level_roughness(hi_energy, valid, grid.overlap)
+        r_mid = _level_roughness(mid_energy, valid, grid.overlap)
+        if math.isfinite(r_hi) and math.isfinite(r_mid):
+            flicker = r_hi - r_mid
             out["flicker_db"] = round(flicker, 3)
-            s_flicker = min(1.0, max(0.0, (flicker - 1.0) / 3.0))
+            s_flicker = min(1.0, max(0.0, (flicker - 1.5) / 2.5))
 
     # (c) hard cut-off
     s_cutoff = 0.0 if cutoff is None else min(1.0, max(0.0, (19500.0 - cutoff) / 5500.0))

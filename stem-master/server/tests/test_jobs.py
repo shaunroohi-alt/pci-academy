@@ -531,3 +531,62 @@ def test_importing_api_does_not_load_pipeline_or_torch():
     )
     result = subprocess.run([sys.executable, "-c", code], cwd=SERVER_DIR, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_concurrent_operations_settle(make_manager, preview_m4a):
+    """Hammer the manager from several threads: every job must end in a final
+    state (or be gone), with no deadlock and no orphaned directories."""
+    import random
+    import threading
+
+    runner = FakeRunner(preview_m4a)
+    manager = make_manager(runner, workers=2)
+    rng = random.Random(1234)
+    ids = [submit(manager, client_id="stress").id for _ in range(24)]
+    deleted = set()
+    lock = threading.Lock()
+
+    def poke(seed: int) -> None:
+        local = random.Random(seed)
+        for _ in range(60):
+            job_id = local.choice(ids)
+            action = local.random()
+            try:
+                if action < 0.15:
+                    manager.cancel(job_id)
+                elif action < 0.25:
+                    manager.delete(job_id)
+                    with lock:
+                        deleted.add(job_id)
+                else:
+                    manager.get(job_id)
+                    manager.list_jobs("stress")
+            except JobNotFound:
+                pass
+
+    threads = [threading.Thread(target=poke, args=(rng.random(),)) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=20)
+        assert not thread.is_alive()
+
+    def settled() -> bool:
+        for job_id in ids:
+            try:
+                if manager.get(job_id).status not in ("completed", "failed", "cancelled"):
+                    return False
+            except JobNotFound:
+                pass
+        return manager.active_count() == 0
+
+    wait_until(settled, timeout=20)
+    remaining = {job.id for job in manager.list_jobs("stress")}
+    assert remaining.isdisjoint(deleted)
+    wait_until(lambda: {p.name for p in manager.settings.jobs_dir.iterdir()} == remaining)
+    for job in manager.list_jobs("stress"):
+        assert job.status != "failed", job.error
+        if job.status == "completed":
+            assert all((manager.settings.jobs_dir / job.id / "stems" / f"{s.id}.wav").is_file() for s in job.stems)
+        else:
+            assert not (manager.settings.jobs_dir / job.id / "stems").exists()
