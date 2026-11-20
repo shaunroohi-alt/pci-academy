@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stem-master-server"
+description = "Stem Master by MP Audio - stem separation server"
+readme = { text = "GPU stem separation API for the Stem Master iOS app.", content-type = "text/plain" }
+requires-python = ">=3.11"
+dynamic = ["version", "dependencies"]
+
+[tool.setuptools.dynamic]
+version = { attr = "stem_master.__version__" }
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+include = ["stem_master*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+filterwarnings = [
+    "ignore::DeprecationWarning:audioread.*",
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

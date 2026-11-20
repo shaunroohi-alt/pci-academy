@@ -7,6 +7,7 @@ Software for PCI Academy and the PCI Engine (Psycho-Creative Intelligence), an o
 | [`web/`](web/README.md) | **The PCI Web App**, built from the *Consolidated Blueprint & Implementation Roadmap* (canon 2026.09.25): Observe, Journal, Ledger, On the Contrary, Library and reader (with *The Art of Being* and the PCI Companion Articles), Academy, Relate, CMS, PWA, plus a Supabase backend and the Edge Function that runs the PCI Engine. GitHub Pages serves this. |
 | [`brain-storm/`](brain-storm/README.md) | **Samplify Brain Storm**, the browser sampling workstation at `/brain-storm/`: pads, neural stems, patterns, arrangement, built-in effects and live performance recording. `web` builds and tests this separate bundle before static export. |
 | [`app/`](app/) | The earlier Vite web app, wrapped as the native iOS app with Capacitor. See [`IOS_SUBMISSION.md`](IOS_SUBMISSION.md). |
+| [`stem-master/`](stem-master/README.md) | **Stem Master by MP Audio**, a native SwiftUI iPhone app for stem splitting, and the GPU separation server (FastAPI, RoFormer models) it sends tracks to: vocals with lead/backing split, a drum kit split into kick, snare, toms, hi-hat, ride and crash, bass, guitar, piano and other, with Cleanup and AI-artifact Denoise. Deployment: [`stem-master/DEPLOY.md`](stem-master/DEPLOY.md). |
 | `project/`, `chats/` | The Claude Design handoff bundle (HTML prototypes and the design conversation) that `app/` was built from. Kept for reference. |
 
 ## Start here
