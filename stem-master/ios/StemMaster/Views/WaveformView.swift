@@ -7,12 +7,6 @@ struct WaveformCanvas: View, Equatable {
     let peaks: [Double]
     let color: Color
 
-    /// Gentle curve so quiet stems remain visible without hiding level differences.
-    static func displayLevel(_ peak: Double) -> Double {
-        guard peak.isFinite, peak > 0 else { return 0 }
-        return min(1, pow(peak, 0.7))
-    }
-
     var body: some View {
         Canvas { context, size in
             guard !peaks.isEmpty, size.width > 0, size.height > 0 else { return }
@@ -22,7 +16,7 @@ struct WaveformCanvas: View, Equatable {
             let radius = barWidth / 2
             var path = Path()
             for (index, peak) in peaks.enumerated() {
-                let height = max(1.5, CGFloat(WaveformCanvas.displayLevel(peak)) * size.height)
+                let height = max(1.5, CGFloat(WaveformCurve.displayLevel(peak)) * size.height)
                 let x = CGFloat(index) * step + (step - barWidth) / 2
                 let rect = CGRect(x: x, y: middle - height / 2, width: barWidth, height: height)
                 path.addRoundedRect(in: rect, cornerSize: CGSize(width: radius, height: radius))
