@@ -1,0 +1,20 @@
+# The image needs only requirements.txt and the stem_master package.
+tests/
+space/
+deploy/
+
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+.venv/
+venv/
+.env
+.env.*
+.git
+.DS_Store
