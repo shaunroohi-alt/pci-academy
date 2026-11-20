@@ -144,6 +144,24 @@ def test_transients_survive_deflicker():
             assert _db(x[:, decay]) - _db(clean[:, decay]) < 1.0
 
 
+def test_block_processing_is_exact():
+    """Block-wise processing (DD state carried, de-flicker context) equals one big block."""
+    x = (_tone(seconds=3.0, channels=2) + np.random.default_rng(3).standard_normal((2, 3 * SR)) * 0.003
+         + _shimmer(3.0, 5)[np.newaxis]).astype(np.float32)
+    ref, _ = denoise_dsp(x, SR, "standard", block_frames=100000)
+    small, _ = denoise_dsp(x, SR, "standard", block_frames=40)
+    assert np.max(np.abs(ref - small)) < 1e-6
+
+
+@pytest.mark.parametrize("sr", [8000, 44100, 96000])
+@pytest.mark.parametrize("n", [1, 100, 1000, 5000])
+def test_very_short_inputs(sr, n):
+    x = (np.random.default_rng(n).standard_normal((2, n)) * 0.1).astype(np.float32)
+    clean, removed = denoise_dsp(x, sr, "strong")
+    assert clean.shape == x.shape
+    np.testing.assert_allclose(clean + removed, x, atol=1e-6)
+
+
 def test_shapes_and_validation():
     x = _tone(seconds=1.0, channels=1)
     clean, removed = denoise_dsp(x[0], SR, "standard")             # 1-D input -> (1, n)

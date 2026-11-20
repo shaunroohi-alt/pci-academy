@@ -146,7 +146,8 @@ def estimate_noise_floor(x: np.ndarray, grid: FrameGrid) -> Optional[np.ndarray]
     return noise.astype(np.float64)
 
 
-def _noise_reduction(x: np.ndarray, grid: FrameGrid, floor: np.ndarray, params: DenoiseParams) -> np.ndarray:
+def _noise_reduction(x: np.ndarray, grid: FrameGrid, floor: np.ndarray, params: DenoiseParams,
+                     block_frames: int = 512) -> np.ndarray:
     """Decision-directed soft Wiener gain against ``floor`` (c, bins); returns a new array."""
     n_ch, _ = x.shape
     # bins without a noise estimate get a negligible one: gamma becomes huge, G -> 1
@@ -157,7 +158,7 @@ def _noise_reduction(x: np.ndarray, grid: FrameGrid, floor: np.ndarray, params: 
     out = np.empty_like(x)
     state = np.zeros((n_ch, grid.n_bins), dtype=np.float64)  # G^2 * gamma of the previous frame
     saved_state = state
-    for blk in grid.blocks(512):
+    for blk in grid.blocks(block_frames):
         spec = np.empty((n_ch, blk.m1 - blk.m0, grid.n_bins), dtype=np.complex64)
         for ch in range(n_ch):
             spec[ch] = grid.analyze(x[ch], blk.m0, blk.m1)
@@ -213,6 +214,8 @@ def _onset_protection(mag: np.ndarray, band: slice, first_is_signal_start: bool,
     n_frames = onset.shape[1]
     for shift in range(-before, after + 1):
         # frame u is protected if an onset happens at u - shift
+        if abs(shift) >= n_frames:
+            continue
         if shift >= 0:
             protected[:, shift:] |= onset[:, :n_frames - shift]
         else:
@@ -220,7 +223,8 @@ def _onset_protection(mag: np.ndarray, band: slice, first_is_signal_start: bool,
     return protected
 
 
-def _deflicker(x: np.ndarray, grid: FrameGrid, sr: int, params: DenoiseParams) -> np.ndarray:
+def _deflicker(x: np.ndarray, grid: FrameGrid, sr: int, params: DenoiseParams,
+               block_frames: int = 1024) -> np.ndarray:
     """Clamp high-band bins to ``k`` x their 7-frame median; returns a new array."""
     n_ch, _ = x.shape
     freqs = grid.bin_frequencies(sr)
@@ -233,7 +237,7 @@ def _deflicker(x: np.ndarray, grid: FrameGrid, sr: int, params: DenoiseParams) -
     after = int(math.ceil(ONSET_PROTECT_AFTER_S * sr / grid.hop))
     context = max((DEFLICKER_FRAMES // 2) * stride, after + 1, ONSET_PROTECT_BEFORE)
     out = np.empty_like(x)
-    for blk in grid.blocks(1024, context=context):
+    for blk in grid.blocks(block_frames, context=context):
         spec = np.empty((n_ch, blk.fb - blk.fa, grid.n_bins), dtype=np.complex64)
         for ch in range(n_ch):
             spec[ch] = grid.analyze(x[ch], blk.fa, blk.fb)
@@ -255,11 +259,14 @@ def _deflicker(x: np.ndarray, grid: FrameGrid, sr: int, params: DenoiseParams) -
 
 
 # ------------------------------------------------------------------ public
-def denoise_dsp(x: np.ndarray, sr: int, strength: str) -> Tuple[np.ndarray, np.ndarray]:
+def denoise_dsp(x: np.ndarray, sr: int, strength: str, *,
+                block_frames: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
     """Remove DC/rumble, a static noise floor and high-band flicker from ``x``.
 
     Returns ``(clean, removed)``, float32 ``(c, n)``, with ``clean + removed == x``.
     Steady tonal material is left within a small fraction of a dB.
+    ``block_frames`` only changes memory/speed (the result is identical); it
+    exists so tests can prove that.
     """
     params = _params(strength)
     arr = _as_2d(x)
@@ -284,12 +291,13 @@ def denoise_dsp(x: np.ndarray, sr: int, strength: str) -> Tuple[np.ndarray, np.n
     floors = [estimate_noise_floor(clean[ch], grid) for ch in range(n_ch)]
     if any(f is not None for f in floors):
         floor = np.stack([f if f is not None else np.zeros(grid.n_bins) for f in floors])
-        clean = _noise_reduction(clean, grid, floor, params)
+        clean = _noise_reduction(clean, grid, floor, params, block_frames=block_frames or 512)
 
     # 3. high-band de-flicker
     if sr / 2.0 > DEFLICKER_HZ + 1000.0 and float(np.max(np.abs(clean))) > 0.0:
         n_fft = scaled_fft_size(DEFLICKER_FFT_44K, sr, minimum=256)
-        clean = _deflicker(clean, FrameGrid(n, n_fft, n_fft // 4), sr, params)
+        clean = _deflicker(clean, FrameGrid(n, n_fft, n_fft // 4), sr, params,
+                           block_frames=block_frames or 1024)
 
     removed = arr - clean
     return clean, removed
