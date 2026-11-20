@@ -14,18 +14,20 @@ Memory
 :func:`bleed_mask` works per channel on time blocks of ``block_frames`` STFT
 frames (default 256 frames = 5.9 s at 44.1 kHz) with 5 frames of context
 (3 for the window overlap + 2 for the 5-frame time smoothing), so its working
-set does not grow with duration: for ``K`` stems it holds ``K`` complex64 STFT
-blocks plus float32 power/gain arrays, about ``K * 263 * 2049 * 20 B`` ≈
-11 MB per stem (≈ 175 MB for 16 stems). Add ``removed_total`` (one stem-sized
-array) and, unless ``inplace=True``, the cleaned outputs themselves (one
-array per stem). For 16 stereo stems of 6 minutes at 44.1 kHz (127 MB each):
+set does not grow with duration: per stem it holds one complex64 STFT block
+(263 x 2049 bins, 4.3 MB) plus float32 power/gain temporaries and the
+synthesised block, ~12 MB per stem — measured with ``tracemalloc`` at
+197 MB for 16 stereo stems (identical at 12 s and 24 s of audio). On top of
+that come ``removed_total`` (one stem-sized array) and, unless
+``inplace=True``, the cleaned outputs themselves (one new array per stem).
+For 16 stereo stems of 6 minutes at 44.1 kHz (127 MB each):
 
-* ``inplace=True``  — ≈ 127 MB (removed_total) + ≈ 0.2 GB working set ≈ 0.35 GB
-* ``inplace=False`` — the above + 16 × 127 MB = 2.03 GB of new output arrays
+* ``inplace=True``  — 127 MB (removed_total) + 0.2 GB working set ≈ 0.33 GB
+* ``inplace=False`` — the above + 16 x 127 MB = 2.03 GB of new output arrays
 
 so the pipeline should pass ``inplace=True`` (it never needs the pre-cleanup
 stems again) to stay well under 2 GB of extra RAM. The gate and the range
-filter add at most one stem-sized temporary per channel.
+filter add at most a few stem-sized (per channel) temporaries.
 :mod:`tests.test_dsp_cleanup` measures the working set with ``tracemalloc``
 and checks that it does not grow with duration.
 """

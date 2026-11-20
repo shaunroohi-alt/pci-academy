@@ -47,6 +47,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 from scipy.ndimage import median_filter, uniform_filter1d
 
 from ._filters import butter_highpass, zero_phase_sos
@@ -133,6 +134,14 @@ def estimate_noise_floor(x: np.ndarray, grid: FrameGrid) -> Optional[np.ndarray]
     noise = median_filter(noise, size=9, mode="nearest")
     noise = uniform_filter1d(noise, size=5, mode="nearest")
     return noise.astype(np.float64)
+
+
+def _temporal_median(mag: np.ndarray, width: int) -> np.ndarray:
+    """Running median over ``width`` frames along axis 1 (edges replicated)."""
+    half = width // 2
+    padded = np.pad(mag, ((0, 0), (half, half), (0, 0)), mode="edge")
+    windows = sliding_window_view(padded, width, axis=1)
+    return np.partition(windows, half, axis=-1)[..., half]
 
 
 def _onset_protection(mag: np.ndarray, band: slice, floor: np.ndarray, first_is_signal_start: bool) -> np.ndarray:
@@ -222,7 +231,7 @@ def _spectral_stage(hp: np.ndarray, grid: FrameGrid, floor: np.ndarray, sr: int,
         if hf.size:
             protected = _onset_protection(mag, onset_band, floor, first_is_signal_start=(blk.fa == 0))
             hf_mag = mag[:, :, hf]
-            med = median_filter(hf_mag, size=(1, DEFLICKER_FRAMES, 1), mode="nearest")
+            med = _temporal_median(hf_mag, DEFLICKER_FRAMES)
             limit = k_lin * med
             with np.errstate(divide="ignore", invalid="ignore"):
                 clamp = np.where(hf_mag > limit, limit / np.maximum(hf_mag, 1e-30), 1.0)
