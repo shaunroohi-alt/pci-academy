@@ -1,0 +1,83 @@
+name: Stem Master Space deploy
+
+# Deploys stem-master/server to a Hugging Face Docker Space and requests its
+# hardware. Manual only. Needs the repository secret HF_TOKEN (a Hugging Face
+# token with write access to the Space's owner). Optional secret
+# STEM_MASTER_API_KEY becomes the Space secret that the app must send.
+# Step-by-step guide: stem-master/DEPLOY.md, section A.
+on:
+  workflow_dispatch:
+    inputs:
+      space_id:
+        description: Hugging Face Space, owner/name
+        type: string
+        required: true
+        default: MpInDaHouse/stem-master
+      hardware:
+        description: Hardware (every tier except cpu-basic is billed and needs a payment method on the HF account)
+        type: choice
+        default: t4-small
+        options:
+          - cpu-basic
+          - cpu-upgrade
+          - t4-small
+          - t4-medium
+          - l4x1
+          - a10g-small
+          - a10g-large
+      private:
+        description: Create the Space as private (the iOS app cannot reach private Spaces; use STEM_MASTER_API_KEY instead)
+        type: boolean
+        default: false
+      sleep_time_seconds:
+        description: Idle seconds before a paid Space sleeps and stops billing (-1 = never)
+        type: string
+        default: '3600'
+
+concurrency:
+  group: stem-master-space-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check secrets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error title=HF_TOKEN is not set::Add a repository secret named HF_TOKEN holding a Hugging Face token with write access (https://huggingface.co/settings/tokens). See stem-master/DEPLOY.md, section A."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install huggingface_hub
+        run: python -m pip install 'huggingface_hub>=0.24,<2'
+
+      # Uploads the code, sets the secret, requests the hardware, then waits for
+      # the Space to build and answer /v1/health (the first build takes a while:
+      # the image includes CUDA-enabled PyTorch).
+      - name: Deploy to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          STEM_MASTER_API_KEY: ${{ secrets.STEM_MASTER_API_KEY }}
+          SPACE_ID: ${{ inputs.space_id }}
+          HARDWARE: ${{ inputs.hardware }}
+          PRIVATE: ${{ inputs.private }}
+          SLEEP_TIME: ${{ inputs.sleep_time_seconds }}
+        run: |
+          args=(--space-id "$SPACE_ID" --hardware "$HARDWARE" --sleep-time "$SLEEP_TIME" --wait 2700)
+          if [ "$PRIVATE" = true ]; then
+            args+=(--private)
+          fi
+          python stem-master/server/deploy/hf_space.py "${args[@]}"
