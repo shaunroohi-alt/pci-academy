@@ -873,9 +873,22 @@ class JobManager:
         analysis: Optional[Analysis] = None,
         gain_offset_db: float = 0.0,
     ) -> None:
-        """Record the end of a run. ``outcome``: completed | failed | cancelled."""
-        remove_dir = clean_outputs = False
-        input_name = "input"
+        """Record the end of a run. ``outcome``: completed | failed | cancelled.
+
+        Outputs of a failed/cancelled run are removed *before* the final status
+        is published, so a client that sees ``cancelled`` never finds stale files.
+        """
+        with self._lock:
+            active = self._active.get(job_id)
+            rec = self._jobs.get(job_id)
+            input_name = rec.input_name if rec is not None else None
+        cancel_requested = active is not None and active.cancel.is_set()
+        cleaned = False
+        if input_name is not None and (outcome != "completed" or cancel_requested):
+            self._remove_outputs(job_id, input_name)
+            cleaned = True
+
+        remove_dir = False
         with self._cond:
             active = self._active.pop(job_id, None)
             user_cancelled = active is not None and active.cancel.is_set()
@@ -886,18 +899,14 @@ class JobManager:
                 rec = self._jobs.get(job_id)
                 if rec is None or rec.status != "processing":
                     return
-                input_name = rec.input_name
-                now = utc_now()
                 if user_cancelled or (outcome == "cancelled" and not self._stop.is_set()):
                     rec.status = "cancelled"
                     rec.stage_label = CANCELLED_LABEL
-                    clean_outputs = True
                     logger.info("Job %s cancelled", job_id)
                 elif outcome != "completed":
                     rec.status = "failed"
                     rec.error = RESTART_ERROR if outcome == "cancelled" else (error or "Processing failed")
                     rec.stage_label = FAILED_LABEL
-                    clean_outputs = True
                 else:
                     rec.status = "completed"
                     rec.progress = 1.0
@@ -909,15 +918,15 @@ class JobManager:
                         rec.analysis = analysis
                     rec.zip_url = zip_url_for(job_id)
                     rec.gain_offset_db = gain_offset_db
-                rec.updated_at = now
-                if clean_outputs:
+                if rec.status != "completed":
                     rec.stems = []
                     rec.zip_url = None
+                    if not cleaned:  # cancel arrived after the first check (rare)
+                        self._remove_outputs(job_id, rec.input_name)
+                rec.updated_at = utc_now()
                 self._write(rec, durable=True)
         if remove_dir:
             self._remove_job_dir(job_id)
-        elif clean_outputs:
-            self._remove_outputs(job_id, input_name)
 
     # --------------------------------------------------------------- sweeper
     def _sweeper_loop(self, generation: int) -> None:
