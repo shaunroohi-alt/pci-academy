@@ -74,6 +74,7 @@ HPF_HZ = 20.0
 HPF_ORDER = 4
 DEFLICKER_HZ = 7000.0
 DEFLICKER_FRAMES = 7
+DEFLICKER_SMOOTH_BINS = 9
 ONSET_BAND_HZ = (300.0, 7000.0)
 ONSET_FLUX_DB = 3.0
 ONSET_PROTECT_BEFORE = 1
@@ -146,8 +147,11 @@ def _temporal_median(mag: np.ndarray, width: int) -> np.ndarray:
 
 def _onset_protection(mag: np.ndarray, band: slice, floor: np.ndarray, first_is_signal_start: bool) -> np.ndarray:
     """Protected-frame mask (c, F) from broadband positive spectral flux."""
-    ref = np.maximum(floor[:, None, band], 1e-9)
-    level = 20.0 * np.log10(np.maximum(mag[:, :, band], ref))
+    # ignore bins at the noise floor or more than 60 dB below the frame's strongest bin
+    band_mag = mag[:, :, band]
+    frame_peak = band_mag.max(axis=2, keepdims=True)
+    ref = np.maximum(np.maximum(floor[:, None, band], frame_peak * 1e-3), 1e-9)
+    level = 20.0 * np.log10(np.maximum(band_mag, ref))
     flux = np.zeros(mag.shape[:2], dtype=np.float64)
     if mag.shape[1] > 1:
         flux[:, 1:] = np.maximum(np.diff(level, axis=1), 0.0).mean(axis=2)
@@ -230,7 +234,12 @@ def _spectral_stage(hp: np.ndarray, grid: FrameGrid, floor: np.ndarray, sr: int,
         gain = np.ones((n_ch, hi - lo, grid.n_bins), dtype=np.float32)
         if hf.size:
             protected = _onset_protection(mag, onset_band, floor, first_is_signal_start=(blk.fa == 0))
+            # level of each bin's neighbourhood (power-averaged across frequency), so the
+            # clamp follows the band envelope rather than per-bin noise texture
             hf_mag = mag[:, :, hf]
+            if DEFLICKER_SMOOTH_BINS > 1:
+                hf_mag = np.sqrt(uniform_filter1d(hf_mag * hf_mag, size=DEFLICKER_SMOOTH_BINS,
+                                                  axis=2, mode="nearest"))
             med = _temporal_median(hf_mag, DEFLICKER_FRAMES)
             limit = k_lin * med
             with np.errstate(divide="ignore", invalid="ignore"):
