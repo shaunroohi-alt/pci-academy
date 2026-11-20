@@ -50,6 +50,7 @@ from stem_master.pipeline import (
     models_for_quality,
     run_pipeline,
     stage_plan,
+    uses_debleed,
 )
 from stem_master.schemas import STAGE_IDS, WAVEFORM_POINTS, JobOptions
 
@@ -267,49 +268,83 @@ def check_invariants(run: Run, result: PipelineResult, *, sr: int, channels: int
 # ---------------------------------------------------------------------------
 
 
+REVIVE = "bs_roformer_vocals_revive_v2_unwa.ckpt"
+KIM = "mel_band_roformer_kim_ft2_bleedless_unwa.ckpt"
+SW = "BS-Roformer-SW.ckpt"
+SUPPRESSOR = "mel_band_roformer_bleed_suppressor_v1.ckpt"
+UNUSED = {"bs_roformer_vocals_resurrection_unwa.ckpt", "melband_roformer_big_beta6x.ckpt", SUPPRESSOR}
+"""Models the engine knows but no default plan runs: resurrection and big
+beta6x lost to revive/kim/SW on MUSDB18 (resurrection 8.99 dB vocal SDR vs
+12.6-12.8 for the others), the bleed suppressor changed nothing measurable
+(SPEC 2, pipeline.DEBLEED_STRENGTHS)."""
+
+
 def test_model_plan_uses_exact_spec_filenames():
-    assert MODEL_PLAN["vocals_max_cleanup"].models == (
-        "bs_roformer_vocals_revive_v2_unwa.ckpt", "mel_band_roformer_kim_ft2_bleedless_unwa.ckpt")
-    assert MODEL_PLAN["vocals_max_cleanup"].ensemble_algorithm == "min_fft"
-    assert MODEL_PLAN["vocals_max"].models == (
-        "bs_roformer_vocals_resurrection_unwa.ckpt", "melband_roformer_big_beta6x.ckpt")
-    assert MODEL_PLAN["vocals_max"].ensemble_algorithm == "avg_fft"
-    assert MODEL_PLAN["vocals_fast"].models == ("mel_band_roformer_kim_ft2_bleedless_unwa.ckpt",)
-    assert MODEL_PLAN["debleed"].models == ("mel_band_roformer_bleed_suppressor_v1.ckpt",)
-    assert MODEL_PLAN["instruments"].models == ("BS-Roformer-SW.ckpt",)
+    for key in ("vocals_max_cleanup", "vocals_max"):
+        assert MODEL_PLAN[key].models == (REVIVE, KIM, SW)
+        assert MODEL_PLAN[key].ensemble_algorithm == "avg_fft"
+    assert MODEL_PLAN["vocals_fast"].models == (KIM,)
+    assert MODEL_PLAN["debleed"].models == (SUPPRESSOR,)
+    assert MODEL_PLAN["instruments"].models == (SW,)
     assert MODEL_PLAN["drums"].models == ("MDX23C-DrumSep-aufr33-jarredou.ckpt",)
     assert MODEL_PLAN["vocal_split"].models == ("bs_roformer_karaoke_frazer_becruily.ckpt",)
     assert MODEL_PLAN["dereverb"].models == ("dereverb_mel_band_roformer_anvuew_sdr_19.1729.ckpt",)
     assert MODEL_PLAN["vocal_denoise"].models == ("denoise_mel_band_roformer_aufr33_sdr_27.9959.ckpt",)
     every = {m for step in MODEL_PLAN.values() for m in step.models}
-    assert every == set(MODEL_STEMS), "every planned model has a known output table"
+    assert every <= set(MODEL_STEMS), "every planned model has a known output table"
+    assert set(MODEL_STEMS) - every == UNUSED - {SUPPRESSOR}
+
+
+def test_vocal_step_per_quality_and_cleanup():
+    from stem_master.pipeline import vocal_step
+
+    for strength in ("light", "standard", "strong"):
+        assert vocal_step(JobOptions(cleanup_strength=strength)) is MODEL_PLAN["vocals_max_cleanup"]
+        assert vocal_step(JobOptions(quality="fast", cleanup_strength=strength)) is MODEL_PLAN["vocals_fast"]
+    assert vocal_step(JobOptions(cleanup=False)) is MODEL_PLAN["vocals_max"]
+    assert vocal_step(JobOptions(quality="fast", cleanup=False)) is MODEL_PLAN["vocals_fast"]
+
+
+def test_debleed_is_off_for_every_strength_but_can_be_enabled(monkeypatch):
+    import stem_master.pipeline as pipeline_module
+
+    for strength in ("light", "standard", "strong"):
+        opts = JobOptions(cleanup_strength=strength)
+        assert not uses_debleed(opts)
+        assert "debleed" not in [stage for stage, _ in stage_plan(opts)]
+        assert SUPPRESSOR not in models_for(opts)
+    monkeypatch.setattr(pipeline_module, "DEBLEED_STRENGTHS", frozenset({"strong"}))
+    strong = JobOptions(cleanup_strength="strong")
+    assert uses_debleed(strong) and not uses_debleed(JobOptions())
+    assert not uses_debleed(JobOptions(cleanup=False, cleanup_strength="strong"))
+    assert "debleed" in [stage for stage, _ in stage_plan(strong)]
+    assert models_for(strong)[3] == SUPPRESSOR
 
 
 def test_models_for_options_and_quality():
-    assert models_for(JobOptions(quality="fast", cleanup=False, drum_split=False, vocal_split=False)) == [
-        "mel_band_roformer_kim_ft2_bleedless_unwa.ckpt", "BS-Roformer-SW.ckpt"]
+    assert models_for(JobOptions(quality="fast", cleanup=False, drum_split=False, vocal_split=False)) == [KIM, SW]
     assert models_for(JobOptions()) == [
-        "bs_roformer_vocals_revive_v2_unwa.ckpt", "mel_band_roformer_kim_ft2_bleedless_unwa.ckpt",
-        "mel_band_roformer_bleed_suppressor_v1.ckpt", "BS-Roformer-SW.ckpt",
-        "MDX23C-DrumSep-aufr33-jarredou.ckpt", "bs_roformer_karaoke_frazer_becruily.ckpt"]
+        REVIVE, KIM, SW, "MDX23C-DrumSep-aufr33-jarredou.ckpt", "bs_roformer_karaoke_frazer_becruily.ckpt"]
     full = models_for(JobOptions(dereverb=True, denoise=True, cleanup=False))
-    assert full[:2] == ["bs_roformer_vocals_resurrection_unwa.ckpt", "melband_roformer_big_beta6x.ckpt"]
-    assert "mel_band_roformer_bleed_suppressor_v1.ckpt" not in full
-    assert set(models_for_quality("max")) == set(MODEL_STEMS)
+    assert full[:3] == [REVIVE, KIM, SW]
+    assert SUPPRESSOR not in full
+    assert set(models_for_quality("max")) == set(MODEL_STEMS) - UNUSED
     fast = models_for_quality("fast")
-    assert "bs_roformer_vocals_revive_v2_unwa.ckpt" not in fast and len(fast) == 7
-    assert set(models_for_quality("all")) == set(MODEL_STEMS)
+    assert REVIVE not in fast and len(fast) == 6
+    assert set(models_for_quality("all")) == set(MODEL_STEMS) - UNUSED
     with pytest.raises(ValueError):
         models_for_quality("ultra")
 
 
 def test_stage_plan_matches_spec_order():
     order = list(STAGE_IDS)
-    for opts in (JobOptions(), JobOptions(dereverb=True, denoise=True), JobOptions(cleanup=False, quality="fast")):
+    for opts in (JobOptions(), JobOptions(dereverb=True, denoise=True), JobOptions(cleanup=False, quality="fast"),
+                 JobOptions(cleanup_strength="strong"), JobOptions(cleanup_strength="light", quality="fast")):
         plan = [stage for stage, _ in stage_plan(opts)]
         assert plan == sorted(plan, key=order.index)
         assert plan[0] == "analyze" and plan[-1] == "finalize"
-        assert ("debleed" in plan) == opts.cleanup == ("cleanup" in plan)
+        assert ("cleanup" in plan) == opts.cleanup
+        assert ("debleed" in plan) == uses_debleed(opts) is False   # DEBLEED_STRENGTHS is empty
         assert ("denoise" in plan) == opts.denoise
 
 
@@ -332,10 +367,11 @@ def test_stem_set_roles_and_invariants(make_run, combo):
     run = make_run(**COMBOS[combo])
     result = execute(run)
     opts = run.ctx.options
-    # With this mix the residual stems sit ~30 dB above the fold threshold;
-    # cleanup empties vocal_ambience (it lives under the vocals), so it is folded.
+    # With this mix the residual stems sit ~30 dB above the fold threshold.
+    # vocal_ambience lives under the vocals, but cleanup judges ownership per
+    # catalogue group and it belongs to the vocals group, so it survives.
     roles = {s.id: s.role for s in result.stems}
-    assert roles == expected_roles(opts, ambience=not opts.cleanup)
+    assert roles == expected_roles(opts, ambience=True)
     check_invariants(run, result, sr=SR, channels=2, frames=int(round(2.5 * SR)))
     assert result.gain_offset_db == 0.0
     names = {s.id: s.name for s in result.stems}
@@ -351,9 +387,9 @@ def test_engine_calls_follow_the_plan(make_run, fake_settings):
     run = make_run(**COMBOS["all_on"])
     execute(run)
     calls = run.engine.calls
-    assert calls[0][:3] == (MODEL_PLAN["vocals_max_cleanup"].models, "min_fft", fake_settings.overlap_max)
+    assert calls[0][:3] == (MODEL_PLAN["vocals_max_cleanup"].models, "avg_fft", fake_settings.overlap_max)
     assert [c[0][0] for c in calls[1:]] == [
-        "mel_band_roformer_bleed_suppressor_v1.ckpt", "BS-Roformer-SW.ckpt", "MDX23C-DrumSep-aufr33-jarredou.ckpt",
+        "BS-Roformer-SW.ckpt", "MDX23C-DrumSep-aufr33-jarredou.ckpt",
         "bs_roformer_karaoke_frazer_becruily.ckpt",
         "dereverb_mel_band_roformer_anvuew_sdr_19.1729.ckpt", "dereverb_mel_band_roformer_anvuew_sdr_19.1729.ckpt",
         "denoise_mel_band_roformer_aufr33_sdr_27.9959.ckpt", "denoise_mel_band_roformer_aufr33_sdr_27.9959.ckpt",
@@ -370,13 +406,38 @@ def test_engine_calls_follow_the_plan(make_run, fake_settings):
     assert run.engine.calls[1][2] == fake_settings.overlap_fast
 
 
+def test_cleanup_masks_per_catalogue_group(make_run, monkeypatch):
+    """The cleanup stage hands the bleed mask the catalogue group of every
+    primary stem, so sibling stems (drum parts, lead/backing, the residual
+    stems) are judged by their group's share of a bin, not against each other."""
+    import stem_master.pipeline as pipeline_module
+
+    seen = {}
+    original = pipeline_module.bleed_mask
+
+    def spy(stems, sr, strength, **kwargs):
+        seen["groups"] = dict(kwargs.get("groups") or {})
+        seen["strength"] = strength
+        return original(stems, sr, strength, **kwargs)
+
+    monkeypatch.setattr(pipeline_module, "bleed_mask", spy)
+    run = make_run(**COMBOS["all_on"])
+    result = execute(run)
+    primary = {s.id for s in result.stems if s.role == "primary"}
+    assert seen["strength"] == "standard"
+    assert primary <= set(seen["groups"])            # every delivered primary went through the mask
+    assert all(seen["groups"][sid] == spec_for(sid).group for sid in seen["groups"])
+    assert {seen["groups"][p] for p in ("kick", "snare", "drum_room")} == {"drums"}
+    assert seen["groups"]["lead_vocals"] == seen["groups"]["vocal_ambience"] == "vocals"
+
+
 def test_48k_mono_source_keeps_rate_length_and_channels(make_run):
     sr = 48000
     source = rich_mix(seconds=2.5, sr=sr, channels=1)
     run = make_run(source, sr=sr, **COMBOS["all_on"])
     result = execute(run)
     assert result.analysis.sample_rate == sr and result.analysis.channels == 1
-    assert {s.id for s in result.stems} == set(expected_roles(run.ctx.options, ambience=False))
+    assert {s.id for s in result.stems} == set(expected_roles(run.ctx.options, ambience=True))
     check_invariants(run, result, sr=sr, channels=1, frames=source.shape[1])
     assert abs(run.engine.calls[0][3] - source.shape[1] * SR / sr) <= 1, "models run on the 44.1 kHz copy"
 
@@ -499,7 +560,7 @@ def test_progress_is_monotonic_and_follows_stage_plan(make_run):
             stages.append(stage)
     assert stages == [s for s, _ in stage_plan(run.ctx.options)]
     labels = {p[1] for p in run.progress}
-    assert "Separating vocals (model 2 of 2)" in labels
+    assert "Separating vocals (model 3 of 3)" in labels      # revive + kim + SW ensemble
     assert all(label.strip() for label in labels)
 
 
@@ -525,9 +586,9 @@ def test_cancel_between_stages(make_run, stage):
 
 
 def test_cancel_inside_an_inference(make_run):
-    # The ensemble reports "model 2 of 2" mid-call; the next engine progress
+    # The ensemble reports "model 2 of 3" mid-call; the next engine progress
     # callback raises, so the cancellation comes out of engine.separate itself.
-    run = make_run(cancel_when=lambda s, label, v: "model 2 of 2" in label, **COMBOS["all_on"])
+    run = make_run(cancel_when=lambda s, label, v: "model 2 of 3" in label, **COMBOS["all_on"])
     with pytest.raises(PipelineCancelled):
         execute(run)
     assert len(run.engine.calls) == 1
@@ -636,10 +697,12 @@ def test_fake_engine_names_energy_and_determinism(model):
 def test_fake_engine_ensemble_subset_and_progress():
     x = rich_mix(seconds=0.5)
     seen: List[float] = []
+    # the max plan ensembles two vocal models with BS-Roformer-SW: "vocals" is
+    # the one stem all three share
     out = FakeEngine().separate(x, list(MODEL_PLAN["vocals_max"].models), "avg_fft", 4, seen.append,
                                 stems=("vocals",))
     assert list(out) == ["vocals"]
-    assert seen == [0.0, 0.5, 0.5, 1.0]
+    assert seen == pytest.approx([0.0, 1 / 3, 1 / 3, 2 / 3, 2 / 3, 1.0])
     with pytest.raises(EngineError):
         FakeEngine().separate(x, "unknown_model.ckpt")
     with pytest.raises(ValueError):
@@ -796,7 +859,7 @@ def test_audio_separator_engine_ensembles_with_the_library_ensembler(stub_engine
 
     engine = stub_engine()
     x = rich_mix(seconds=0.5)
-    models = list(MODEL_PLAN["vocals_max"].models)
+    models = ["bs_roformer_vocals_resurrection_unwa.ckpt", "melband_roformer_big_beta6x.ckpt"]
     progress: List[float] = []
     out = engine.separate(x, models, "avg_wave", progress=progress.append)
     assert list(out) == ["other", "vocals"]

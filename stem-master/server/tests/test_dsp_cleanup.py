@@ -8,12 +8,15 @@ import numpy as np
 import pytest
 
 from stem_master.dsp.cleanup import (
+    CLEANUP_PARAMS,
+    GROUP_TAU_SCALE,
     RANGE_FILTER_HZ,
     activity_gate,
     bleed_mask,
     cleanup_stems,
     gate_gain_curve,
     range_filter,
+    stem_groups,
 )
 
 SR = 44100
@@ -114,6 +117,94 @@ def test_bleed_mask_validates_input():
         bleed_mask({"a": a.astype(np.float64)}, SR, "standard", inplace=True)
 
 
+def test_cleanup_params_match_spec():
+    """SPEC 2.1 table (tuned on MUSDB18 with tools/eval_musdb.py)."""
+    p = CLEANUP_PARAMS
+    assert (p["light"].tau, p["light"].beta, p["light"].gmin_db) == (0.05, 1.0, -12.0)
+    assert (p["standard"].tau, p["standard"].beta, p["standard"].gmin_db) == (0.10, 1.5, -20.0)
+    assert (p["strong"].tau, p["strong"].beta, p["strong"].gmin_db) == (0.20, 2.0, -30.0)
+    assert p["light"].tau_within == p["standard"].tau_within == 0.0
+    assert (p["strong"].tau_within, p["strong"].beta_within, p["strong"].gmin_within_db) == (0.05, 1.0, -12.0)
+    assert GROUP_TAU_SCALE == {"vocals": 1.5, "drums": 0.6, "bass": 0.5}
+
+
+def test_stem_groups_follow_the_catalogue():
+    ids = ["lead_vocals", "vocal_ambience", "kick", "drum_room", "bass", "guitar", "other", "mystery"]
+    assert stem_groups(ids) == {
+        "lead_vocals": "vocals", "vocal_ambience": "vocals", "kick": "drums", "drum_room": "drums",
+        "bass": "bass", "guitar": "instruments", "other": "instruments", "mystery": "mystery",
+    }
+
+
+def test_bleed_mask_leaves_stems_of_one_group_alone_below_strong():
+    """A residual drum stem holding 1 % of the drum group's energy in a band is
+    drum energy, not bleed: light/standard keep it (the first version deleted
+    it, which is what cost drum SDR); only cross-group ownership removes."""
+    kick = _harmonic(110.0, 4, 3.0, amp=0.2)
+    room = (kick * np.float32(0.1)).astype(np.float32)                 # -20 dB, same bins
+    vox = _harmonic(2000.0, 1, 3.0, amp=0.1) + _harmonic(2900.0, 1, 3.0, amp=0.1)
+    stems = {"kick": kick, "drum_room": room, "lead_vocals": vox.astype(np.float32)}
+    for strength in ("light", "standard"):
+        cleaned, _ = bleed_mask(stems, SR, strength)
+        for sid in stems:
+            assert abs(_db(cleaned[sid]) - _db(stems[sid])) < 0.1, (strength, sid)
+    # every stem its own group (the old per-stem behaviour): the room is masked away
+    cleaned, _ = bleed_mask(stems, SR, "standard", groups={k: k for k in stems})
+    assert _db(stems["drum_room"]) - _db(cleaned["drum_room"]) > 10.0
+
+
+def test_bleed_mask_judges_ownership_against_the_group_sum():
+    """Three drum parts carry one tone coherently (group power 9 a^2); a guitar
+    copy at 0.7 a holds 14 % of the sum of stem powers but only 5.2 % against
+    the drum group, so standard (tau 0.10, beta 1.5) attenuates it by
+    20 log10((0.0516 / 0.1) ** 1.5) = -8.6 dB and leaves the drums alone
+    (they own 95 %)."""
+    a = _harmonic(440.0, 3, 3.0, amp=0.1)
+    stems = {"kick": a, "snare": a.copy(), "toms": a.copy(), "guitar": (0.7 * a).astype(np.float32)}
+    cleaned, removed = bleed_mask(stems, SR, "standard")
+    share = 0.49 / (9.0 + 0.49)
+    expected_db = -20 * np.log10((share / 0.10) ** 1.5)
+    assert _db(stems["guitar"]) - _db(cleaned["guitar"]) == pytest.approx(expected_db, abs=0.5)
+    for part in ("kick", "snare", "toms"):
+        assert abs(_db(cleaned[part]) - _db(stems[part])) < 0.1
+    total = sum(v.astype(np.float64) for v in cleaned.values()) + removed
+    assert np.max(np.abs(total - sum(v.astype(np.float64) for v in stems.values()))) < 1e-5
+
+
+def test_bleed_mask_group_thresholds():
+    """A stem holding 7 % of a bin at standard: kept when it is the bass
+    (tau 0.05) or the drums (0.06); attenuated as an instrument (0.10:
+    (0.7) ** 1.5 = -4.6 dB) and more as a vocal (0.15: (0.467) ** 1.5 =
+    -9.9 dB)."""
+    loud = _harmonic(80.0, 3, 3.0, amp=0.3)
+    weak = (loud * np.float32(np.sqrt(0.07 / 0.93))).astype(np.float32)
+    bass_clean, _ = bleed_mask({"guitar": loud, "bass": weak}, SR, "standard")
+    drums_clean, _ = bleed_mask({"guitar": loud, "kick": weak.copy()}, SR, "standard")
+    other_clean, _ = bleed_mask({"kick": loud, "other": weak.copy()}, SR, "standard")
+    vocal_clean, _ = bleed_mask({"kick": loud, "lead_vocals": weak.copy()}, SR, "standard")
+    assert abs(_db(bass_clean["bass"]) - _db(weak)) < 0.1
+    assert abs(_db(drums_clean["kick"]) - _db(weak)) < 0.1
+    assert _db(weak) - _db(other_clean["other"]) == pytest.approx(-20 * np.log10(0.7 ** 1.5), abs=0.5)
+    assert _db(weak) - _db(vocal_clean["lead_vocals"]) == pytest.approx(-20 * np.log10((0.07 / 0.15) ** 1.5),
+                                                                         abs=0.5)
+
+
+def test_strong_also_masks_inside_a_group():
+    kick = _harmonic(70.0, 3, 3.0, amp=0.3)
+    snare_own = _harmonic(1800.0, 2, 3.0, amp=0.1)
+    snare = (snare_own + kick * np.float32(10 ** (-30 / 20))).astype(np.float32)   # kick bleed in the snare
+    stems = {"kick": kick, "snare": snare}
+    low = [70.0, 140.0, 210.0]
+    for strength, min_db, max_db in (("standard", -0.1, 0.1), ("strong", 10.0, 99.0)):
+        cleaned, _ = bleed_mask(stems, SR, strength)
+        drop = 10 * np.log10(_band_power(snare, low) / _band_power(cleaned["snare"], low))
+        assert min_db <= drop <= max_db, (strength, drop)
+        # the snare's own band and the kick survive
+        assert abs(10 * np.log10(_band_power(cleaned["snare"], [1800.0, 3600.0])
+                                 / _band_power(snare, [1800.0, 3600.0]))) < 0.5
+        assert abs(_db(cleaned["kick"]) - _db(kick)) < 0.1
+
+
 def _measure_peak(fn) -> int:
     tracemalloc.start()
     try:
@@ -209,12 +300,14 @@ def test_activity_gate_mix_relative_threshold():
 
 def test_activity_gate_strengths():
     t = np.arange(SR * 2) / SR
-    stem = (10 ** (-45 / 20) * np.sin(2 * np.pi * 1000 * t)).astype(np.float32)[np.newaxis]
+    stem = (10 ** (-38 / 20) * np.sin(2 * np.pi * 1000 * t)).astype(np.float32)[np.newaxis]
     mix = (10 ** (-6 / 20) * np.sin(2 * np.pi * 200 * t)).astype(np.float32)[np.newaxis]
-    # stem is 39 dB below the mix: light (-50) and standard (-42) keep it, strong (-36) gates it
+    # stem is 32 dB below the mix: light (-42) and standard (-35) keep it, strong (-27) gates it
     assert abs(_db(activity_gate(stem, mix, SR, "light")[0]) - _db(stem)) < 0.1
     assert abs(_db(activity_gate(stem, mix, SR, "standard")[0]) - _db(stem)) < 0.1
     assert _db(stem) - _db(activity_gate(stem, mix, SR, "strong")[0]) > 40.0
+    assert [(CLEANUP_PARAMS[s].gate_own_db, CLEANUP_PARAMS[s].gate_mix_db) for s in ("light", "standard", "strong")] \
+        == [(-55.0, -42.0), (-45.0, -35.0), (-35.0, -27.0)]
 
 
 # ======================================================== range filters

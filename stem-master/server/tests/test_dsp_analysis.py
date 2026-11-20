@@ -7,10 +7,14 @@ import pytest
 from scipy import signal
 
 from stem_master.dsp.analysis import (
+    HF_TEXTURE_WHITE_NOISE,
     KEY_TO_CAMELOT,
     analyze,
     artifact_features,
+    artifact_label,
+    artifact_level_from_features,
     camelot_code,
+    hf_texture,
     key_name,
     stem_stats,
 )
@@ -214,6 +218,43 @@ def test_short_mono_input_at_48k():
 
 
 # --------------------------------------------------------- artifact level
+def bright_chords(seconds: float = 6.0, sr: int = SR, seed: int = 0) -> np.ndarray:
+    """Sawtooth-like chords with partials up to 16 kHz and plucked envelopes:
+    a 'produced' signal whose high band has tonal fine structure."""
+    rng = np.random.default_rng(seed)
+    n = int(sr * seconds)
+    t = np.arange(n) / sr
+    y = np.zeros(n)
+    for start in np.arange(0.0, seconds, 0.75):
+        idx = (t >= start) & (t < start + 0.75)
+        tt = t[idx] - start
+        env = np.exp(-tt / 0.4) * np.minimum(1.0, tt / 0.005)
+        for m in rng.choice([45, 48, 52, 55, 57, 60, 64], size=3, replace=False):
+            f = _midi_hz(int(m))
+            for k in range(1, int(16000 / f)):
+                y[idx] += env * np.sin(2 * np.pi * f * k * tt + k) / k
+    return (0.05 * y).astype(np.float32)[np.newaxis]
+
+
+def with_noise_high_band(x: np.ndarray, sr: int = SR, shimmer_db: float = 0.0) -> np.ndarray:
+    """Replace the 4-16 kHz band by noise that follows its envelope (level and
+    timing kept, fine structure gone): a 'fizzy' high band; ``shimmer_db``
+    adds a random +-shimmer_db/2 gain every 12 ms (codec-style shimmer)."""
+    lo = signal.butter(8, 4000, btype="lowpass", fs=sr, output="sos")
+    hi = signal.butter(8, [4000, 16000], btype="band", fs=sr, output="sos")
+    base = signal.sosfiltfilt(lo, x, axis=-1)
+    hf = signal.sosfiltfilt(hi, x, axis=-1)
+    win = int(0.01 * sr)
+    env = np.sqrt(np.convolve(hf[0] ** 2, np.ones(win) / win, mode="same"))
+    noise = signal.sosfiltfilt(hi, np.random.default_rng(1).standard_normal(x.shape[-1]))
+    noise *= env / np.sqrt(np.convolve(noise ** 2, np.ones(win) / win, mode="same") + 1e-20)
+    if shimmer_db:
+        seg = int(0.012 * sr)
+        g = 10 ** (np.random.default_rng(2).uniform(-shimmer_db / 2, shimmer_db / 2, -(-noise.size // seg)) / 20)
+        noise *= np.repeat(g, seg)[:noise.size]
+    return (base + noise[np.newaxis]).astype(np.float32)
+
+
 def test_artifact_level_noise_and_flicker_higher_than_clean():
     clean = tones_with_gaps()
     dirty = degrade(clean)
@@ -228,26 +269,104 @@ def test_each_artifact_cue_raises_the_level_on_its_own():
     clean = tones_with_gaps()
     base = analyze(clean, SR)["artifact_level"]
     noise_only = analyze(degrade(clean, flicker_db=0), SR)["artifact_level"]
-    flicker_only = analyze(degrade(clean, noise_dbfs=None), SR)["artifact_level"]
+    noisy_hf_only = analyze(degrade(clean, noise_dbfs=None), SR)["artifact_level"]
     assert noise_only > base + 0.2
-    assert flicker_only > base + 0.2
+    assert noisy_hf_only > base + 0.2
     f = artifact_features(degrade(clean, noise_dbfs=None)[0], SR)
-    assert f["flicker_db"] is not None and f["s_flicker"] > 0.3
+    assert f["hf_flatness"] is not None and f["s_hfnoise"] > 0.3
+    assert f["flicker_db"] is not None and f["s_flicker"] > 0.3      # measured, though not in the level
     f = artifact_features(degrade(clean, flicker_db=0)[0], SR)
     assert f["noise_floor_db"] == pytest.approx(-50.0, abs=2.0) and f["s_noise"] > 0.8
 
 
-def test_spectral_cutoff_detected_on_brickwalled_noise():
+def test_noise_like_high_band_is_what_the_level_measures():
+    music = bright_chords()
+    f_music = artifact_features(music[0], SR)
+    assert f_music["hf_flatness"] < 0.5 and f_music["s_hfnoise"] == 0.0
+    # noise instead of partials: the Gaussian-noise reference (0.60) ...
+    f_fizz = artifact_features(with_noise_high_band(music)[0], SR)
+    assert f_fizz["hf_flatness"] == pytest.approx(HF_TEXTURE_WHITE_NOISE, abs=0.015)
+    # ... and with codec-style shimmer on top, above it
+    fizzy = with_noise_high_band(music, shimmer_db=12.0)
+    assert artifact_features(fizzy[0], SR)["hf_flatness"] > 0.605
+    a_music, a_fizzy = analyze(music, SR), analyze(fizzy, SR)
+    assert a_music["artifact_label"] == "low" and a_music["artifact_level"] < 0.1
+    assert a_fizzy["artifact_level"] > a_music["artifact_level"] + 0.3
+    assert a_fizzy["artifact_label"] in {"moderate", "high"}
+
+
+@pytest.mark.parametrize("sr", [44100, 48000])
+@pytest.mark.parametrize("colour", ["white", "pink"])
+@pytest.mark.parametrize("level", [0.3, 0.003])
+def test_hf_texture_of_gaussian_noise_is_the_reference(sr, colour, level):
+    """Gaussian noise measures 0.60 whatever its level, colour or sample rate."""
+    rng = np.random.default_rng(3)
+    w = rng.standard_normal(sr * 4)
+    if colour == "pink":
+        spec = np.fft.rfft(w)
+        f = np.fft.rfftfreq(w.size, 1 / sr)
+        spec[1:] /= np.sqrt(f[1:])
+        w = np.fft.irfft(spec, n=w.size)
+    x = (level * w / np.std(w)).astype(np.float32)
+    assert hf_texture(x, sr) == pytest.approx(HF_TEXTURE_WHITE_NOISE, abs=0.015)
+
+
+def test_hf_texture_needs_high_band_content():
+    t = np.arange(SR * 3) / SR
+    assert hf_texture((0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32), SR) is None
+    assert hf_texture(np.zeros(SR, dtype=np.float32), SR) is None
+    assert hf_texture(np.zeros(10, dtype=np.float32), SR) is None
+
+
+def test_band_limit_alone_does_not_raise_the_level():
+    """An encoder low-pass is reported (spectral_cutoff_hz) but is not an artifact level."""
     rng = np.random.default_rng(0)
+    music = bright_chords(seed=2)[0].astype(np.float64)
+    spec = np.fft.rfft(music)
+    spec[np.fft.rfftfreq(music.size, 1 / SR) > 15000] = 0
+    cut = np.fft.irfft(spec, n=music.size).astype(np.float32)[np.newaxis]
+    res = analyze(cut, SR)
+    assert res["spectral_cutoff_hz"] == pytest.approx(15000, abs=250)
+    assert res["artifact_level"] <= analyze(music.astype(np.float32)[np.newaxis], SR)["artifact_level"] + 0.05
+    # brick-walled white noise: same noise-like level as full-band noise
     w = rng.standard_normal(SR * 4) * 0.1
     spec = np.fft.rfft(w)
     spec[np.fft.rfftfreq(w.size, 1 / SR) > 15000] = 0
     x = np.fft.irfft(spec, n=w.size).astype(np.float32)[np.newaxis]
-    res = analyze(x, SR)
-    assert res["spectral_cutoff_hz"] == pytest.approx(15000, abs=250)
     full = analyze((rng.standard_normal(SR * 4) * 0.1).astype(np.float32), SR)
     assert full["spectral_cutoff_hz"] is None
-    assert res["artifact_level"] > full["artifact_level"]
+    assert abs(analyze(x, SR)["artifact_level"] - full["artifact_level"]) < 0.1
+
+
+def test_lossy_encoding_does_not_raise_the_level(tmp_path):
+    """MP3 at 128 kbps (low-pass, spectral holes) must not push the level up."""
+    import shutil
+    import subprocess
+
+    import soundfile as sf
+
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not available")
+    music = with_noise_high_band(bright_chords(seed=4))
+    music = (0.6 * music + 0.4 * bright_chords(seed=5)).astype(np.float32)
+    src, enc = tmp_path / "m.wav", tmp_path / "m.mp3"
+    sf.write(str(src), music[0], SR, subtype="FLOAT")
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(src), "-c:a", "libmp3lame",
+                    "-b:a", "128k", str(enc)], check=True)
+    out = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(enc), "-f", "f32le", "-ac", "1", "-"],
+                         check=True, capture_output=True).stdout
+    decoded = np.frombuffer(out, dtype=np.float32)[np.newaxis]
+    assert analyze(decoded, SR)["artifact_level"] <= analyze(music, SR)["artifact_level"] + 0.05
+
+
+def test_artifact_level_formula():
+    assert artifact_level_from_features({}) == 0.0
+    assert artifact_level_from_features({"s_hfnoise": 0.5, "s_noise": 0.5}) == pytest.approx(1 - 0.5 * 0.7)
+    assert artifact_level_from_features({"s_hfnoise": 1.0}) == 1.0
+    # high-band flicker and band-limits are diagnostics only
+    assert artifact_level_from_features({"s_flicker": 1.0, "cutoff_hz": 12000.0}) == 0.0
+    assert artifact_label(0.329) == "low" and artifact_label(0.33) == "moderate"
+    assert artifact_label(0.66) == "high"
 
 
 # ------------------------------------------------------------ stem stats

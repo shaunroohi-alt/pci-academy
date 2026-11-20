@@ -1,4 +1,8 @@
-"""Tests for stem_master.dsp.denoise (DC/rumble, noise floor, high-band de-flicker)."""
+"""Tests for stem_master.dsp.denoise (DC/rumble, adaptive noise floor, adaptive de-flicker).
+
+The fixtures are small synthetic signals; the real-data evaluation (clean
+MUSDB18 stems, degraded stems, Udio stems) lives in tools/eval_denoise.py.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +10,7 @@ import numpy as np
 import pytest
 from scipy import signal
 
-from stem_master.dsp.denoise import denoise_dsp
+from stem_master.dsp.denoise import DENOISE_PARAMS, _dc_and_rumble, denoise_dsp, flicker_beta, measure_artifacts
 
 SR = 44100
 HARMONICS = 8
@@ -23,6 +27,35 @@ def _tone(seconds: float = 4.0, channels: int = 2, amp: float = 0.1) -> np.ndarr
     return np.tile((amp * y).astype(np.float32), (channels, 1))
 
 
+def _notes(seconds: float = 6.0, channels: int = 2, seed: int = 0) -> np.ndarray:
+    """Plucked harmonic notes (exponential decays, gaps between them): a bass/keys-like stem."""
+    rng = np.random.default_rng(seed)
+    n = int(SR * seconds)
+    out = np.zeros(n)
+    t0 = 0
+    while t0 < n:
+        f = 110.0 * 2 ** (rng.integers(0, 12) / 12)
+        dur = int(rng.uniform(0.25, 0.6) * SR)
+        t = np.arange(min(dur, n - t0)) / SR
+        env = np.exp(-t / 0.12) * np.minimum(1.0, t / 0.003)
+        out[t0:t0 + t.size] += 0.3 * env * sum(np.sin(2 * np.pi * f * k * t) / k for k in range(1, 9) if f * k < 6000)
+        t0 += dur + int(rng.uniform(0.05, 0.3) * SR)
+    return np.tile(out.astype(np.float32), (channels, 1))
+
+
+def _white(shape, level_db_re: float, ref: np.ndarray, seed: int) -> np.ndarray:
+    noise = np.random.default_rng(seed).standard_normal(shape)
+    return noise * 10 ** ((_db(ref) + level_db_re) / 20) / np.sqrt(np.mean(noise ** 2))
+
+
+def _band(x: np.ndarray, lo: float, hi: float) -> np.ndarray:
+    """Brick-wall band-pass (FFT): a coder band has sharp edges."""
+    spec = np.fft.rfft(x, axis=-1)
+    f = np.fft.rfftfreq(x.shape[-1], 1 / SR)
+    spec[..., (f < lo) | (f >= hi)] = 0.0
+    return np.fft.irfft(spec, n=x.shape[-1], axis=-1)
+
+
 def _spectrum(x: np.ndarray):
     seg = x[0, SR:3 * SR].astype(np.float64)
     spec = np.abs(np.fft.rfft(seg * np.hanning(seg.size))) ** 2
@@ -36,6 +69,7 @@ def _tone_mask(f: np.ndarray) -> np.ndarray:
     return mask
 
 
+# ------------------------------------------------------------- clean input
 @pytest.mark.parametrize("strength", ["light", "standard", "strong"])
 def test_clean_tone_is_left_alone(strength):
     x = _tone()
@@ -47,11 +81,31 @@ def test_clean_tone_is_left_alone(strength):
     np.testing.assert_allclose(clean + removed, x, atol=1e-6)
 
 
-def test_noisy_tone_noise_floor_reduced():
+@pytest.mark.parametrize("strength", ["light", "standard", "strong"])
+def test_dense_noise_like_music_is_not_mistaken_for_noise(strength):
+    """A loud, stationary, noise-like texture (a pad / distorted-guitar wash) is the
+    body of the stem, not a floor under it: nothing may be taken out of it."""
+    rng = np.random.default_rng(11)
+    n = SR * 6
+    sos = signal.butter(4, [200, 6000], btype="band", fs=SR, output="sos")
+    wash = signal.sosfilt(sos, rng.standard_normal((2, n)), axis=-1)
+    t = np.arange(n) / SR
+    wash *= 0.05 * (1.0 + 0.3 * np.sin(2 * np.pi * 0.25 * t))
+    x = wash.astype(np.float32)
+    clean, removed = denoise_dsp(x, SR, strength)
+    assert _db(x) - _db(clean) < 0.05
+    body = signal.butter(4, [300, 4000], btype="band", fs=SR, output="sos")
+    assert _db(signal.sosfiltfilt(body, removed, axis=-1)) - _db(x) < -40.0
+    # at most the filter skirts far above the body read as a (-50 dB) floor
+    found = measure_artifacts(x, SR)["noise_db"]
+    assert found is None or found < -50.0
+    np.testing.assert_allclose(clean + removed, x, atol=1e-6)
+
+
+# --------------------------------------------------------------- noise floor
+def test_noise_floor_under_a_tone_is_reduced():
     x = _tone()
-    rng = np.random.default_rng(0)
-    noise = rng.standard_normal(x.shape) * np.sqrt(np.mean(x.astype(np.float64) ** 2)) / 10.0  # SNR 20 dB
-    noisy = (x + noise).astype(np.float32)
+    noisy = (x + _white(x.shape, -35.0, x, 0)).astype(np.float32)        # a floor 35 dB down
     clean, removed = denoise_dsp(noisy, SR, "standard")
     f, before = _spectrum(noisy)
     _, after = _spectrum(clean)
@@ -64,10 +118,23 @@ def test_noisy_tone_noise_floor_reduced():
     np.testing.assert_allclose(clean + removed, noisy, atol=1e-6)
 
 
+def test_noise_between_notes_is_measured_and_reduced():
+    x = _notes()
+    noise = _white(x.shape, -40.0, x, 1)
+    noisy = (x + noise).astype(np.float32)
+    found = measure_artifacts(noisy, SR)
+    assert found["noise_db"] is not None and abs(found["noise_db"] + 40.0) < 5.0
+    assert measure_artifacts(x, SR)["noise_db"] is None
+    ref = _dc_and_rumble(x, SR).astype(np.float64)       # stage 1 is not noise reduction
+    for strength, min_gain in (("light", 3.0), ("standard", 4.0), ("strong", 4.0)):
+        clean, _ = denoise_dsp(noisy, SR, strength)
+        snr_gain = _db(noise) - _db(clean.astype(np.float64) - ref)
+        assert snr_gain >= min_gain, strength
+
+
 def test_strength_ordering():
     x = _tone()
-    rng = np.random.default_rng(1)
-    noisy = (x + rng.standard_normal(x.shape) * 0.003).astype(np.float32)
+    noisy = (x + _white(x.shape, -35.0, x, 2)).astype(np.float32)
     removed_db = [_db(denoise_dsp(noisy, SR, s)[1]) for s in ("light", "standard", "strong")]
     assert removed_db[0] < removed_db[1] < removed_db[2]
 
@@ -88,18 +155,39 @@ def test_dc_and_rumble_removed():
     np.testing.assert_allclose(clean + removed, dirty, atol=1e-6)
 
 
+def test_abrupt_start_and_end_are_kept():
+    """A stem that starts / ends at full level (an excerpt, or a song with no
+    fade) keeps its edges: the rumble filter must not pull them to zero."""
+    t = np.arange(SR * 2) / SR
+    x = (0.5 * np.cos(2 * np.pi * 330.0 * t)).astype(np.float32)[np.newaxis]   # x[0] = 0.5
+    clean, removed = denoise_dsp(x, SR, "standard")
+    edge = int(0.1 * SR)
+    for part in (slice(0, edge), slice(-edge, None)):
+        assert _db(removed[:, part]) - _db(x[:, part]) < -30.0
+    assert abs(float(clean[0, 0]) - 0.5) < 0.02
+
+
+def test_sub_bass_is_kept():
+    """The rumble filter sits at 16 Hz: a 40 Hz sub-bass loses well under 0.1 dB."""
+    t = np.arange(SR * 3) / SR
+    x = (0.3 * np.sin(2 * np.pi * 40.0 * t)).astype(np.float32)[np.newaxis]
+    clean, _ = denoise_dsp(x, SR, "strong")
+    core = slice(SR // 2, -SR // 2)
+    assert abs(_db(clean[:, core]) - _db(x[:, core])) < 0.1
+
+
+# ---------------------------------------------------------------- de-flicker
 def _shimmer(seconds: float, seed: int, spike_db: float = 10.0, fraction: float = 0.1,
              segment_ms: float = 12.0) -> np.ndarray:
     """Steady 8-14 kHz noise bed whose level jumps up by ``spike_db`` in random
     ~12 ms segments: a codec-style high-band "shimmer"."""
     rng = np.random.default_rng(seed)
     n = int(SR * seconds)
-    sos = signal.butter(8, [8000, 14000], btype="band", fs=SR, output="sos")
-    hf = signal.sosfilt(sos, rng.standard_normal(n))
+    hf = _band(rng.standard_normal(n), 8000.0, 14000.0)
     hf *= 0.01 / np.sqrt(np.mean(hf ** 2))
     seg = int(segment_ms / 1000 * SR)
     gains = np.where(rng.random(-(-n // seg)) < fraction, 10 ** (spike_db / 20), 1.0)
-    return hf * np.repeat(gains, seg)[:n]
+    return _band(hf * np.repeat(gains, seg)[:n], 7500.0, 15000.0)
 
 
 def _hf_prominence(x: np.ndarray) -> float:
@@ -113,6 +201,7 @@ def _hf_prominence(x: np.ndarray) -> float:
 @pytest.mark.parametrize("strength,min_reduction_db", [("light", 1.0), ("standard", 2.0), ("strong", 3.0)])
 def test_high_band_flicker_is_reduced(strength, min_reduction_db):
     x = (_tone(seconds=4.0, channels=1)[0] + _shimmer(4.0, 7)).astype(np.float32)[np.newaxis]
+    assert measure_artifacts(x, SR)["flicker_beta"][strength] > 0.5
     clean, removed = denoise_dsp(x, SR, strength)
     assert _hf_prominence(x) - _hf_prominence(clean) >= min_reduction_db
     # the tone underneath is untouched
@@ -123,18 +212,25 @@ def test_high_band_flicker_is_reduced(strength, min_reduction_db):
     np.testing.assert_allclose(clean + removed, x, atol=1e-6)
 
 
-def test_transients_survive_deflicker():
-    """Hi-hat-like bursts on a quiet steady bed: onset protection keeps attack and early decay."""
-    n = SR * 4
-    rng = np.random.default_rng(4)
+def _hats(seconds: float = 4.0, seed: int = 4, period_s: float = 0.125, bed: float = 0.002,
+          brickwall: bool = False) -> np.ndarray:
+    n = int(SR * seconds)
+    rng = np.random.default_rng(seed)
     sos = signal.butter(4, 7000, btype="highpass", fs=SR, output="sos")
-    x = 0.002 * signal.sosfilt(sos, rng.standard_normal(n))
+    x = bed * signal.sosfilt(sos, rng.standard_normal(n))
     burst_len = int(0.08 * SR)
     env = np.exp(-np.arange(burst_len) / (0.02 * SR))
-    starts = list(range(int(0.25 * SR), n - burst_len, int(0.25 * SR)))
+    starts = list(range(int(period_s * SR), n - burst_len, int(period_s * SR)))
     for s in starts:
         x[s:s + burst_len] += 0.5 * env * signal.sosfilt(sos, rng.standard_normal(burst_len))
-    x = x.astype(np.float32)[np.newaxis]
+    if brickwall:   # nothing below 8 kHz: no onset in the reference band to protect them
+        x = _band(x, 8000.0, 20000.0)
+    return x.astype(np.float32)[np.newaxis], starts
+
+
+def test_transients_survive_deflicker():
+    """Hi-hat-like bursts on a quiet steady bed: attack and early decay survive."""
+    x, starts = _hats()
     for strength in ("light", "strong"):
         clean, _ = denoise_dsp(x, SR, strength)
         for s in starts[1:-1]:
@@ -144,10 +240,33 @@ def test_transients_survive_deflicker():
             assert _db(x[:, decay]) - _db(clean[:, decay]) < 1.0
 
 
+def test_groove_is_not_flicker():
+    """High-band bursts on a beat grid (a hi-hat pattern with no low-band
+    onset) are music: the periodicity guard keeps de-flicker off."""
+    x, _ = _hats(period_s=0.25, bed=0.01, brickwall=True)
+    found = measure_artifacts(x, SR)
+    assert found["flicker_db"] > DENOISE_PARAMS["light"].flicker_f0_db       # looks like flicker ...
+    assert found["flicker_periodicity"] > 0.35                                # ... but recurs on the beat
+    assert all(v == 0.0 for v in found["flicker_beta"].values())
+    clean, _ = denoise_dsp(x, SR, "strong")
+    assert _db(x) - _db(clean) < 0.05
+
+
+def test_flicker_beta_scaling():
+    p = DENOISE_PARAMS["standard"]
+    assert flicker_beta(None, p) == 0.0
+    assert flicker_beta(p.flicker_f0_db, p) == 0.0
+    assert flicker_beta(p.flicker_f0_db + 1.0, p) == 1.0
+    assert flicker_beta(p.flicker_f0_db + 1.0, p, periodicity=0.5) == 0.0
+    assert 0.0 < flicker_beta(p.flicker_f0_db + 1.0, p, periodicity=0.17) < 1.0
+
+
+# ------------------------------------------------------------------ plumbing
 def test_block_processing_is_exact():
-    """Block-wise processing (DD state carried, de-flicker context) equals one big block."""
-    x = (_tone(seconds=3.0, channels=2) + np.random.default_rng(3).standard_normal((2, 3 * SR)) * 0.003
+    """Block-wise processing (DD state carried, de-flicker levels) equals one big block."""
+    x = (_tone(seconds=3.0, channels=2) + _white((2, 3 * SR), -35.0, _tone(seconds=3.0), 3)
          + _shimmer(3.0, 5)[np.newaxis]).astype(np.float32)
+    assert measure_artifacts(x, SR)["noise_db"] is not None
     ref, _ = denoise_dsp(x, SR, "standard", block_frames=100000)
     small, _ = denoise_dsp(x, SR, "standard", block_frames=40)
     assert np.max(np.abs(ref - small)) < 1e-6
@@ -169,6 +288,7 @@ def test_shapes_and_validation():
     silent = np.zeros((2, SR), dtype=np.float32)
     clean, removed = denoise_dsp(silent, SR, "strong")
     assert not np.any(clean) and not np.any(removed)
+    assert measure_artifacts(silent, SR)["noise_db"] is None
     empty = np.zeros((2, 0), dtype=np.float32)
     assert denoise_dsp(empty, SR, "light")[0].shape == (2, 0)
     with pytest.raises(ValueError):
@@ -178,11 +298,12 @@ def test_shapes_and_validation():
 def test_48k_input():
     sr = 48000
     t = np.arange(sr * 3) / sr
-    rng = np.random.default_rng(2)
     tone = 0.1 * np.sin(2 * np.pi * 440 * t)
-    noisy = np.stack([tone, tone]) + rng.standard_normal((2, t.size)) * 0.003
+    noise = np.random.default_rng(2).standard_normal((2, t.size)) * 0.0007        # ~ -40 dB re the tone
+    noisy = np.stack([tone, tone]) + noise
     clean, removed = denoise_dsp(noisy.astype(np.float32), sr, "standard")
-    assert _db(removed) > _db(noisy) - 30.0                         # the noise went somewhere
+    core = slice(sr // 2, -sr // 2)                                                # away from filter edges
+    assert _db(clean[:, core].astype(np.float64) - tone[core]) < _db(noise[:, core]) - 6.0   # most noise went
     assert abs(_db(clean) - _db(tone)) < 0.5
 
 

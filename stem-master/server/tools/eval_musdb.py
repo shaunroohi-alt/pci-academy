@@ -8,6 +8,7 @@ inference is stored on disk and never repeated: re-running a report, or
 re-tuning the DSP, only costs DSP time.
 
     # 1. ground truth: MUSDB18 7-second previews -> float WAV clip folders
+    #    (default: the 8 test tracks of DEFAULT_TRACKS)
     python tools/eval_musdb.py extract --musdb DIR/test --out CLIPS [--tracks NAME ...]
 
     # 2. run variants (model outputs cached in CACHE, keyed by clip, model,
@@ -15,27 +16,45 @@ re-tuning the DSP, only costs DSP time.
     STEM_MASTER_MODEL_DIR=... python tools/eval_musdb.py run --clips CLIPS --cache CACHE \
         [--variants NAME|GROUP ...] [--json results.json]
 
-    # 3. print the tables again from the JSON
+    # 3. tables again from the JSON; before/after of two runs
     python tools/eval_musdb.py table --json results.json
+    python tools/eval_musdb.py compare --before old.json --after new.json
 
-    # 4. cleanup ablations / parameter grids on cached pre-cleanup stems
+    # 4. cleanup ablations on cached pre-cleanup stems (off, each strength,
+    #    each sub-step alone)
     python tools/eval_musdb.py sweep --clips CLIPS --cache CACHE [--base max/standard]
 
-    python tools/eval_musdb.py list          # every variant and group
+    python tools/eval_musdb.py checkbss --clips CLIPS --cache CACHE   # BSSEval self-check
+    python tools/eval_musdb.py list                                    # variants and groups
+
+"Before" numbers are this same script run against the previous server code
+(e.g. ``git worktree add /tmp/old <commit>``, copy this file into its
+``server/tools``, run with the same ``--cache``: every model output the old
+plan shares with the new one is a cache hit).
+
+On CPU, ``OMP_NUM_THREADS=2`` per process when two runs share 4 cores is
+several times faster than two oversubscribed 4-thread processes.
 
 Clip folders hold ``mixture.wav`` and the four MUSDB targets ``vocals.wav``,
 ``drums.wav``, ``bass.wav``, ``other.wav`` (44.1 kHz). MUSDB data is treated
 as untrusted input: it is only decoded by ffmpeg, never executed.
+
+Models run with their own segment length on the 6.8 s previews (see
+:func:`use_model_segments`), as they do on full songs in production.
 
 Metrics (per clip, then the **median over clips** per target):
 
 * ``sdr`` - the "new SDR" of the MDX challenge / MVSEP:
   ``10 log10(|s|^2 / |s - s_hat|^2)`` over the whole clip (same as
   ``scratchpad/eval/eval_sdr.py``). Faithfulness.
-* ``sir`` (and ``bss_sdr``, ``sar``) - BSSEval v4 via ``museval.evaluate``
-  (1 s windows, median over windows; windows where the reference is silent
-  are NaN and ignored). SIR measures how much of the *other* MUSDB sources an
-  estimate contains: cleanliness / bleed.
+* ``sir`` (and ``bss_sdr``, ``sar``, ``isr``) - BSSEval v4 exactly as
+  ``museval.evaluate`` computes it (1 s windows, one set of 512-tap
+  distortion filters per clip, median over windows; windows where the
+  reference is silent are NaN and ignored), with the reference Gram matrix
+  factorised once per clip (:func:`_bss_factor`; ``checkbss`` shows the
+  numbers equal ``museval.evaluate`` to 1e-12 dB) and a -40 dB noise floor on
+  the references (:func:`bsseval` explains why). SIR measures how much of
+  the *other* MUSDB sources an estimate contains: cleanliness / bleed.
 
 Targets: ``vocals`` = every primary stem of the vocals group (incl.
 ``vocal_ambience``); ``vocal_main`` = the vocal stem(s) a user solos
@@ -48,7 +67,8 @@ guitar + piano + other. Pipeline variants also report the energy of
 Variant names: ``raw:sw`` (BS-Roformer-SW alone on the mix), ``voc:<models>``
 (vocal model / ensemble alone; scored on vocals only), ``pipe:<quality>/<cleanup>``
 (the real ``run_pipeline`` with the server defaults: drum split + vocal split
-on, output wav32f), ``iso:...`` (stage isolation: the pipeline with one stage
+on - off for ``/off``, where they cannot change a 4-target sum - output
+wav32f), ``iso:...`` (stage isolation: the pipeline with one stage
 overridden). See ``list``.
 """
 
@@ -109,9 +129,8 @@ DEFAULT_TRACKS = (
     "Al James - Schoolboy Facination", "AM Contra - Heart Peripheral", "BKS - Too Much",
     "Bobby Nobody - Stitch Up", "Raft Monk - Tiring", "The Easton Ellises - Falcon 69",
     "The Long Wait - Dark Horses", "Girls Under Glass - We Feel Alright",
-    "Skelpolu - Resurrection", "Lyndsey Ollard - Catching Up",
 )
-"""The evaluation set: 10 MUSDB18 *test* tracks whose 7 s preview has
+"""The evaluation set: 8 MUSDB18 *test* tracks whose 7 s preview has
 vocals, drums and bass active throughout (each within ~10 dB of the mix RMS)."""
 
 
@@ -306,8 +325,6 @@ def bsseval(refs: Mapping[str, np.ndarray], est: Mapping[str, np.ndarray], cache
     whole-clip window (drums SIR 15.1 vs 15.1 dB; vocals 18.8 vs 18.7 dB)
     and SDR is unchanged to 0.1 dB.
     """
-    import museval  # noqa: PLC0415
-
     h = hashlib.sha1()
     h.update(f"v2 floor {BSS_REF_FLOOR_DB}".encode())
     for t in TARGETS:
@@ -322,33 +339,138 @@ def bsseval(refs: Mapping[str, np.ndarray], est: Mapping[str, np.ndarray], cache
         path = cache / "metrics" / f"{key}.json"
         if path.is_file():
             return json.loads(path.read_text())
-    rng = np.random.default_rng(0)
-    n = refs[TARGETS[0]].shape[1]
-    R = np.stack([refs[t].T for t in TARGETS]).astype(np.float64)
-    for i in range(len(TARGETS)):
-        rms = float(np.sqrt(np.mean(R[i] ** 2)))
-        R[i] += rms * 10.0 ** (BSS_REF_FLOOR_DB / 20.0) * rng.standard_normal(R[i].shape)
-    E = []
-    for t in TARGETS:
-        x = est.get(t)
-        if x is None or not np.any(x):
-            x = 1e-6 * rng.standard_normal((2, n)).astype(np.float32)
-        E.append(x[:, :n].T.astype(np.float64))
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        sdr, isr, sir, sar = museval.evaluate(R, np.stack(E))
+    R = _bss_references(refs)
+    n = R.shape[1]
+    factor = _bss_factor(R)
     out: Dict[str, Dict[str, float]] = {}
-    for i, t in enumerate(TARGETS):
-        if t not in est:
+    for j, t in enumerate(TARGETS):
+        x = est.get(t)
+        if x is None:
             continue
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            out[t] = {"bss_sdr": float(np.nanmedian(sdr[i])), "sir": float(np.nanmedian(sir[i])),
-                      "sar": float(np.nanmedian(sar[i])), "isr": float(np.nanmedian(isr[i]))}
+        if not np.any(x):
+            out[t] = {"bss_sdr": float("nan"), "sir": float("nan"), "sar": float("nan"), "isr": float("nan")}
+            continue
+        e = np.ascontiguousarray(x[:, :n].T, dtype=np.float64)
+        out[t] = _bss_one(R, factor, j, e)
     if path is not None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(out))
     return out
+
+
+def _bss_references(refs: Mapping[str, np.ndarray]) -> np.ndarray:
+    """``(nsrc, n, 2)`` float64 references with the noise floor (fixed seed)."""
+    rng = np.random.default_rng(0)
+    R = np.stack([refs[t].T for t in TARGETS]).astype(np.float64)
+    for i in range(len(TARGETS)):
+        rms = float(np.sqrt(np.mean(R[i] ** 2)))
+        R[i] += rms * 10.0 ** (BSS_REF_FLOOR_DB / 20.0) * rng.standard_normal(R[i].shape)
+    return R
+
+
+BSS_FILTERS_LEN = 512
+BSS_WINDOW = 44100
+_BSS_CACHE: Dict[str, Any] = {}
+
+
+def _bss_factor(R: np.ndarray) -> Dict[str, Any]:
+    """museval v4's reference correlations for one clip, factorised once.
+
+    ``museval.evaluate`` (v4: ``bss_eval`` with one set of distortion filters
+    for the whole signal) solves ``(G + eps I) C = D`` per estimate, where the
+    Gram matrix ``G`` of the delayed references depends on the references
+    only. Factorising it once per clip (Cholesky) and reusing it for every
+    estimate gives the same filters (checked against ``museval.evaluate``:
+    ``python tools/eval_musdb.py checkbss``) at a fraction of the cost."""
+    import scipy.linalg  # noqa: PLC0415
+    from museval import metrics as M  # noqa: PLC0415
+
+    key = hashlib.sha1(R[:, :8192].tobytes()).hexdigest() + str(R.shape)
+    if key in _BSS_CACHE:
+        return _BSS_CACHE[key]
+    _BSS_CACHE.clear()
+    eps = np.finfo(float).eps
+    G, sf = M._compute_reference_correlations(R, BSS_FILTERS_LEN)
+
+    def factor(g: np.ndarray):
+        g = np.array(g, dtype=np.float64)
+        g[np.diag_indices_from(g)] += eps
+        try:
+            return "chol", scipy.linalg.cho_factor(g, overwrite_a=True, check_finite=False)
+        except np.linalg.LinAlgError:
+            return "lu", scipy.linalg.lu_factor(g)
+
+    own = [factor(M._reshape_G(G[j, j][None, None])) for j in range(R.shape[0])]
+    whole = factor(M._reshape_G(G))
+    del G
+    _BSS_CACHE[key] = {"sf": sf, "all": whole, "own": own}
+    return _BSS_CACHE[key]
+
+
+def _bss_filters(factor, sf: np.ndarray, est: np.ndarray) -> np.ndarray:
+    """``museval.metrics._compute_projection_filters`` with a factorised G."""
+    import itertools  # noqa: PLC0415
+
+    import scipy.fftpack  # noqa: PLC0415
+    import scipy.linalg  # noqa: PLC0415
+    from museval import metrics as M  # noqa: PLC0415
+
+    L = BSS_FILTERS_LEN
+    nsampl, nchan = est.shape
+    nsrc = sf.shape[0]
+    padded = M._zeropad(est.T, L - 1, axis=1)
+    n_fft = int(2 ** np.ceil(np.log2(nsampl + L - 1.0)))
+    sef = scipy.fftpack.fft(padded, n=n_fft)
+    D = np.zeros((nsrc, nchan, L, nchan))
+    for j, cj, c in itertools.product(range(nsrc), range(nchan), range(nchan)):
+        ssef = np.real(scipy.fftpack.ifft(sf[j, cj] * np.conj(sef[c])))
+        D[j, cj, :, c] = np.hstack((ssef[0], ssef[-1:-L:-1]))
+    D = D.reshape(nsrc * nchan * L, nchan)
+    kind, f = factor
+    C = scipy.linalg.cho_solve(f, D) if kind == "chol" else scipy.linalg.lu_solve(f, D)
+    return C.reshape(nsrc, nchan, L, nchan)
+
+
+def _bss_one(R: np.ndarray, factor: Dict[str, Any], j: int, est: np.ndarray) -> Dict[str, float]:
+    """museval v4 metrics (1 s windows, median over windows) of one estimate of
+    source ``j``; identical to the ``j``-th row of ``museval.evaluate``."""
+    from museval import metrics as M  # noqa: PLC0415
+
+    C = _bss_filters(factor["all"], factor["sf"], est)
+    Cj = _bss_filters(factor["own"][j], factor["sf"][j][None], est)[0]
+    rows = []
+    for win in M.Framing(BSS_WINDOW, BSS_WINDOW, R.shape[1]):
+        if M._any_source_silent(R[:, win]) or M._any_source_silent(est[win][None]):
+            rows.append((np.nan,) * 4)
+            continue
+        s_true, e_spat, e_interf, e_artif = M._bss_decomp_mtifilt(R[:, win], est[win], j, C, Cj)
+        rows.append(M._bss_crit(s_true, e_spat, e_interf, e_artif, False))
+    arr = np.array(rows, dtype=np.float64)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        med = np.nanmedian(arr, axis=0)
+    return {"bss_sdr": float(med[0]), "isr": float(med[1]), "sir": float(med[2]), "sar": float(med[3])}
+
+
+def bsseval_reference(refs: Mapping[str, np.ndarray], est: Mapping[str, np.ndarray]) -> Dict[str, Dict[str, float]]:
+    """The same numbers straight from ``museval.evaluate`` (slow; for ``checkbss``)."""
+    import museval  # noqa: PLC0415
+
+    R = _bss_references(refs)
+    n = R.shape[1]
+    rng = np.random.default_rng(1)
+    E = []
+    for t in TARGETS:
+        x = est.get(t)
+        if x is None or not np.any(x):
+            x = 1e-6 * rng.standard_normal((2, n))
+        E.append(np.asarray(x[:, :n], dtype=np.float64).T)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sdr, isr, sir, sar = museval.evaluate(R, np.stack(E))
+        return {t: {"bss_sdr": float(np.nanmedian(sdr[i])), "sir": float(np.nanmedian(sir[i])),
+                    "sar": float(np.nanmedian(sar[i])), "isr": float(np.nanmedian(isr[i]))}
+                for i, t in enumerate(TARGETS) if t in est}
 
 
 def score(clip: Clip, est: Mapping[str, np.ndarray], removed: Optional[np.ndarray] = None,
@@ -406,15 +528,23 @@ def _voc_name(step: ModelStep, overlap_tag: str = "") -> str:
 
 
 VOCAL_STEPS: List[ModelStep] = [
+    # single models
     _ens([REVIVE]), _ens([KIM]), _ens([RESURRECTION]), _ens([BETA6X]), _ens([SW]),
+    # the two ensembles of the original plan (cleanup / no cleanup) and their other algorithm
     _ens([REVIVE, KIM], "min_fft"), _ens([REVIVE, KIM], "avg_fft"),
     _ens([RESURRECTION, BETA6X], "avg_fft"), _ens([RESURRECTION, BETA6X], "min_fft"),
-    _ens([RESURRECTION, REVIVE], "avg_fft"), _ens([RESURRECTION, KIM], "avg_fft"),
-    _ens([BETA6X, KIM], "avg_fft"), _ens([RESURRECTION, BETA6X, KIM], "avg_fft"),
-    _ens([RESURRECTION, BETA6X, REVIVE], "avg_fft"), _ens([RESURRECTION, BETA6X, REVIVE, KIM], "avg_fft"),
-    _ens([RESURRECTION, BETA6X, SW], "avg_fft"), _ens([RESURRECTION, SW], "avg_fft"),
-    _ens([RESURRECTION, BETA6X, KIM], "median_fft"),
+    # alternatives without the resurrection model
+    _ens([REVIVE, BETA6X], "avg_fft"), _ens([REVIVE, BETA6X], "min_fft"), _ens([BETA6X, KIM], "avg_fft"),
+    _ens([REVIVE, BETA6X, KIM], "avg_fft"), _ens([REVIVE, BETA6X, KIM], "median_fft"),
+    _ens([REVIVE, BETA6X, KIM], "min_fft"),
+    _ens([REVIVE, KIM, SW], "avg_fft"), _ens([REVIVE, BETA6X, KIM, SW], "avg_fft"),
+    _ens([REVIVE, BETA6X, SW], "avg_fft"),
 ]
+
+
+ISO_STEPS: List[ModelStep] = [_ens([REVIVE, KIM], "min_fft")]
+"""Vocal steps whose full instrument chain is evaluated with and without the
+bleed suppressor (``iso:`` variants)."""
 
 
 def _variants() -> Dict[str, Variant]:
@@ -431,22 +561,25 @@ def _variants() -> Dict[str, Variant]:
                 vocal_step=_ens([KIM])))
     # the real pipeline, server defaults (drum split + vocal split), wav32f
     for quality in ("max", "fast"):
+        # without cleanup the drum / vocal split cannot change any 4-target sum
+        # (parts + drum_room == drums, lead + backing == vocals), so they are
+        # off here: two model runs per clip less
         add(Variant(f"pipe:{quality}/off", "pipe", f"run_pipeline, quality {quality}, cleanup off",
-                    quality=quality, official=True))
+                    quality=quality, drum_split=False, vocal_split=False, official=True))
         for strength in ("light", "standard", "strong"):
             add(Variant(f"pipe:{quality}/{strength}", "pipe",
                         f"run_pipeline, quality {quality}, cleanup {strength}",
                         quality=quality, cleanup=strength, official=True))
-    # stage isolation (no DSP cleanup; splits off since they do not change 4-target sums)
-    for step in VOCAL_STEPS[:4] + VOCAL_STEPS[5:9] + [_ens([RESURRECTION, BETA6X, KIM], "avg_fft")]:
-        if SW in step.models:
-            continue
+    # stage isolation: no DSP cleanup, drum / vocal split off (without cleanup
+    # they do not change any 4-target sum), so only the vocal step and the
+    # debleed stage differ ("+debleed" forces the bleed suppressor on).
+    for step in ISO_STEPS:
         add(Variant("iso:" + _voc_name(step)[4:], "pipe",
                     "pipeline without cleanup/debleed with this vocal step (vocal model -> SW on mix - vocals)",
                     drum_split=False, vocal_split=False, vocal_step=step, debleed=False, dsp_cleanup=False))
         add(Variant("iso:" + _voc_name(step)[4:] + "+debleed", "pipe",
                     "as above plus the bleed-suppressor stage on the instrumental",
-                    cleanup="standard", drum_split=False, vocal_split=False, vocal_step=step, debleed=True,
+                    cleanup="strong", drum_split=False, vocal_split=False, vocal_step=step, debleed=True,
                     dsp_cleanup=False))
     return v
 
@@ -455,7 +588,7 @@ VARIANTS = _variants()
 
 GROUPS: Dict[str, List[str]] = {
     "core": ["raw:sw", "pipe:max/off", "pipe:fast/off", "pipe:max/light", "pipe:max/standard",
-             "pipe:max/strong", "pipe:fast/standard"],
+             "pipe:max/strong"],
     "vocals": [n for n in VARIANTS if n.startswith("voc:")],
     "iso": [n for n in VARIANTS if n.startswith("iso:")],
     "pipe": [n for n in VARIANTS if n.startswith("pipe:")],
@@ -505,18 +638,32 @@ class _EvalRun(pipeline._Run):
             return np.zeros_like(mix)
         return super().cleanup(primary, mix)
 
+    def _assemble(self, primary, removed):
+        # without cleanup, the primaries reaching assembly are the pre-cleanup ones
+        if self.capture is not None and "primary" not in self.capture and not removed:
+            self.capture["primary"] = {k: v.copy() for k, v in primary.items()}
+            self.capture["mix"] = sum(v.astype(np.float32) for v in primary.values())
+        return super()._assemble(primary, removed)
+
 
 @contextlib.contextmanager
 def _patched(variant: Variant):
-    """Isolation variants that turn debleed on without DSP cleanup still need
-    ``options.cleanup`` true for the pipeline to call ``debleed``."""
-    original = pipeline.vocal_step
+    """Stage overrides of isolation variants: the vocal step (also used for the
+    progress weights) and whether the debleed stage runs (the server decides
+    that in ``pipeline.uses_debleed``; older pipelines ran it with any cleanup,
+    which is why ``+debleed`` variants also set a cleanup strength)."""
+    original_step = pipeline.vocal_step
+    original_debleed = getattr(pipeline, "uses_debleed", None)
     if variant.vocal_step is not None:
-        pipeline.vocal_step = lambda options: variant.vocal_step  # progress weights only
+        pipeline.vocal_step = lambda options: variant.vocal_step
+    if variant.debleed is not None and original_debleed is not None:
+        pipeline.uses_debleed = lambda options: bool(variant.debleed)
     try:
         yield
     finally:
-        pipeline.vocal_step = original
+        pipeline.vocal_step = original_step
+        if original_debleed is not None:
+            pipeline.uses_debleed = original_debleed
 
 
 def run_pipeline_variant(clip: Clip, variant: Variant, engine: CachingEngine, settings,
@@ -629,20 +776,22 @@ def cmd_run(args: argparse.Namespace) -> None:
     if out_path is not None and out_path.is_file() and not args.fresh:
         old = json.loads(out_path.read_text())
         results["variants"].update(old.get("variants", {}))
-    order = clips if not args.clip_major else clips
-    for name in names:
-        variant = VARIANTS[name]
-        per_clip: Dict[str, Any] = {}
+    # clip-major: one clip's BSSEval factorisation serves every variant
+    per: Dict[str, Dict[str, Any]] = {name: {} for name in names}
+    for clip in clips:
         started = time.monotonic()
-        for clip in order:
+        for name in names:
+            variant = VARIANTS[name]
             est, removed = run_variant(clip, variant, engine, settings)
-            per_clip[clip.name] = score(clip, est, removed, cache, with_bss=not args.no_bss)
+            per[name][clip.name] = score(clip, est, removed, cache, with_bss=not args.no_bss)
             print(f"  {name:40s} {clip.name[:40]:40s} " +
-                  " ".join(f"{t[:5]} {per_clip[clip.name][t]['sdr']:6.2f}" for t in REPORT_TARGETS
-                           if t in per_clip[clip.name]), flush=True)
-        results["variants"][name] = {"help": variant.help, "per_clip": per_clip, "median": aggregate(per_clip)}
-        print(f"{name}: {time.monotonic() - started:.0f} s (cache hits {engine.hits}, inferences {engine.misses}, "
-              f"{engine.infer_seconds:.0f} s inference)", flush=True)
+                  " ".join(f"{t[:5]} {per[name][clip.name][t]['sdr']:6.2f}" for t in REPORT_TARGETS
+                           if t in per[name][clip.name]), flush=True)
+        for name in names:
+            results["variants"][name] = {"help": VARIANTS[name].help, "per_clip": per[name],
+                                         "median": aggregate(per[name])}
+        print(f"{clip.name}: {time.monotonic() - started:.0f} s (cache hits {engine.hits}, inferences "
+              f"{engine.misses}, {engine.infer_seconds:.0f} s inference)", flush=True)
         if out_path is not None:
             out_path.write_text(json.dumps(results, indent=1))
     print()
@@ -653,6 +802,56 @@ def cmd_table(args: argparse.Namespace) -> None:
     results = json.loads(Path(args.json).read_text())
     names = resolve(args.variants) if args.variants else None
     print_table(results, names)
+
+
+def cmd_compare(args: argparse.Namespace) -> None:
+    """Before/after table: one row per variant and file, then the change."""
+    before = json.loads(Path(args.before).read_text())
+    after = json.loads(Path(args.after).read_text())
+    names = resolve(args.variants) if args.variants else list(dict.fromkeys(
+        list(before["variants"]) + list(after["variants"])))
+    head = f"{'variant':30s} {'':7s}" + " ".join(f"{t[:10]:>13s}" for t in REPORT_TARGETS) + "  removed"
+    print(head)
+    print(f"{'':38s}" + " ".join(f"{'SDR':>6s} {'SIR':>6s}" for _ in REPORT_TARGETS) + "     (dB)")
+    for name in names:
+        rows = []
+        for label, res in (("before", before), ("after", after)):
+            if name in res["variants"]:
+                rows.append((label, res["variants"][name]["median"]))
+        for label, a in rows:
+            cells = " ".join(f"{_fmt(a.get(t, {}).get('sdr'))} {_fmt(a.get(t, {}).get('sir'))}"
+                             for t in REPORT_TARGETS)
+            print(f"{name:30s} {label:7s}{cells}  {_fmt(a.get('removed_db'), 7)}")
+        if len(rows) == 2:
+            (_, b), (_, a) = rows
+            cells = []
+            for t in REPORT_TARGETS:
+                d = [a.get(t, {}).get(k, float("nan")) - b.get(t, {}).get(k, float("nan")) for k in ("sdr", "sir")]
+                cells.append(f"{d[0]:+6.2f} {d[1]:+6.2f}" if all(math.isfinite(x) for x in d) else f"{'-':>13s}")
+            print(f"{'':30s} {'change':7s}" + " ".join(cells))
+    print(f"(median over clips; before: {args.before}, after: {args.after})")
+
+
+def cmd_checkbss(args: argparse.Namespace) -> None:
+    """Compare the factorised BSSEval with ``museval.evaluate`` on raw SW stems."""
+    clips = load_clips(Path(args.clips), args.limit or 1)
+    engine, settings = make_engine(Path(args.cache), offline=True)
+    worst = 0.0
+    for clip in clips:
+        est, _ = run_variant(clip, VARIANTS["raw:sw"], engine, settings)
+        t0 = time.monotonic()
+        fast = {t: _bss_one(_bss_references(clip.refs), _bss_factor(_bss_references(clip.refs)), j,
+                            est[t].T.astype(np.float64)) for j, t in enumerate(TARGETS)}
+        t1 = time.monotonic()
+        ref = bsseval_reference(clip.refs, est)
+        t2 = time.monotonic()
+        for t in TARGETS:
+            diff = max(abs(fast[t][k] - ref[t][k]) for k in ("bss_sdr", "sir", "sar", "isr"))
+            worst = max(worst, diff)
+            print(f"{clip.name[:30]:30s} {t:7s} fast SIR {fast[t]['sir']:7.3f} museval {ref[t]['sir']:7.3f} "
+                  f"max |diff| {diff:.2e} dB")
+        print(f"  factorised {t1 - t0:.1f} s, museval.evaluate {t2 - t1:.1f} s")
+    print(f"largest difference over all metrics: {worst:.2e} dB")
 
 
 def cmd_list(args: argparse.Namespace) -> None:
@@ -699,8 +898,13 @@ def cmd_sweep(args: argparse.Namespace) -> None:
     clips = load_clips(Path(args.clips), args.limit)
     cache = Path(args.cache)
     engine, settings = make_engine(cache, offline=args.offline)
-    base = VARIANTS[f"pipe:{args.base}"]
+    base = VARIANTS[args.base if ":" in args.base else f"pipe:{args.base}"]
     cands = sweep_candidates()
+    for spec in args.param or []:
+        # NAME=v1,v2,... : the fields of cleanup.CleanupParams in order
+        name, _, values = spec.partition("=")
+        cleanup_mod.CLEANUP_PARAMS[name] = cleanup_mod.CleanupParams(*(float(v) for v in values.split(",")))
+        cands[f"param:{name}"] = _shipped_candidate(name)
     names = args.candidates or list(cands)
     results: Dict[str, Any] = {"clips": [c.name for c in clips], "variants": {}}
     per: Dict[str, Dict[str, Any]] = {n: {} for n in names}
@@ -718,6 +922,14 @@ def cmd_sweep(args: argparse.Namespace) -> None:
     print_table(results, names)
 
 
+def _shipped_candidate(strength: str) -> Callable[..., Tuple[Dict[str, np.ndarray], np.ndarray]]:
+    """The full cleanup chain at ``strength`` (a key of ``CLEANUP_PARAMS``)."""
+
+    def fn(stems, mix):
+        return cleanup_mod.cleanup_stems(stems, mix, pipeline.WORK_SAMPLE_RATE, strength, inplace=True)
+    return fn
+
+
 def sweep_candidates() -> Dict[str, Callable[..., Tuple[Dict[str, np.ndarray], np.ndarray]]]:
     """Cleanup candidates for ``sweep``: off, the shipped strengths, and
     ablations of each sub-step (mask / gate / range filter alone)."""
@@ -726,10 +938,7 @@ def sweep_candidates() -> Dict[str, Callable[..., Tuple[Dict[str, np.ndarray], n
     def off(stems, mix):
         return stems, np.zeros_like(mix)
 
-    def shipped(strength):
-        def fn(stems, mix):
-            return cleanup_mod.cleanup_stems(stems, mix, sr, strength, inplace=True)
-        return fn
+    shipped = _shipped_candidate
 
     def mask_only(strength):
         def fn(stems, mix):
@@ -785,14 +994,25 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.choices["run"]
     run.add_argument("--variants", nargs="*", help="variant names or groups (default: core)")
     run.add_argument("--fresh", action="store_true", help="do not merge into an existing --json")
-    run.add_argument("--clip-major", action="store_true")
     sw = sub.choices["sweep"]
     sw.add_argument("--base", default="max/standard", help="pipeline variant whose pre-cleanup stems are used")
     sw.add_argument("--candidates", nargs="*")
+    sw.add_argument("--param", action="append",
+                    help="extra candidate NAME=tau,beta,gmin_db,... (cleanup.CleanupParams fields in order)")
     t = sub.add_parser("table")
     t.add_argument("--json", required=True)
     t.add_argument("--variants", nargs="*")
     t.set_defaults(func=cmd_table)
+    cb = sub.add_parser("checkbss", help="verify the factorised BSSEval against museval.evaluate")
+    cb.add_argument("--clips", required=True)
+    cb.add_argument("--cache", required=True)
+    cb.add_argument("--limit", type=int, default=1)
+    cb.set_defaults(func=cmd_checkbss)
+    c = sub.add_parser("compare", help="before/after table from two results files")
+    c.add_argument("--before", required=True)
+    c.add_argument("--after", required=True)
+    c.add_argument("--variants", nargs="*")
+    c.set_defaults(func=cmd_compare)
     sub.add_parser("list").set_defaults(func=cmd_list)
     return p
 

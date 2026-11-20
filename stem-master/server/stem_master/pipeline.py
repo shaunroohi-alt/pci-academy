@@ -6,8 +6,9 @@
                  (``ctx.on_analysis`` fires here, before any model runs), then a
                  44.1 kHz stereo float32 working copy of the mix
     vocals       vocal model(s) -> vocals; instrumental = mix - vocals
-    debleed      (cleanup) bleed suppressor on the instrumental; the bleed it
-                 finds (instrumental - clean instrumental) -> vocal_ambience
+    debleed      (only for strengths in DEBLEED_STRENGTHS - currently none)
+                 bleed suppressor on the instrumental; the bleed it finds
+                 (instrumental - clean instrumental) -> vocal_ambience
     instruments  BS-Roformer-SW on the instrumental -> bass, drums, guitar,
                  piano, other; its "vocals" -> vocal_ambience; the residual
                  (input - all outputs) is added to other
@@ -21,7 +22,8 @@
     (fold)       vocal_ambience / drum_room more than 50 dB below the mix RMS
                  are folded into other / the loudest drum part (checked again
                  after cleanup/denoise, so a stem they emptied is not delivered)
-    cleanup      (cleanup) cross-stem bleed mask on all primary stems, then
+    cleanup      (cleanup) bleed mask on all primary stems with ownership judged
+                 per catalogue group (vocals / drums / bass / instruments), then
                  activity gate + range filter per stem; removed -> removed_bleed
     denoise      (denoise) neural denoise of the vocal primaries, then DSP
                  denoise of every primary stem; removed -> removed_noise
@@ -61,7 +63,7 @@ import numpy as np
 from .catalog import CATALOG_ORDER, DRUM_PARTS, spec_for
 from .dsp import audio_io
 from .dsp.analysis import analyze, stem_stats
-from .dsp.cleanup import bleed_mask, cleanup_stems
+from .dsp.cleanup import bleed_mask, cleanup_stems, stem_groups
 from .dsp.denoise import denoise_dsp
 from .engines import EngineError, SeparationEngine, get_engine
 from .jobs import PipelineCancelled, PipelineContext, PipelineError, PipelineResult
@@ -112,11 +114,13 @@ class ModelStep:
 
 MODEL_PLAN: Dict[str, ModelStep] = {
     "vocals_max_cleanup": ModelStep(
-        ("bs_roformer_vocals_revive_v2_unwa.ckpt", "mel_band_roformer_kim_ft2_bleedless_unwa.ckpt"),
-        "min_fft",
+        ("bs_roformer_vocals_revive_v2_unwa.ckpt", "mel_band_roformer_kim_ft2_bleedless_unwa.ckpt",
+         "BS-Roformer-SW.ckpt"),
+        "avg_fft",
     ),
     "vocals_max": ModelStep(
-        ("bs_roformer_vocals_resurrection_unwa.ckpt", "melband_roformer_big_beta6x.ckpt"),
+        ("bs_roformer_vocals_revive_v2_unwa.ckpt", "mel_band_roformer_kim_ft2_bleedless_unwa.ckpt",
+         "BS-Roformer-SW.ckpt"),
         "avg_fft",
     ),
     "vocals_fast": ModelStep(("mel_band_roformer_kim_ft2_bleedless_unwa.ckpt",)),
@@ -144,6 +148,17 @@ NEURAL_DENOISE_STEMS: Tuple[str, ...] = ("vocals", "lead_vocals", "backing_vocal
 """Vocal primaries that get the neural denoise model before DSP denoise."""
 
 
+DEBLEED_STRENGTHS: frozenset = frozenset()
+"""Cleanup strengths that run the bleed-suppressor model on the instrumental:
+none. On MUSDB18 (``tools/eval_musdb.py``, ``iso:`` variants, 5 tracks) the
+stage found bleed 55 dB below the mix and moved no target by more than
+0.07 dB SDR / 0.06 dB SIR, because BS-Roformer-SW's own "vocals" output
+already collects the vocal remnants of the instrumental (-> vocal_ambience).
+It cost a 0.9 GB model inference per job for nothing measurable, so it is
+off; the step stays in :data:`MODEL_PLAN` so it can be re-enabled per
+strength here (and re-measured) if material with heavier bleed needs it."""
+
+
 def vocal_step(options: JobOptions) -> ModelStep:
     """The vocal/instrumental model step for ``options`` (quality x cleanup)."""
     if options.quality == "fast":
@@ -151,10 +166,15 @@ def vocal_step(options: JobOptions) -> ModelStep:
     return MODEL_PLAN["vocals_max_cleanup" if options.cleanup else "vocals_max"]
 
 
+def uses_debleed(options: JobOptions) -> bool:
+    """Whether a job with ``options`` runs the ``debleed`` stage."""
+    return bool(options.cleanup) and options.cleanup_strength in DEBLEED_STRENGTHS
+
+
 def models_for(options: JobOptions) -> List[str]:
     """Every model filename a job with ``options`` uses, in pipeline order."""
     steps = [vocal_step(options)]
-    if options.cleanup:
+    if uses_debleed(options):
         steps.append(MODEL_PLAN["debleed"])
     steps.append(MODEL_PLAN["instruments"])
     if options.drum_split:
@@ -178,9 +198,9 @@ def models_for_quality(quality: str) -> List[str]:
         raise ValueError(f"quality must be max, fast or all, got {quality!r}")
     names: List[str] = []
     for q in qualities:
-        for cleanup in (True, False):
-            names += models_for(JobOptions(quality=q, cleanup=cleanup, drum_split=True, vocal_split=True,
-                                           dereverb=True, denoise=True))
+        for cleanup, strength in ((True, "strong"), (True, "standard"), (False, "standard")):
+            names += models_for(JobOptions(quality=q, cleanup=cleanup, cleanup_strength=strength, drum_split=True,
+                                           vocal_split=True, dereverb=True, denoise=True))
     return list(dict.fromkeys(names))
 
 
@@ -209,7 +229,7 @@ def stage_plan(options: JobOptions) -> List[Tuple[str, float]]:
         ("analyze", DSP_WEIGHTS["analyze"]),
         ("vocals", MODEL_RUN_WEIGHT * vocal_step(options).runs),
     ]
-    if options.cleanup:
+    if uses_debleed(options):
         stages.append(("debleed", MODEL_RUN_WEIGHT))
     stages.append(("instruments", MODEL_RUN_WEIGHT))
     if options.drum_split:
@@ -544,15 +564,16 @@ class _Run:
     def cleanup(self, primary: Dict[str, np.ndarray], mix: np.ndarray) -> np.ndarray:
         """SPEC 2.1 in place on ``primary``; returns what was removed.
 
-        Equivalent to ``cleanup_stems(primary, mix, ...)``: the cross-stem bleed
-        mask needs every stem at once, the gate and range filter are per stem,
-        so they run as single-stem ``cleanup_stems`` calls (for one stem the
-        bleed mask is the identity), which lets the job report progress and
-        honour cancellation between stems.
+        Equivalent to ``cleanup_stems(primary, mix, ...)``: the bleed mask needs
+        every stem at once (each stem is judged by its catalogue group's share
+        of the bin, :func:`~stem_master.dsp.cleanup.stem_groups`), the gate and
+        range filter are per stem, so they run as single-stem ``cleanup_stems``
+        calls (for one stem the bleed mask is the identity), which lets the job
+        report progress and honour cancellation between stems.
         """
         strength = self.options.cleanup_strength
         self.progress.start("cleanup")
-        _, removed = bleed_mask(primary, WORK_SAMPLE_RATE, strength, inplace=True)
+        _, removed = bleed_mask(primary, WORK_SAMPLE_RATE, strength, groups=stem_groups(primary), inplace=True)
         self.progress.report(0.5)
         ids = list(primary)
         for index, stem_id in enumerate(ids):
@@ -671,7 +692,7 @@ class _Run:
         vocals = self.separate_vocals(mix)
         instrumental = mix - vocals
         ambience = np.zeros_like(mix)
-        if opts.cleanup:
+        if uses_debleed(opts):
             instrumental, bleed = self.debleed(instrumental)
             ambience += bleed
             del bleed
@@ -791,6 +812,7 @@ def run_pipeline(ctx: PipelineContext, *, engine: Optional[SeparationEngine] = N
 
 __all__ = [
     "DEBLEED_OUTPUT",
+    "DEBLEED_STRENGTHS",
     "DENOISE_OUTPUT",
     "DEREVERB_OUTPUT",
     "DRUMSEP_OUTPUTS",
@@ -807,5 +829,6 @@ __all__ = [
     "models_for_quality",
     "run_pipeline",
     "stage_plan",
+    "uses_debleed",
     "vocal_step",
 ]

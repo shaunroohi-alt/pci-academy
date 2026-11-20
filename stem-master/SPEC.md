@@ -29,8 +29,8 @@ end to end; nothing is normalised, so **stem gain is preserved**.
 | # | Stage id | What | Model(s) (audio-separator 0.48.0 filenames) |
 |---|---|---|---|
 | 1 | `analyze` | decode, loudness, BPM, key, artifact level | — (DSP) |
-| 2 | `vocals` | vocal / instrumental split | **max + cleanup:** ensemble `bs_roformer_vocals_revive_v2_unwa.ckpt` + `mel_band_roformer_kim_ft2_bleedless_unwa.ckpt`, `min_fft` (least bleed). **max, no cleanup:** `bs_roformer_vocals_resurrection_unwa.ckpt` + `melband_roformer_big_beta6x.ckpt`, `avg_fft`. **fast:** `mel_band_roformer_kim_ft2_bleedless_unwa.ckpt` alone |
-| 3 | `debleed` | (cleanup only) strip vocal bleed out of the instrumental | `mel_band_roformer_bleed_suppressor_v1.ckpt` |
+| 2 | `vocals` | vocal / instrumental split | **max:** ensemble `bs_roformer_vocals_revive_v2_unwa.ckpt` + `mel_band_roformer_kim_ft2_bleedless_unwa.ckpt` + the vocal output of `BS-Roformer-SW.ckpt`, `avg_fft` (best of the 18 single models and ensembles measured, see 2.1). **fast:** `mel_band_roformer_kim_ft2_bleedless_unwa.ckpt` alone |
+| 3 | `debleed` | strip vocal bleed out of the instrumental — **currently disabled** (`DEBLEED_STRENGTHS` is empty): on MUSDB18 it moved no target by more than 0.07 dB because the 6-stem model's own vocal output already collects the remnants | `mel_band_roformer_bleed_suppressor_v1.ckpt` |
 | 4 | `instruments` | instrumental → bass, drums, guitar, piano, other (+ vocal remnants) | `BS-Roformer-SW.ckpt` |
 | 5 | `drums` | (drum_split) drums → kick, snare, toms, hi-hat, ride, crash | `MDX23C-DrumSep-aufr33-jarredou.ckpt` |
 | 6 | `vocal_split` | (vocal_split) vocals → lead / backing | `bs_roformer_karaoke_frazer_becruily.ckpt` (its *Vocals* output = lead, the rest = backing) |
@@ -61,33 +61,101 @@ Rules that make the stems trustworthy:
 
 ### 2.1 Cleanup (DSP, `cleanup_strength`: light | standard | strong)
 
-1. Cross-stem bleed masking on the STFT (n_fft 4096, hop 1024): for each
-   primary stem `i`, ownership `w_i = |S_i|² / Σ_j |S_j|²`. Where `w_i < τ`
-   the bin is attenuated by `(w_i/τ)^β`, floored at `g_min`, with the gain
-   smoothed over a 3×5 (freq×time) neighbourhood to avoid musical noise.
+1. Bleed masking on the STFT (n_fft 4096, hop 1024), with ownership judged
+   per catalogue **group** (vocals / drums / bass / instruments): for group
+   `g`, `w_g = Σ_{i∈g}|S_i|² / Σ_j |S_j|²`. Where `w_g < τ·scale_g` every
+   stem of the group is attenuated by `(w_g/τ_g)^β`, floored at `g_min`, gain
+   smoothed over 3×5 (freq×time). Stems of one group (kick vs snare, lead vs
+   backing) are not masked against each other below `strong` — doing so cost
+   1.3 dB of drum SDR in the first version. `scale_g`: vocals 1.5, drums 0.6,
+   bass 0.5, instruments 1.0.
    `τ, β, g_min` = light (0.05, 1.0, −12 dB), standard (0.10, 1.5, −20 dB),
-   strong (0.18, 2.0, −30 dB).
-2. Activity gating: 10 ms RMS envelope, open threshold = max(stem peak RMS −
-   55 dB, mix envelope − 42 dB) (light −65/−50, strong −48/−36), 5 ms
-   look-ahead, 120 ms hold, 80 ms release, closed gain −80 dB.
+   strong (0.20, 2.0, −30 dB, plus a within-group mask τ 0.05, −12 dB).
+2. Activity gating: 10 ms RMS envelope, open threshold = max(stem peak RMS +
+   own, mix envelope + mix) with own/mix = light −55/−42, standard −45/−35,
+   strong −35/−27 dB; 5 ms look-ahead, 120 ms hold, 80 ms release, closed
+   gain −80 dB.
 3. Per-stem range filters (zero-phase 2nd-order Butterworth):
    vocals/lead/backing HPF 70 Hz · hihat HPF 300 Hz · ride/crash HPF 250 Hz ·
    snare HPF 60 Hz · toms HPF 40 Hz · guitar/piano/other HPF 30 Hz ·
    kick/bass untouched.
 
+Measured with `server/tools/eval_musdb.py` on 8 MUSDB18 test tracks (median,
+dB; SDR = faithfulness, BSSEval SIR = how little of the other sources leaks
+in), real models at overlap 4:
+
+| variant | vocals SDR/SIR | drums | bass | other |
+|---|---|---|---|---|
+| BS-Roformer-SW alone (does not sum to the mix) | 12.00 / 20.00 | 11.01 / 19.74 | 7.48 / 13.38 | 7.10 / 14.17 |
+| pipeline max, cleanup off | 12.46 / 19.90 | 11.19 / 20.52 | 7.56 / 13.65 | 7.26 / 14.28 |
+| pipeline max, light | 12.39 / 20.18 | 11.11 / 20.83 | 7.57 / 13.90 | 7.21 / 14.73 |
+| pipeline max, **standard** (default) | 12.30 / 20.41 | 10.96 / 21.01 | 7.57 / 14.15 | 7.10 / 14.99 |
+| pipeline max, strong | 12.01 / 20.82 | 10.64 / 21.46 | 7.55 / 14.55 | 6.82 / 15.29 |
+| pipeline fast, cleanup off | 11.65 / 19.10 | 11.08 / 20.44 | 7.55 / 13.79 | 7.08 / 14.05 |
+
+Before this tuning the default scored vocals 11.12 / drums 10.01 / bass 7.36
+/ other 6.63 SDR: the old no-cleanup vocal ensemble contained
+`bs_roformer_vocals_resurrection_unwa.ckpt`, which scored 4.7 dB SDR on its
+own on these clips.
+
 ### 2.2 Denoise — AI-generation artifacts (`denoise_strength`)
 
-AI music generators leave a static noise floor, a "shimmering"/flickering
-high band from their neural codec, DC offset and sub-sonic rumble. Denoise:
+Denoise removes only what it *measures* in each stem (`dsp/denoise.py`), so
+clean material passes untouched; everything taken out goes to
+`removed_noise`:
 
-1. DC removal + 20 Hz HPF on every stem.
+1. DC removal + 16 Hz zero-phase high-pass (4th order; −0.67 dB at 20 Hz,
+   −0.03 dB at 30 Hz) on every stem, faded in / out over the first / last
+   250 ms so a stem that starts or ends at full level keeps its edges.
 2. Vocal stems: neural denoise (aufr33 Mel-RoFormer), then DSP.
-3. Spectral noise-floor reduction: per-bin floor = 10th percentile of
-   magnitude over time (smoothed across frequency); soft Wiener gain
-   `max(1 − α·N²/|X|², g_min)` with decision-directed temporal smoothing.
-4. High-band de-flicker (≥ 7 kHz): clamp each bin toward its 7-frame
-   temporal median when it exceeds it by more than `k`, except on frames
-   flagged as broadband onsets (spectral flux), so transients survive.
+3. Stationary noise floor, only where one is detected (per channel, STFT
+   46 ms). A bin is noise floor when its lower tail (5/15/30 % quantiles over
+   the active frames) has the Rayleigh shape of Gaussian noise, is stationary
+   over 3–16 segments (std < 1.5–2.5 dB) and lies ≥ 20–30 dB below the stem's
+   mean per-bin power. ≥ 16 such bins give a 1/3-octave noise spectrum,
+   fitted to its lower envelope by a ≤ 2nd-order curve in log f, used only
+   between the outermost confident bands and capped per bin by its own
+   10th-percentile floor. Soft Wiener gain `max(1 − α/(1 + ξ), g_min)` with
+   decision-directed a-priori SNR ξ.
+4. High-band de-flicker (7–10 / 10–14 / 14–20 kHz, STFT 11.6 ms / hop 2.9 ms),
+   only where flicker is measured: band level minus its ~70 ms running median
+   = excess; frames where the 4.5–7 kHz reference band also jumps (> 3 dB) are
+   onsets and untouched. Flicker `F` = mean excess above 1.5 dB in the high
+   band minus that of the reference; `β = clip((F − F0)/0.2) ·
+   clip((0.22 − periodicity)/0.1)` (bursts recurring on a beat grid are a
+   groove). Excess above `k` is cut by `β·(excess − k)`, ≤ `cut_max`.
+
+| strength | α | g_min | a | F0 | k | cut_max |
+|---|---|---|---|---|---|---|
+| light | 1.0 | −8 dB | 0.96 | 0.45 dB | 4 dB | 6 dB |
+| standard | 1.0 | −12 dB | 0.95 | 0.35 dB | 3 dB | 10 dB |
+| strong | 1.25 | −18 dB | 0.93 | 0.25 dB | 2 dB | 14 dB |
+
+Measured with `server/tools/eval_denoise.py` (thresholds set on MUSDB18
+train, checked on test):
+
+* **Clean MUSDB18 stems** (40 clips × vocals/drums/bass/other): energy removed
+  ≤ 0.29 dB at every strength (max over clips; vocals ≤ 0.02, bass ≤ 0.16,
+  other ≤ 0.09, drums 0.28 = a sub-kick below 20 Hz); median ≤ 0.005 dB. Above
+  7 kHz: median ≈ 0, max 1.4 dB (standard) / 1.7 dB (strong) — guitar-amp /
+  room hiss in a few recordings and unprotected hi-hats.
+* **Degraded stems** (12 test clips × 4 stems; SNR gain at standard, median):
+  white noise at −30 dB re stem 1.9 dB (bass 7.1, other 2.9, vocals 1.4,
+  drums 0.5), pink −30 dB 2.7 dB; at −40 dB white 0.8, pink 2.6 dB; high-band
+  bursts (+12 dB in 15 % of 12 ms frames) 2.2 dB (vocals 3.1), ±6 dB random
+  gain 0.7 dB. Noise hidden under continuous music is left (it is masked and
+  cannot be told from the music). Worst cases −2.9 dB (−4.5 dB at strong):
+  white noise at −40 dB on drum / dense "other" stems, whose stationary
+  texture (cymbal wash) is then taken for part of the floor.
+* **Udio stems** (production models, fast quality, 12 s excerpts: all stems
+  of 4 clips + the vocals of 6 more, 25 non-silent stems): no stationary
+  floor or flicker worth removing — stages 3–4 take ≤ −44 dB re stem from
+  every stem (≤ 0.03 dB of level); stage 1 takes sub-sonic separation residue
+  (−29 … −77 dB). The neural vocal model takes −55 … −58 dB from 9 of 10 Udio
+  vocals (−24 dB from the near-empty vocal stem of an instrumental) and
+  −33 … −56 dB (≤ 0.005 dB of level) from clean MUSDB
+  vocals, but there it takes ≥ 25 % of the energy of ~1 % of the 50 ms frames
+  (breaths / tails ≥ 32 dB below the vocal's peak).
 
 Inaudible provenance watermarks are deliberately **not** targeted.
 
@@ -95,9 +163,25 @@ Inaudible provenance watermarks are deliberately **not** targeted.
 
 `bpm` (librosa beat tracker, folded into 70–180), `key` (Krumhansl–Schmuckler
 on CQT chroma, also returned as Camelot), integrated loudness (ITU-R BS.1770 via
-pyloudnorm), sample peak, and `artifact_level` (0–1) from high-band flicker,
-noise floor and a hard spectral cut-off. It is reported as an artifact
-level, never as a claim about who or what made the track.
+pyloudnorm), sample peak, `spectral_cutoff_hz` (hard band-limit 11–20 kHz,
+reported only) and `artifact_level` (0–1):
+
+    artifact_level = 1 − (1 − s_hfnoise)(1 − 0.6 s_noise)
+
+* `s_hfnoise = clip((hf_flatness − 0.58)/0.06)`: `hf_flatness` is the median
+  local spectral flatness (21-bin ≈ 226 Hz neighbourhoods, 93 ms frames at
+  44.1 kHz, frames ≥ median energy) of 4–16 kHz — how noise-like the high band's
+  fine structure is (Gaussian noise 0.60 → 0.33; partials/modes pull it down).
+* `s_noise`: an audible, noise-like static floor in the quietest frames.
+
+High-band flicker and the band-limit are measured but not in the level: they
+did not hold up on held-out data and band-limits are what MP3/AAC do. On
+held-out data (30 Udio clips vs 50 MUSDB18 test previews; constants from 30
+other Udio clips + 94 MUSDB18 train previews) the level separates them with
+AUC 0.94 (medians 0.69 vs 0.00; all 50 MUSDB "low", 23/30 Udio "moderate" or
+"high"); re-encoding to MP3 128/320 or AAC 128 never raises it by more than
+0.1. It is reported as an artifact level, never as a claim about who or what
+made the track.
 
 ## 3. Stem catalogue (fixed ids)
 

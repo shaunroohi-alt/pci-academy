@@ -26,6 +26,16 @@ the calibration set only.
 Model runs (``udio``, ``neural``) need ``STEM_MASTER_MODEL_DIR`` and the
 audio-separator engine; their outputs are cached as float WAVs keyed by
 (clip, model, overlap).
+
+The numbers in SPEC 2.2/2.3 come from::
+
+    prepare --udio-count 60 --stems-per-split 20
+    meter
+    clean
+    synthetic --clips 12
+    neural --clips 12                                   (STEM_MASTER_OVERLAP_MAX=4)
+    udio --clips 4 --seconds 12 --neural                (STEM_MASTER_OVERLAP_FAST=2)
+    udio --clips 10 --seconds 12 --neural --vocals-only
 """
 
 from __future__ import annotations
@@ -281,25 +291,42 @@ def cmd_meter(args: argparse.Namespace) -> None:
 
 
 # --------------------------------------------------------------------- clean
+def _hf_db(x: np.ndarray, sr: int, f0: float = 7000.0) -> float:
+    from scipy import signal
+
+    sos = signal.butter(6, f0, btype="highpass", fs=sr, output="sos")
+    return _db(signal.sosfiltfilt(sos, np.asarray(x, dtype=np.float64), axis=-1))
+
+
 def cmd_clean(args: argparse.Namespace) -> None:
+    """Removed energy on clean MUSDB stems (whole band and >= 7 kHz)."""
     from stem_master.dsp.denoise import STRENGTHS, denoise_dsp
 
     work = Path(args.work)
     items = [m for m in _musdb(work) if m["stems"]]
     table: Dict[Tuple[str, str], List[float]] = {}
+    hf: Dict[Tuple[str, str], List[float]] = {}
     for item in items:
         for stem in STEMS:
             x, sr = _read(Path(item["folder"]) / f"{stem}.wav")
             if _db(x) < -60.0:
                 continue      # (near) silent stem in this excerpt
+            hf_x = _hf_db(x, sr)
             for strength in STRENGTHS:
                 clean, removed = denoise_dsp(x, sr, strength)
                 assert np.max(np.abs(clean + removed - x)) < 1e-5
                 table.setdefault((stem, strength), []).append(_db(x) - _db(clean))
-    print(f"=== removed energy on clean MUSDB stems (dB lost = level(x) - level(clean)), {len(items)} clips ===")
+                if hf_x > _db(x) - 50.0:
+                    hf.setdefault((stem, strength), []).append(hf_x - _hf_db(clean, sr))
+    print(f"=== removed energy on clean MUSDB stems, {len(items)} clips (20 train + 20 test previews) ===")
+    print("dB lost = level(stem) - level(denoised stem)")
     for strength in STRENGTHS:
         for stem in STEMS:
             print(f"{strength:>8} {stem:>7}: {_q(table.get((stem, strength), []))}")
+    print("dB lost above 7 kHz (stems with >= 7 kHz content within 50 dB of their level)")
+    for strength in STRENGTHS:
+        for stem in STEMS:
+            print(f"{strength:>8} {stem:>7}: {_q(hf.get((stem, strength), []))}")
 
 
 # ----------------------------------------------------------------- synthetic
@@ -310,37 +337,51 @@ def _pink(n: int, rng: np.random.Generator) -> np.ndarray:
     return np.fft.irfft(spec / np.sqrt(f), n=n)
 
 
-def _flicker(x: np.ndarray, sr: int, depth_db: float, rng: np.random.Generator,
+def _flicker(x: np.ndarray, sr: int, depth_db: float, rng: np.random.Generator, mode: str = "sym",
              frame_s: float = 0.012) -> np.ndarray:
-    """Random per-frame gain (0..-depth dB, smoothed 2 ms) on the band above 8 kHz of ``x``."""
+    """Random per-frame (12 ms, 2 ms ramps) gain on the band above 8 kHz of ``x``.
+
+    ``sym``: uniform in [-depth/2, +depth/2] dB every frame; ``bursts``: +depth dB
+    on a random 15 % of the frames (codec-style shimmer), 0 dB elsewhere.
+    Returns the degraded signal (float64).
+    """
     from scipy import signal
 
     sos = signal.butter(6, 8000.0, btype="highpass", fs=sr, output="sos")
     hf = signal.sosfiltfilt(sos, x.astype(np.float64), axis=-1)
     n = x.shape[1]
     seg = int(frame_s * sr)
-    g = 10.0 ** (rng.uniform(-depth_db, 0.0, -(-n // seg)) / 20.0)
-    gain = np.repeat(g, seg)[:n]
+    count = -(-n // seg)
+    if mode == "sym":
+        g_db = rng.uniform(-depth_db / 2.0, depth_db / 2.0, count)
+    else:
+        g_db = np.where(rng.random(count) < 0.15, depth_db, 0.0)
+    gain = np.repeat(10.0 ** (g_db / 20.0), seg)[:n]
     k = max(1, int(0.002 * sr))
     gain = np.convolve(gain, np.ones(k) / k, mode="same")
     return x + hf * (gain - 1.0)[np.newaxis]   # = low part + hf * gain
 
 
+SYNTH_CASES = ("white-30", "white-40", "pink-30", "pink-40", "flicker-sym-12dB", "flicker-bursts-6dB",
+               "flicker-bursts-12dB")
+
+
 def cmd_synthetic(args: argparse.Namespace) -> None:
+    """Degrade clean MUSDB stems and measure how much closer to the clean stem denoise gets."""
     from scipy import signal
 
-    from stem_master.dsp.denoise import STRENGTHS, denoise_dsp
+    from stem_master.dsp.denoise import STRENGTHS, _dc_and_rumble, denoise_dsp
 
     work = Path(args.work)
-    items = [m for m in _musdb(work) if m["stems"]][: args.clips]
+    items = [m for m in _musdb(work) if m["stems"] and m["split"] == "held"][: args.clips]
     rng = np.random.default_rng(0)
-    sos_hf = None
     results: Dict[Tuple[str, str], List[float]] = {}
     for item in items:
         for stem in STEMS:
             x, sr = _read(Path(item["folder"]) / f"{stem}.wav")
             if _db(x) < -50.0:
                 continue
+            sos_hf = signal.butter(6, 8000.0, btype="highpass", fs=sr, output="sos")
             x64 = x.astype(np.float64)
             level = _db(x)
             cases = {}
@@ -350,33 +391,43 @@ def cmd_synthetic(args: argparse.Namespace) -> None:
                 else:
                     nz = np.stack([_pink(x.shape[1], rng) for _ in range(x.shape[0])])
                 nz *= 10.0 ** ((level + rel) / 20.0) / math.sqrt(np.mean(nz ** 2))
-                cases[kind] = nz
-            for depth in (6.0, 12.0):
-                cases[f"flicker-{depth:g}dB"] = _flicker(x64, sr, depth, rng) - x64
-            if sos_hf is None:
-                sos_hf = signal.butter(6, 8000.0, btype="highpass", fs=sr, output="sos")
-            for kind, nz in cases.items():
-                y = (x64 + nz).astype(np.float32)
+                cases[kind] = x64 + nz
+            if _db(signal.sosfiltfilt(sos_hf, x64, axis=-1)) > level - 50.0:
+                cases["flicker-sym-12dB"] = _flicker(x64, sr, 12.0, rng, "sym")
+                cases["flicker-bursts-6dB"] = _flicker(x64, sr, 6.0, rng, "bursts")
+                cases["flicker-bursts-12dB"] = _flicker(x64, sr, 12.0, rng, "bursts")
+            # stage 1 (DC + 16 Hz high-pass) is deterministic and not noise reduction:
+            # compare with the clean stem after that stage
+            ref64 = _dc_and_rumble(x, sr).astype(np.float64)
+            for kind, y64 in cases.items():
+                y = y64.astype(np.float32)
                 err_in = y.astype(np.float64) - x64
+                if kind.startswith("flicker"):
+                    # flicker error lives above 8 kHz; measure it there
+                    err_in = signal.sosfiltfilt(sos_hf, err_in, axis=-1)
                 for strength in STRENGTHS:
                     clean, _ = denoise_dsp(y, sr, strength)
-                    err_out = clean.astype(np.float64) - x64
+                    err_out = clean.astype(np.float64) - ref64
                     if kind.startswith("flicker"):
-                        # flicker error lives above 8 kHz; measure it there
-                        e_in = signal.sosfiltfilt(sos_hf, err_in, axis=-1)
-                        e_out = signal.sosfiltfilt(sos_hf, err_out, axis=-1)
-                    else:
-                        e_in, e_out = err_in, err_out
-                    results.setdefault((kind, strength), []).append(_db(e_in) - _db(e_out))
-                    results.setdefault((kind + "|" + stem, strength), []).append(_db(e_in) - _db(e_out))
-    print(f"=== SNR improvement (dB) = err(noisy) - err(denoised), err vs the clean stem; {len(items)} clips ===")
-    for kind in ("white-30", "white-40", "pink-30", "pink-40", "flicker-6dB", "flicker-12dB"):
+                        err_out = signal.sosfiltfilt(sos_hf, err_out, axis=-1)
+                    gain = _db(err_in) - _db(err_out)
+                    results.setdefault((kind, strength), []).append(gain)
+                    results.setdefault((kind + "|" + stem, strength), []).append(gain)
+    print(f"=== SNR improvement (dB) = level(degraded - clean) - level(denoised - clean'), clean' = clean "
+          f"after the DC/16 Hz stage; "
+          f"{len(items)} held-out clips x 4 stems ===")
+    print("noise cases: whole band; flicker cases: error above 8 kHz")
+    for kind in SYNTH_CASES:
         for strength in STRENGTHS:
-            print(f"{kind:>13} {strength:>8}: {_q(results.get((kind, strength), []))}")
-    if args.per_stem:
-        for (key, strength), v in sorted(results.items()):
-            if "|" in key:
-                print(f"{key:>22} {strength:>8}: median {np.median(v):6.2f} min {np.min(v):6.2f}")
+            print(f"{kind:>20} {strength:>8}: {_q(results.get((kind, strength), []))}")
+    print("median per stem type (light / standard / strong):")
+    for kind in SYNTH_CASES:
+        parts = []
+        for stem in STEMS:
+            vals = [np.median(results[(kind + "|" + stem, s)]) if (kind + "|" + stem, s) in results else float("nan")
+                    for s in STRENGTHS]
+            parts.append(f"{stem} " + "/".join(f"{v:.1f}" for v in vals))
+        print(f"{kind:>20}: " + "  ".join(parts))
 
 
 # ---------------------------------------------------------------- model runs
@@ -418,29 +469,44 @@ def _corr(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / den) if den > 0 else 0.0
 
 
-def _flatness_db(x: np.ndarray, sr: int, lo: float = 500.0, hi: float = 16000.0) -> float:
-    """Median per-frame spectral flatness (0..1, ~0.56 for white noise) of ``x`` in [lo, hi)."""
+def _flatness_db(x: np.ndarray, sr: int, lo: float = 100.0, hi: float = 16000.0) -> float:
+    """Median per-frame spectral flatness (0..1; ~0.56 for white noise, ~0 for tones) of ``x``,
+    over the bins of [lo, hi) whose long-term level is within 40 dB of the strongest one."""
     from scipy import signal
 
-    f, _, z = signal.stft(x.mean(axis=0), fs=sr, nperseg=2048, noverlap=1536)
+    f, _, z = signal.stft(np.asarray(x, dtype=np.float64).mean(axis=0), fs=sr, nperseg=2048, noverlap=1536)
     band = (f >= lo) & (f < min(hi, 0.95 * sr / 2))
-    p = np.abs(z[band]) ** 2 + 1e-20
+    p = np.abs(z[band]) ** 2 + 1e-30
+    ltas = p.mean(axis=1)
+    if ltas.max() <= 1e-28:
+        return float("nan")
+    p = p[ltas >= ltas.max() * 1e-4]
     e = p.sum(axis=0)
     keep = e > e.max() * 1e-5
-    if not np.any(keep):
+    if p.shape[0] < 8 or not np.any(keep):
         return float("nan")
     flat = np.exp(np.mean(np.log(p[:, keep]), axis=0)) / np.mean(p[:, keep], axis=0)
     return float(np.median(flat))
 
 
-def _describe_removed(x: np.ndarray, clean: np.ndarray, removed: np.ndarray, sr: int) -> dict:
-    return {
+def _describe_removed(x: np.ndarray, clean: np.ndarray, removed: np.ndarray, sr: int,
+                      stage1: Optional[np.ndarray] = None) -> dict:
+    """Level / character of what was removed. With ``stage1`` (= x after the
+    DC/16 Hz stage), the noise-reduction + de-flicker part ``stage1 - clean``
+    is described separately from the DC/rumble part ``x - stage1``."""
+    out = {
         "lost_db": round(_db(x) - _db(clean), 3),
         "removed_rel_db": round(_db(removed) - _db(x), 2),
-        "flatness_removed": round(_flatness_db(removed, sr), 3),
-        "flatness_stem": round(_flatness_db(x, sr), 3),
-        "corr_removed_clean": round(_corr(removed, clean), 3),
     }
+    part = removed if stage1 is None else stage1.astype(np.float64) - clean
+    if stage1 is not None:
+        out["dc_rumble_rel_db"] = round(_db(x.astype(np.float64) - stage1) - _db(x), 2)
+    out["nr_rel_db"] = round(_db(part) - _db(x), 2)
+    audible = _db(part) > _db(x) - 70.0
+    out["flatness_removed"] = round(_flatness_db(part, sr), 3) if audible else None
+    out["flatness_stem"] = round(_flatness_db(x, sr), 3)
+    out["corr_removed_clean"] = round(_corr(part, clean), 3) if audible else None
+    return out
 
 
 def _udio_stems(work: Path, item: dict, seconds: float, vocals_only: bool, neural: bool,
@@ -485,7 +551,7 @@ def cmd_udio(args: argparse.Namespace) -> None:
         print(f"separated {item['name']}", flush=True)
     if args.models_only:
         return
-    from stem_master.dsp.denoise import STRENGTHS, denoise_dsp, measure_artifacts
+    from stem_master.dsp.denoise import STRENGTHS, _dc_and_rumble, denoise_dsp, measure_artifacts
 
     rows = []
     for item in clips:   # 2. DSP denoise on every stem
@@ -495,26 +561,39 @@ def cmd_udio(args: argparse.Namespace) -> None:
             rows.append({"clip": item["name"], "stem": "vocals", "stage": "neural",
                          **_describe_removed(voc, dn, voc - dn, WORK_SR)})
         for stem, s in stems.items():
+            if _db(s) < -60.0:
+                continue      # (near) silent stem: the pipeline folds or drops it
             meas = measure_artifacts(s, WORK_SR)
+            stage1 = _dc_and_rumble(s, WORK_SR)
             for strength in STRENGTHS:
                 clean, removed = denoise_dsp(s, WORK_SR, strength)
                 assert np.max(np.abs(clean + removed - s)) < 1e-5
                 rows.append({"clip": item["name"], "stem": stem, "stage": strength,
-                             **{k: meas[k] for k in ("noise_db", "noise_confidence", "flicker_db", "flicker_amount")
-                                if k in meas},
-                             **_describe_removed(s, clean, removed, WORK_SR)})
+                             "noise_db": meas["noise_db"], "noise_bins": meas["noise_bins"],
+                             "flicker_db": meas["flicker_db"], "periodicity": meas["flicker_periodicity"],
+                             "beta": meas["flicker_beta"][strength],
+                             **_describe_removed(s, clean, removed, WORK_SR, stage1)})
     _print_udio(rows)
     if args.dump:
         Path(args.dump).write_text(json.dumps(rows, indent=1))
 
 
+def _fmt(v, spec: str) -> str:
+    return "  n/a" if v is None else format(v, spec)
+
+
 def _print_udio(rows: List[dict]) -> None:
     print("=== DSP denoise on production-model stems of Udio clips ===")
-    print(f"{'clip':>10} {'stem':>7} {'stage':>8} | {'lost dB':>7} {'removed re stem':>15} | "
-          f"{'flat(removed)':>13} {'flat(stem)':>10} {'corr(removed,clean)':>19}")
+    print("lost = level drop of the stem; dc = DC/16 Hz stage; nr = noise-floor + de-flicker stages "
+          "(levels re stem, dB); flat/corr describe the nr part")
+    print(f"{'clip':>9} {'stem':>7} {'stage':>8} | {'noise':>6} {'bins':>5} {'F':>5} {'per':>4} {'beta':>4} | "
+          f"{'lost':>6} {'dc':>6} {'nr':>6} | {'flat(nr)':>8} {'flat(stem)':>10} {'corr':>6}")
     for r in rows:
-        print(f"{r['clip']:>10} {r['stem']:>7} {r['stage']:>8} | {r['lost_db']:7.3f} {r['removed_rel_db']:15.1f} | "
-              f"{r['flatness_removed']:13.3f} {r['flatness_stem']:10.3f} {r['corr_removed_clean']:19.3f}")
+        print(f"{r['clip']:>9} {r['stem']:>7} {r['stage']:>8} | {_fmt(r.get('noise_db'), '6.1f')} "
+              f"{_fmt(r.get('noise_bins'), '5.2f')} {_fmt(r.get('flicker_db'), '5.2f')} "
+              f"{_fmt(r.get('periodicity'), '4.2f')} {_fmt(r.get('beta'), '4.2f')} | "
+              f"{r['lost_db']:6.3f} {_fmt(r.get('dc_rumble_rel_db'), '6.1f')} {r['nr_rel_db']:6.1f} | "
+              f"{_fmt(r['flatness_removed'], '8.3f')} {r['flatness_stem']:10.3f} {_fmt(r['corr_removed_clean'], '6.3f')}")
 
 
 def cmd_neural(args: argparse.Namespace) -> None:
@@ -539,12 +618,30 @@ def cmd_neural(args: argparse.Namespace) -> None:
         for k, v in other.items():
             rec[f"{k}_rel_db"] = round(_db(v) - _db(x), 2)
             rec[f"{k}_corr_with_vocal"] = round(_corr(v, x), 3)
+        # where does it act? 50 ms frames within 50 dB of the vocal's loudest one
+        win = int(0.05 * sr)
+        n = x.shape[1] // win
+        lv = 10 * np.log10((x[:, :n * win].astype(np.float64).reshape(x.shape[0], n, win) ** 2).mean(axis=(0, 2))
+                           + 1e-14)
+        rem = (x - dry)[:, :n * win].astype(np.float64)
+        lr = 10 * np.log10((rem.reshape(x.shape[0], n, win) ** 2).mean(axis=(0, 2)) + 1e-14)
+        active = lv > lv.max() - 50.0
+        emptied = active & (lr - lv > -6.0)
+        rec["frames_active"] = int(active.sum())
+        rec["frames_emptied"] = int(emptied.sum())        # >= 25 % of their energy removed
+        rec["emptied_level_re_peak_db"] = (round(float(np.max(lv[emptied] - lv.max())), 1)
+                                           if np.any(emptied) else None)
         rows.append(rec)
         print(json.dumps(rec), flush=True)
     lost = [r["lost_db"] for r in rows]
     print(f"neural vocal denoise on clean MUSDB vocals: dB lost {_q(lost)}")
     print(f"  removed level rel. stem: {_q([r['removed_rel_db'] for r in rows])}")
     print(f"  flatness of removed: {_q([r['flatness_removed'] for r in rows])}")
+    act = sum(r["frames_active"] for r in rows)
+    emp = sum(r["frames_emptied"] for r in rows)
+    loud = [r["emptied_level_re_peak_db"] for r in rows if r["emptied_level_re_peak_db"] is not None]
+    print(f"  50 ms frames with >= 25 % (-6 dB) of their energy removed: {emp}/{act} = {100.0 * emp / max(act, 1):.1f} %"
+          f"; loudest of them {max(loud) if loud else float('nan'):.1f} dB re the vocal's peak frame")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -567,7 +664,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     sy = sub.add_parser("synthetic")
     sy.add_argument("--work", required=True)
     sy.add_argument("--clips", type=int, default=12)
-    sy.add_argument("--per-stem", action="store_true")
     sy.set_defaults(func=cmd_synthetic)
     ud = sub.add_parser("udio")
     ud.add_argument("--work", required=True)

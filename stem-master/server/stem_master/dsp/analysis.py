@@ -9,47 +9,54 @@ track needs only a few tens of MB on top of the input array.
 
 Artifact level
 --------------
-``artifact_level`` (0..1) measures audible *processing artifacts* — a static
-noise floor, a "shimmering" high band and a hard band-limit. It is a property
-of the audio only and is never a statement about who or what made a track.
-Three sub-scores in 0..1 are computed on a mono copy at the source rate
-(STFT, ``n_fft`` ~23 ms, hop = ``n_fft/4``, Hann):
+``artifact_level`` (0..1) measures audible *noise artifacts*: a high band
+whose fine structure is plain noise (hiss / "fizz" / codec shimmer instead
+of partials) and a static noise floor. It is a property of the audio only and
+is never a statement about who or what made a track. Two sub-scores in 0..1:
 
-* ``s_flicker`` — high-band temporal flicker. Per frame, the energy of the
-  high band ``[7 kHz, f_hi)`` and of the mid band ``[1, 4) kHz`` is taken
-  (``f_hi = min(16 kHz, cutoff - 500 Hz, 0.9 * Nyquist)``). For each band the
-  roughness is the median over frames of ``|L[t] - L[t-4]|`` (dB, frames one
-  window length apart, i.e. non-overlapping): steady sound — including a
-  stationary noise floor — barely moves, a codec "shimmer" jumps by several dB
-  from one ~20 ms frame to the next, and the median ignores sparse genuine
-  transients. Only frames where both bands are within 60 dB of their own
-  maximum count. ``F = roughness_high - roughness_mid`` (dB): comparing with
-  the mid band cancels fluctuation that the music itself has everywhere.
-  ``s_flicker = clip((F - 1.5) / 2.5, 0, 1)``; the 1.5 dB dead zone is above
-  what dense acoustic mixes and their separated stems reach (MUSDB18 clips
-  measure -0.6..1.3 dB).
-* ``s_noise`` — static noise floor. Frame mean-square levels in dB:
-  ``floor`` = 5th percentile, ``programme`` = 95th percentile (digital
-  silence counts as -120 dB). A floor only counts if it is audible, clearly
-  below the programme (i.e. quiet frames exist) and noise-like (median
-  spectral flatness, 1 kHz..f_hi, of the quietest 10 % of frames; ~0.56 for
-  white noise, < 0.1 for quiet musical passages)::
+* ``s_hfnoise`` — high-band texture (:func:`hf_texture`). On a mono copy
+  resampled to 44.1 kHz (Hann STFT 4096 / hop 1024, ~93 ms), every bin's
+  *local flatness* ``exp(mean log P) / mean P`` over its 21-bin (~226 Hz)
+  neighbourhood is taken in the frames at or above the median frame energy
+  whose 4-16 kHz share is >= -40 dB, for bins of ``[4 kHz, f_hi)`` within
+  60 dB of the frame's strongest one (``f_hi = min(16 kHz, cutoff - 500 Hz,
+  0.9 * Nyquist)``). ``hf_flatness`` is the median. Gaussian noise measures
+  0.60 whatever its level or colour; partials, cymbal modes and other tonal
+  fine structure pull it down, so produced mixes sit lower::
+
+      s_hfnoise = clip((hf_flatness - 0.58) / 0.06, 0, 1)
+
+  (white noise -> 0.33). Calibrated on 30 Udio clips + 94 MUSDB18 train
+  previews; on the held-out 30 Udio clips + 50 MUSDB18 test previews
+  ``hf_flatness`` separates them with AUC 0.93 (medians 0.621 vs 0.560;
+  MUSDB max 0.598). Re-encoding (MP3 128/320 kbps, AAC 128 kbps) never
+  raises it: lossy coders *remove* high-band noise (spectral holes), so an
+  encoder band-limit or coarse quantisation cannot drive the level up.
+* ``s_noise`` — static noise floor. Frame mean-square levels in dB (STFT
+  ~23 ms at the source rate): ``floor`` = 5th percentile, ``programme`` = 95th
+  percentile (digital silence counts as -120 dB). A floor only counts if it is
+  audible, clearly below the programme (i.e. quiet frames exist) and
+  noise-like (median spectral flatness, 1 kHz..f_hi, of the quietest 10 % of
+  frames; ~0.56 for white noise, < 0.1 for quiet musical passages)::
 
       s_noise = clip((floor + 75) / 25, 0, 1)
               * clip((programme - floor - 12) / 12, 0, 1)
               * clip((flatness - 0.15) / 0.25, 0, 1)
 
-* ``s_cutoff`` — hard spectral cut-off between 11 and 20 kHz: the long-term
-  average spectrum falls by more than 30 dB from ``[f-500, f-100]`` Hz to
-  ``[f+100, f+500]`` Hz while the region below carries content.
-  ``s_cutoff = clip((19500 - f_cut) / 5500, 0, 1)`` (0 when none is found).
+Combined as a soft OR::
 
-They are combined as a soft OR, weighting each cue by how strongly it
-indicates audible artifacts::
-
-    artifact_level = 1 - (1 - 0.85 s_flicker) (1 - 0.60 s_noise) (1 - 0.30 s_cutoff)
+    artifact_level = 1 - (1 - s_hfnoise) (1 - 0.60 s_noise)
 
 ``artifact_label``: ``low`` < 0.33 <= ``moderate`` < 0.66 <= ``high``.
+
+Also reported by :func:`artifact_features` but *not* part of the level:
+``flicker_db`` (median ``|L[t] - L[t-4]|`` of the 7 kHz..f_hi band minus that
+of 1-4 kHz) and ``cutoff_hz`` (hard spectral cut-off between 11 and 20 kHz,
+exposed as ``spectral_cutoff_hz``). Neither separated generated from produced
+music on held-out data (flicker AUC 0.44; every MUSDB18 preview has the AAC
+cut-off at ~17 kHz, the Udio MP3s one at ~20 kHz), and band-limits are what
+ordinary lossy encoding does. ``tools/eval_denoise.py meter`` reproduces all
+numbers.
 """
 
 from __future__ import annotations
@@ -662,7 +669,8 @@ def artifact_features(mono: np.ndarray, sr: int, max_sampled_frames: int = 3000)
     return out
 
 
-ARTIFACT_WEIGHTS = {"s_hfnoise": 1.0, "s_flicker": 0.85, "s_noise": 0.60}
+ARTIFACT_WEIGHTS = {"s_hfnoise": 1.0, "s_noise": 0.60}
+"""Sub-scores in the level and their weights (``s_flicker`` is diagnostic only)."""
 
 
 def artifact_level_from_features(feats: Dict[str, Optional[float]]) -> float:

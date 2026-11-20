@@ -1,35 +1,47 @@
 """Stem cleanup (SPEC 2.1): bleed masking, activity gating, range filters.
 
-Every function returns the cleaned audio *and* what it removed, computed in
-the time domain as ``input - output``, so ``output + removed == input``
-exactly (to float32 rounding). :func:`cleanup_stems` chains the three steps
-and accumulates everything that was taken out into one ``removed_total``
-array — the ``removed_bleed`` stem of the job.
+The bleed mask judges ownership per **catalogue group** (vocals / drums /
+bass / instruments): where a group's estimate holds only a small share of a
+time-frequency bin, every stem of that group is attenuated there. Stems of
+one group (kick vs snare, lead vs backing, guitar vs piano, a residual stem
+such as ``drum_room`` / ``vocal_ambience``) are *not* masked against each
+other below ``strong``: on MUSDB18 that within-group masking was what made
+the first version cost 1.3 dB of drum SDR at ``standard`` (it deletes drum
+energy because a snare holds less of a bin than the kick), and handing the
+attenuated part to the sibling instead (tried as "reassignment") was worse
+still - both the SDR and the SIR of the receiving stem dropped. ``strong``
+adds a gentle within-group mask (``tau_within``) for the cleanest parts.
+
+The activity gate and the range filters then work per stem. Every function
+returns the cleaned audio *and* what it removed, computed in the time domain
+as ``input - output``, so ``output + removed == input`` exactly (to float32
+rounding). :func:`cleanup_stems` chains the three steps and accumulates
+everything that was taken out into one ``removed_total`` array - the
+``removed_bleed`` stem of the job.
 
 Arrays are float32 ``(channels, samples)``; ``strength`` is one of
-``"light"``, ``"standard"``, ``"strong"``.
+``"light"``, ``"standard"``, ``"strong"``. Parameters are in
+:data:`CLEANUP_PARAMS`; what each costs and gains on MUSDB18 (median of 8
+test tracks, ``tools/eval_musdb.py``) is in SPEC 2.1.
 
 Memory
 ------
 :func:`bleed_mask` works per channel on time blocks of ``block_frames`` STFT
-frames (default 256 frames = 5.9 s at 44.1 kHz) with 5 frames of context
-(3 for the window overlap + 2 for the 5-frame time smoothing), so its working
-set does not grow with duration: per stem it holds one complex64 STFT block
-(263 x 2049 bins, 4.3 MB) plus float32 power/gain temporaries and the
-synthesised block, ~12 MB per stem — measured with ``tracemalloc`` at
-197 MB for 16 stereo stems (identical at 12 s and 24 s of audio). On top of
-that come ``removed_total`` (one stem-sized array) and, unless
-``inplace=True``, the cleaned outputs themselves (one new array per stem).
-For 16 stereo stems of 6 minutes at 44.1 kHz (127 MB each):
+frames (default 256 frames = 5.9 s at 44.1 kHz) plus the 3 frames of window
+overlap, so its working set does not grow with duration: per stem it holds
+one complex64 STFT block (259 x 2049 bins, 4.2 MB) plus float32 power/gain
+temporaries and the synthesised block, ~12 MB per stem - measured with
+``tracemalloc`` (see :mod:`tests.test_dsp_cleanup`) and independent of
+duration. On top of that come ``removed_total`` (one stem-sized array) and,
+unless ``inplace=True``, the cleaned outputs themselves (one new array per
+stem). For 16 stereo stems of 6 minutes at 44.1 kHz (127 MB each):
 
-* ``inplace=True``  — 127 MB (removed_total) + 0.2 GB working set ≈ 0.33 GB
-* ``inplace=False`` — the above + 16 x 127 MB = 2.03 GB of new output arrays
+* ``inplace=True``  - 127 MB (removed_total) + ~0.2 GB working set
+* ``inplace=False`` - the above + 16 x 127 MB = 2.03 GB of new output arrays
 
-so the pipeline should pass ``inplace=True`` (it never needs the pre-cleanup
-stems again) to stay well under 2 GB of extra RAM. The gate and the range
-filter add at most a few stem-sized (per channel) temporaries.
-:mod:`tests.test_dsp_cleanup` measures the working set with ``tracemalloc``
-and checks that it does not grow with duration.
+so the pipeline passes ``inplace=True`` (it never needs the pre-cleanup
+stems again). The gate and the range filter add at most a few stem-sized
+(per channel) temporaries.
 """
 
 from __future__ import annotations
@@ -39,7 +51,6 @@ from dataclasses import dataclass
 from typing import Dict, List, Mapping, Optional, Tuple
 
 import numpy as np
-from scipy.ndimage import uniform_filter
 
 from ._filters import butter_highpass, zero_phase_sos
 from ._stft import FrameGrid
@@ -53,24 +64,42 @@ STRENGTHS = ("light", "standard", "strong")
 class CleanupParams:
     """Per-strength cleanup parameters (SPEC 2.1)."""
 
-    tau: float          # ownership threshold
-    beta: float         # attenuation exponent below tau
-    gmin_db: float      # bleed-mask gain floor
-    gate_own_db: float  # gate opens above (stem peak RMS + this)
-    gate_mix_db: float  # ... and above (mix envelope + this)
+    tau: float            # cross-group ownership threshold (removal)
+    beta: float           # attenuation exponent below tau
+    gmin_db: float        # cross-group gain floor
+    tau_within: float     # within-group ownership threshold; 0 = off
+    beta_within: float
+    gmin_within_db: float
+    gate_own_db: float    # gate opens above (stem peak RMS + this)
+    gate_mix_db: float    # ... and above (mix envelope + this)
 
 
 CLEANUP_PARAMS: Dict[str, CleanupParams] = {
-    "light": CleanupParams(0.05, 1.0, -12.0, -65.0, -50.0),
-    "standard": CleanupParams(0.10, 1.5, -20.0, -55.0, -42.0),
-    "strong": CleanupParams(0.18, 2.0, -30.0, -48.0, -36.0),
+    #                      tau   beta  gmin   tau_w beta_w gmin_w  gate own/mix
+    "light": CleanupParams(0.05, 1.0, -12.0, 0.0, 1.0, -12.0, -55.0, -42.0),
+    "standard": CleanupParams(0.10, 1.5, -20.0, 0.0, 1.0, -12.0, -45.0, -35.0),
+    "strong": CleanupParams(0.20, 2.0, -30.0, 0.05, 1.0, -12.0, -35.0, -27.0),
 }
+
+GROUP_TAU_SCALE: Dict[str, float] = {"vocals": 1.5, "drums": 0.6, "bass": 0.5}
+"""Per-group multiplier of the cross-group ``tau`` (instruments: 1). Measured
+at ``standard`` on MUSDB18 (8 tracks, ``tools/eval_musdb.py``, SPEC 2.1):
+
+* drums 0.6 - drum hits are broadband (a cymbal decay under a vocal, a kick
+  under the bass), so bins the drums own only a small share of are still
+  mostly drums: a uniform 0.10 cost them 0.36 dB SDR, 0.06 costs 0.23 dB for
+  +0.49 dB SIR;
+* bass 0.5 - the bass shares its range with the kick and its harmonics with
+  everything else; at 0.05 it loses nothing (+0.01 dB SDR, +0.50 dB SIR);
+* vocals 1.5 - the isolated vocal line is what the product is judged on:
+  0.15 instead of 0.10 buys +0.10 dB more vocal SIR (+0.51 in all) for
+  0.05 dB more SDR (-0.16 in all); 2.0 would cost -0.22 / -0.68 dB at
+  standard / strong and take strong below BS-Roformer-SW's own vocals.
+"""
 
 # Bleed mask STFT (SPEC: n_fft 4096, hop 1024, sqrt-Hann, perfect reconstruction)
 MASK_N_FFT = 4096
 MASK_HOP = 1024
-MASK_SMOOTH_FREQ = 3
-MASK_SMOOTH_TIME = 5
 
 # Activity gate timing
 GATE_ENV_MS = 10.0
@@ -125,23 +154,55 @@ def _check_inplace(arr: np.ndarray, name: str) -> None:
         raise ValueError(f"inplace=True needs writable C-contiguous float32 (c, n) arrays; {name!r} is not")
 
 
+def stem_groups(stem_ids) -> Dict[str, str]:
+    """Catalogue group of every stem id; an id the catalogue does not know is
+    its own group (so unknown stems are only ever masked against each other)."""
+    from ..catalog import is_known_stem, spec_for  # noqa: PLC0415 - dsp stays importable on its own
+
+    return {sid: (spec_for(sid).group if is_known_stem(sid) else sid) for sid in stem_ids}
+
+
+def _ownership_gain(own: np.ndarray, tau: float, beta: float, floor: np.float32) -> np.ndarray:
+    """``(own / tau) ** beta`` below ``tau`` (floored at ``floor``), 1 above.
+
+    Applied per bin, without smoothing the gain over neighbouring bins: a
+    3x5 smoothing (the first version) spread the attenuation into bins the
+    stem does own and cost 2-3x more SDR for the same SIR gain, with lower SAR
+    and ISR as well (SPEC 2.1). The 4096-point analysis window already
+    averages over 93 ms, which keeps the gain from fluttering.
+    """
+    gain = np.ones_like(own)
+    below = own < tau
+    gain[below] = np.maximum(np.power(own[below] / np.float32(tau), beta), floor)
+    return gain
+
+
 # ================================================================ bleed mask
 def bleed_mask(stems: Mapping[str, np.ndarray], sr: int, strength: str, *,
-               inplace: bool = False, block_frames: int = 256) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
-    """Cross-stem Wiener-style ownership masking (SPEC 2.1 step 1).
+               groups: Optional[Mapping[str, str]] = None, inplace: bool = False,
+               block_frames: int = 256) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
+    """Group-aware Wiener-style ownership masking (SPEC 2.1 step 1).
 
-    For every STFT bin, stem ``i`` owns ``w_i = |S_i|^2 / sum_j |S_j|^2`` of
-    the energy. Where ``w_i < tau`` its bin is attenuated by
-    ``(w_i / tau) ** beta`` (floored at ``g_min``); the gain is then averaged
-    over a 3 (frequency) x 5 (time) neighbourhood to avoid musical noise and
-    applied to stem ``i``'s own spectrum. Energy is never moved between
-    stems: what a stem loses goes to ``removed_total``.
+    ``groups`` maps every stem id to a group (default :func:`stem_groups`:
+    the catalogue groups; unknown ids are their own group). Per STFT bin:
+
+    * across groups: group ``g`` (spectrum ``G_g`` = the sum of its stems)
+      owns ``w_g = |G_g|^2 / sum_h |G_h|^2``. Where ``w_g < tau_g`` (``tau``
+      times :data:`GROUP_TAU_SCALE`) every stem of the group is multiplied by
+      ``(w_g / tau_g) ** beta``, floored at ``g_min``.
+    * inside a group of two or more stems (only when ``tau_within > 0``):
+      stem ``i`` owns ``u_i = |S_i|^2 / sum_{j in g} |S_j|^2`` of the group;
+      where ``u_i < tau_within`` it is further multiplied by
+      ``(u_i / tau_within) ** beta_within``, floored at ``g_min_within``.
+
+    Gains are applied bin by bin (not smoothed across bins). Energy is never
+    moved between stems: what a stem loses goes to ``removed_total``.
 
     Returns ``(cleaned, removed_total)`` with ``cleaned[k] + removed_k ==
-    stems[k]`` and ``removed_total == sum_k removed_k``. All stems must share
-    one shape. With ``inplace=True`` the cleaned audio is written into the
-    input arrays (which must be writable C-contiguous float32) and the same
-    array objects are returned — see the module docstring for memory figures.
+    stems[k]`` and ``removed_total == sum_k removed_k``. All stems must
+    share one shape. With ``inplace=True`` the cleaned audio is written into
+    the input arrays (which must be writable C-contiguous float32) and the
+    same array objects are returned - see the module docstring for memory.
     """
     params = _params(strength)
     if not stems:
@@ -158,21 +219,26 @@ def bleed_mask(stems: Mapping[str, np.ndarray], sr: int, strength: str, *,
     for sid, arr in zip(ids, arrays):
         if arr.shape != shape:
             raise ValueError(f"stem {sid!r} has shape {arr.shape}, expected {shape}")
+    group_of = dict(stem_groups(ids)) if groups is None else {sid: str(groups[sid]) for sid in ids}
+    members: Dict[str, List[int]] = {}
+    for index, sid in enumerate(ids):
+        members.setdefault(group_of[sid], []).append(index)
     n_ch, n = shape
     outputs = arrays if inplace else [np.empty(shape, dtype=np.float32) for _ in arrays]
     removed = np.zeros(shape, dtype=np.float32)
-    if n == 0 or len(arrays) == 1:
-        # a single stem owns every bin: nothing to do
+    cross = len(members) > 1 and params.tau > 0.0
+    within = params.tau_within > 0.0 and any(len(m) > 1 for m in members.values())
+    if n == 0 or not (cross or within):
+        # one group of one stem (or nothing to do): the identity
         if not inplace:
             for src, dst in zip(arrays, outputs):
                 dst[...] = src
         return dict(zip(ids, outputs)), removed
 
     grid = FrameGrid(n, MASK_N_FFT, MASK_HOP)
-    tau = np.float32(params.tau)
-    beta = float(params.beta)
     g_floor = np.float32(10.0 ** (params.gmin_db / 20.0))
-    context = MASK_SMOOTH_TIME // 2
+    w_floor = np.float32(10.0 ** (params.gmin_within_db / 20.0))
+    context = 0  # every frame's gain depends on that frame only
     k = len(arrays)
     for ch in range(n_ch):
         pending: Optional[Tuple[int, int, List[np.ndarray]]] = None
@@ -185,17 +251,39 @@ def bleed_mask(stems: Mapping[str, np.ndarray], sr: int, strength: str, *,
                 _flush(outputs, ch, pending)
                 pending = None
             power = spec.real * spec.real + spec.imag * spec.imag
-            total = power.sum(axis=0)
-            np.maximum(total, np.float32(1e-30), out=total)
             lo, hi = blk.m0 - blk.fa, blk.m1 - blk.fa
+            cross_gain: Dict[str, Optional[np.ndarray]] = {g: None for g in members}
+            if cross:
+                group_power = {}
+                for g, idx in members.items():
+                    if len(idx) == 1:
+                        group_power[g] = power[idx[0]]
+                    else:
+                        total_spec = spec[idx].sum(axis=0)
+                        group_power[g] = total_spec.real * total_spec.real + total_spec.imag * total_spec.imag
+                total = sum(group_power.values())
+                np.maximum(total, np.float32(1e-30), out=total)
+                for g in members:
+                    tau_g = params.tau * GROUP_TAU_SCALE.get(g, 1.0)
+                    cross_gain[g] = _ownership_gain(group_power[g] / total, tau_g, params.beta, g_floor)
+                del group_power, total
+            within_total: Dict[str, np.ndarray] = {}
+            if within:
+                for g, idx in members.items():
+                    if len(idx) > 1:
+                        group_total = power[idx].sum(axis=0)
+                        np.maximum(group_total, np.float32(1e-30), out=group_total)
+                        within_total[g] = group_total
             cleaned_blocks: List[np.ndarray] = []
             for i, arr in enumerate(arrays):
-                own = power[i] / total
-                gain = np.ones_like(own)
-                below = own < tau
-                gain[below] = np.maximum(np.power(own[below] / tau, beta), g_floor)
-                gain = uniform_filter(gain, size=(MASK_SMOOTH_TIME, MASK_SMOOTH_FREQ), mode="nearest")
-                y = grid.synthesize(spec[i, lo:hi] * gain[lo:hi], blk.m0, blk.s0, blk.s1)
+                g = group_of[ids[i]]
+                gain = cross_gain[g]
+                if g in within_total:
+                    own = _ownership_gain(power[i] / within_total[g], params.tau_within, params.beta_within,
+                                          w_floor)
+                    gain = own if gain is None else gain * own
+                block_spec = spec[i, lo:hi] if gain is None else spec[i, lo:hi] * gain[lo:hi]
+                y = grid.synthesize(block_spec, blk.m0, blk.s0, blk.s1)
                 removed[ch, blk.s0:blk.s1] += arr[ch, blk.s0:blk.s1] - y
                 cleaned_blocks.append(y)
             pending = (blk.s0, blk.s1, cleaned_blocks)
@@ -321,8 +409,8 @@ def _apply_gain_curve(x: np.ndarray, centres: np.ndarray, gain_db: np.ndarray,
 def activity_gate(stem: np.ndarray, mix: np.ndarray, sr: int, strength: str) -> Tuple[np.ndarray, np.ndarray]:
     """Close the stem where it is inactive (SPEC 2.1 step 2).
 
-    Thresholds (dB): light own -65 / mix -50, standard -55 / -42, strong
-    -48 / -36 — see :func:`gate_gain_curve`. The same gain is applied to
+    Thresholds (dB): light own -55 / mix -42, standard -45 / -35, strong
+    -35 / -27 - see :func:`gate_gain_curve`. The same gain is applied to
     every channel. Returns ``(gated, removed)`` with ``gated + removed == stem``.
     """
     arr = _as_2d(stem)
@@ -361,16 +449,18 @@ def range_filter(stem_id: str, x: np.ndarray, sr: int) -> Tuple[np.ndarray, np.n
 
 # ================================================================== chain
 def cleanup_stems(stems: Mapping[str, np.ndarray], mix: np.ndarray, sr: int, strength: str, *,
+                  groups: Optional[Mapping[str, str]] = None,
                   inplace: bool = False) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
     """Bleed mask -> activity gate -> range filter on every stem.
 
     ``stems`` maps catalogue stem ids (``lead_vocals``, ``kick``, ``bass`` ...)
     to primary stems of one shape; ``mix`` is the original mix (used by the
-    gate). Returns ``(cleaned, removed_total)`` with
-    ``sum(cleaned) + removed_total == sum(stems)`` to float32 precision.
-    ``inplace=True`` overwrites the input arrays (see module docstring).
+    gate); ``groups`` as in :func:`bleed_mask`. Returns ``(cleaned,
+    removed_total)`` with ``sum(cleaned) + removed_total == sum(stems)`` to
+    float32 precision. ``inplace=True`` overwrites the input arrays (see the
+    module docstring).
     """
-    cleaned, removed_total = bleed_mask(stems, sr, strength, inplace=inplace)
+    cleaned, removed_total = bleed_mask(stems, sr, strength, groups=groups, inplace=inplace)
     if removed_total.shape[1] == 0:
         return cleaned, removed_total
     for sid, arr in cleaned.items():
@@ -388,5 +478,5 @@ def cleanup_stems(stems: Mapping[str, np.ndarray], mix: np.ndarray, sr: int, str
 
 __all__ = [
     "CLEANUP_PARAMS", "RANGE_FILTER_HZ", "STRENGTHS", "CleanupParams",
-    "activity_gate", "bleed_mask", "cleanup_stems", "gate_gain_curve", "range_filter",
+    "activity_gate", "bleed_mask", "cleanup_stems", "gate_gain_curve", "range_filter", "stem_groups",
 ]

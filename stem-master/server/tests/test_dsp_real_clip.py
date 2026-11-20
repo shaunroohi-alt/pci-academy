@@ -51,7 +51,7 @@ def test_dsp_chain_on_real_clip():
     assert res["key"] in KEY_TO_CAMELOT and res["camelot"] == KEY_TO_CAMELOT[res["key"]]
     pyln = pytest.importorskip("pyloudnorm")
     assert res["loudness_lufs"] == pytest.approx(pyln.Meter(sr).integrated_loudness(mix.T), abs=0.01)
-    assert res["artifact_label"] != "high"          # a professional mix
+    assert res["artifact_label"] == "low"           # a professional mix (AAC cut-off at ~17 kHz is not an artifact)
     assert res["spectral_cutoff_hz"] is None or 11000.0 <= res["spectral_cutoff_hz"] <= 20000.0
 
     # cleanup: removal accounting holds and real stems are not damaged
@@ -62,10 +62,13 @@ def test_dsp_chain_on_real_clip():
         assert abs(_db(cleaned[name]) - _db(stems[name])) < 3.0, name
     assert _db(removed) < _db(mix) - 10.0
 
-    # denoise on the vocal stem: identity and gentle on clean material
-    clean, noise = denoise_dsp(stems["vocals"], sr, "standard")
-    np.testing.assert_allclose(clean + noise, stems["vocals"], atol=1e-6)
-    assert abs(_db(clean) - _db(stems["vocals"])) < 1.0
+    # denoise: identity, and near-zero action on clean stems (SPEC 2.2 budget:
+    # <= 0.5 dB at standard, <= 1 dB at strong)
+    for name in STEMS:
+        for strength, budget in (("standard", 0.5), ("strong", 1.0)):
+            clean, noise = denoise_dsp(stems[name], sr, strength)
+            np.testing.assert_allclose(clean + noise, stems[name], atol=1e-6)
+            assert _db(stems[name]) - _db(clean) <= budget, (name, strength)
 
     for name in STEMS:
         st = stem_stats(cleaned[name], sr)
