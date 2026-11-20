@@ -107,6 +107,7 @@ struct InfoChip: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(Capsule().fill(Color.smPanel2))
+        .accessibilityElement(children: .combine)
     }
 }
 
