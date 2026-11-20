@@ -1,0 +1,147 @@
+name: Stem Master server
+
+# Tests the separation server (fake engine, no models), checks that the API
+# contract fixture the iOS tests decode is committed and current, and builds
+# the Docker image. The image is pushed to GHCR only from main, or when run by
+# hand with "publish" ticked.
+on:
+  push:
+    paths:
+      - 'stem-master/server/**'
+      - 'stem-master/contract/**'
+      - '.github/workflows/stem-master-server.yml'
+  pull_request:
+    paths:
+      - 'stem-master/server/**'
+      - 'stem-master/contract/**'
+      - '.github/workflows/stem-master-server.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Push the image to ghcr.io (tags latest and the commit sha)
+        type: boolean
+        default: false
+
+concurrency:
+  group: stem-master-server-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: stem-master/server
+    env:
+      STEM_MASTER_ENGINE: fake
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            stem-master/server/requirements.txt
+            stem-master/server/requirements-dev.txt
+
+      - name: Install ffmpeg and libsndfile
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg libsndfile1
+
+      # CPU wheels first: audio-separator imports torch, and the default PyPI
+      # wheel would download several GB of CUDA libraries the tests never use.
+      - name: Install PyTorch (CPU)
+        run: python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install server dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      # The server tests write stem-master/contract/job_completed.json, which
+      # the iOS tests decode. A diff here means the API output changed (or the
+      # fixture was never committed): commit the regenerated file together
+      # with any matching change to the iOS models.
+      - name: Contract fixture is committed and up to date
+        working-directory: .
+        run: |
+          if [ ! -f stem-master/contract/job_completed.json ]; then
+            echo "::error file=stem-master/contract/job_completed.json::The server tests did not write stem-master/contract/job_completed.json."
+            exit 1
+          fi
+          # Count new, untracked files as changes too.
+          git add --intent-to-add -- stem-master/contract
+          if ! git diff --exit-code --stat -- stem-master/contract; then
+            git diff -- stem-master/contract | head -n 200
+            echo "::error file=stem-master/contract/job_completed.json::The API contract fixture changed when the server tests ran. Run 'STEM_MASTER_ENGINE=fake python -m pytest' in stem-master/server and commit stem-master/contract/."
+            exit 1
+          fi
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The CUDA-enabled PyTorch layer alone is several GB.
+      - name: Free runner disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Image name and publish decision
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GIT_REF: ${{ github.ref }}
+          PUBLISH_INPUT: ${{ inputs.publish }}
+        run: |
+          owner="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${owner}/stem-master-server" >> "$GITHUB_OUTPUT"
+          if { [ "$EVENT_NAME" = push ] && [ "$GIT_REF" = refs/heads/main ]; } \
+             || { [ "$EVENT_NAME" = workflow_dispatch ] && [ "$PUBLISH_INPUT" = true ]; }; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+            echo "Publishing ghcr.io/${owner}/stem-master-server"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+            echo "Build only (publishes on push to main, or workflow_dispatch with publish ticked)"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: steps.meta.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build${{ steps.meta.outputs.push == 'true' && ' and push' || '' }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: stem-master/server
+          file: stem-master/server/Dockerfile
+          push: ${{ steps.meta.outputs.push == 'true' }}
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=Stem Master server
+            org.opencontainers.image.description=Stem Master by MP Audio: GPU stem separation API
+          cache-from: type=gha,scope=stem-master-server
+          cache-to: type=gha,mode=max,scope=stem-master-server,ignore-error=true
