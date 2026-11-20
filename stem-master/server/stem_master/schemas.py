@@ -69,7 +69,7 @@ STAGE_LABELS: Dict[str, str] = {
     "vocal_split": "Splitting lead and backing vocals",
     "dereverb": "Removing vocal reverb",
     "cleanup": "Cleaning up stems",
-    "denoise": "Removing AI artifacts and noise",
+    "denoise": "Removing measured noise and flicker",
     "finalize": "Writing stems",
     "done": "Done",
 }

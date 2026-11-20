@@ -107,7 +107,9 @@ clean material passes untouched; everything taken out goes to
 1. DC removal + 16 Hz zero-phase high-pass (4th order; −0.67 dB at 20 Hz,
    −0.03 dB at 30 Hz) on every stem, faded in / out over the first / last
    250 ms so a stem that starts or ends at full level keeps its edges.
-2. Vocal stems: neural denoise (aufr33 Mel-RoFormer), then DSP.
+2. Vocal stems: neural denoise (aufr33 Mel-RoFormer) **only when** a noise
+   floor is measured on that stem or the mix `artifact_level` ≥ 0.33; on
+   clean vocals it only cuts quiet breaths/tails, so it is skipped. Then DSP.
 3. Stationary noise floor, only where one is detected (per channel, STFT
    46 ms). A bin is noise floor when its lower tail (5/15/30 % quantiles over
    the active frames) has the Rayleigh shape of Gaussian noise, is stationary
@@ -223,7 +225,8 @@ Auth: if the server has `STEM_MASTER_API_KEY` set, every `/v1/*` route except
 Clients send `X-Client-Id: <uuid>` (random per install); `GET /v1/jobs` only
 lists that client's jobs.
 
-Errors: `{"detail": "human readable message"}` with 4xx/5xx.
+Errors: `{"detail": "human readable message"}` with 4xx/5xx; `507` when the
+server is out of disk space (uploads, ZIP builds).
 
 ### `GET /v1/health` → 200
 ```json
@@ -329,7 +332,8 @@ test-suite and decoded by the iOS test-suite, so drift fails CI on both sides.
 | `STEM_MASTER_MAX_UPLOAD_MB` | 200 | |
 | `STEM_MASTER_MAX_DURATION_S` | 900 | |
 | `STEM_MASTER_JOB_TTL_HOURS` | 24 | finished jobs are deleted after this |
-| `STEM_MASTER_WORKERS` | 1 | concurrent jobs (one per GPU) |
+| `STEM_MASTER_WORKERS` | 1 | concurrent jobs; inference is serialised on one device, so more workers only overlap decode/encode |
+| `STEM_MASTER_MODEL_CACHE` | `auto` | loaded models kept in memory; `auto` sizes it from free VRAM (CUDA) or RAM at ~1 GiB per model, clamped 1–16 |
 | `STEM_MASTER_ENGINE` | `audio-separator` | `fake` = DSP stand-in for tests |
 | `STEM_MASTER_OVERLAP_MAX` / `_FAST` | 4 / 2 | RoFormer overlap per quality |
 | `PORT` | 7860 | |

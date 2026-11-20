@@ -25,7 +25,7 @@ repository.
 What it produces: vocals (lead / backing, optional dry + reverb), a drum kit
 split into kick, snare, toms, hi-hat, ride and crash, bass, guitar, piano &
 keys, and synths & other, with optional Cleanup (bleed removal between
-stems) and Denoise (removes measured hiss, hum, rumble and high-band flicker;
+stems) and Denoise (removes measured hiss, sub-sonic rumble and high-band flicker;
 it does not remove the noise-like high band that is part of AI-generated
 music, and it does not remove provenance watermarks). Whatever those two
 options remove is returned as separate `removed_*` stems, so nothing is

@@ -53,7 +53,7 @@ not who or what made it.
 | Vocal split | On | Splits vocals into lead and backing. |
 | Dereverb | Off | Dry vocals plus the removed reverb as its own stem. |
 | Cleanup | On (standard) | Removes bleed between stems with DSP. Light / standard / strong. |
-| Denoise | Off (standard) | Removes measured hiss, hum, rumble and high-band flicker. Light / standard / strong. |
+| Denoise | Off (standard) | Removes measured hiss, sub-sonic rumble and high-band flicker (no mains-hum filter). Light / standard / strong. |
 | Output format | 24-bit WAV | 24-bit, 32-bit float or 16-bit WAV. |
 
 ### Measured quality
@@ -93,7 +93,7 @@ on every stem:
 
 **Denoise** removes only what it measures in each stem, so clean material
 passes through untouched: DC offset and sub-sonic rumble (16 Hz high-pass), a
-stationary noise floor (hiss, hum, static) where one is detected, and
+stationary noise floor (hiss, static) where one is detected, and
 high-band flicker where it is measured. A vocal stem also goes through a
 neural denoise model, but only when a noise floor is measured on it or the
 track's artifact level is moderate or high: on clean vocals that model only
@@ -327,8 +327,9 @@ Workflows (in `.github/workflows/`):
 - **Releasing on the App Store needs an Apple Developer Program membership**
   ($99 a year), an App Store Connect app record and a privacy policy. Without
   it you can still run the app on your own iPhone from Xcode.
-- **Denoise is not an "AI remover".** It removes measured hiss, hum, rumble
-  and high-band flicker. It does not remove the noise-like high band that is
+- **Denoise is not an "AI remover".** It removes measured hiss, sub-sonic
+  rumble and high-band flicker. It has no mains-hum filter (a 60 Hz hum
+  passes through unchanged). It does not remove the noise-like high band that is
   part of AI-generated music, and it does not remove provenance watermarks.
 - **Separation is not perfect.** These are among the strongest open models,
   but dense mixes still leave some bleed. That is why Cleanup's removals are
